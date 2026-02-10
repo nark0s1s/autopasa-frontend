@@ -7,8 +7,8 @@ import {
 } from 'lucide-react'
 import {
   getTurnosGrifero,
-  getContometrosActivos,
-  getProductosActivos,
+  getContometros,
+  getProductos,
   agregarLecturaContometro,
   actualizarLecturaFinal,
   agregarVentaProducto,
@@ -56,8 +56,8 @@ function ConsultarTurnos() {
       
       // Cargar contómetros y productos
       const [contometrosData, productosData] = await Promise.all([
-        getContometrosActivos(),
-        getProductosActivos()
+        getContometros(),
+        getProductos()
       ])
       
       setContometros(contometrosData)

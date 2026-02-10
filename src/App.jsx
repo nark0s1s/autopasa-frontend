@@ -6,6 +6,7 @@ import LiquidacionGrifero from './pages/LiquidacionGrifero'
 import DetalleTurno from './pages/DetalleTurno'
 import GestionTurnoDia from './pages/GestionTurnoDia'
 import ConsultarTurnos from './pages/ConsultarTurnos'
+import CuadreDiario from './pages/CuadreDiario'
 import ProximamentePage from './pages/ProximamentePage'
 
 // Componente para rutas protegidas
@@ -60,6 +61,16 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <ConsultarTurnos />
+                </Layout>
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/cuadre-diario" 
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <CuadreDiario />
                 </Layout>
               </PrivateRoute>
             } 

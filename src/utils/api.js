@@ -163,4 +163,54 @@ export const cerrarTurnoGrifero = async (turnoId, data) => {
   return response.data
 }
 
+// ============================================================================
+// CATÁLOGOS
+// ============================================================================
+
+export const getEmpleados = async (activo = true) => {
+  const response = await api.get('/api/catalogos/empleados', { params: { activo } })
+  return response.data
+}
+
+export const getContometros = async (activo = true) => {
+  const response = await api.get('/api/catalogos/contometros', { params: { activo } })
+  return response.data
+}
+
+export const getProductos = async (activo = true) => {
+  const response = await api.get('/api/catalogos/productos', { params: { activo } })
+  return response.data
+}
+
+export const getTerminales = async (activo = true) => {
+  const response = await api.get('/api/catalogos/terminales', { params: { activo } })
+  return response.data
+}
+
+export const getClienteByDocumento = async (numeroDocumento) => {
+  const response = await api.get('/api/catalogos/clientes/num-documento', { params: { numero_documento: numeroDocumento } })
+  return response.data
+}
+
+export const getTiposVale = async (activo = true) => {
+  const response = await api.get('/api/catalogos/tipos-vale', { params: { activo } })
+  return response.data
+}
+
+// ============================================================================
+// CUADRE DIARIO
+// ============================================================================
+
+export const guardarCuadreCompleto = async (data) => {
+  const response = await api.post('/api/cuadre/cuadre-completo', data)
+  return response.data
+}
+
+export const obtenerCuadreHoy = async (fecha) => {
+  if (!fecha) throw new Error("Fecha es requerida")
+  const params = { fecha }
+  const response = await api.get('/api/cuadre', { params })
+  return response.data
+}
+
 export default api

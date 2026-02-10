@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  Fuel, Gauge, FileText, Users, Settings, LogOut, Menu, X, Calendar
+  Fuel, Gauge, FileText, Users, Settings, LogOut, Menu, X, Calendar, Calculator
 } from 'lucide-react'
 
 function Layout({ children }) {
@@ -42,6 +42,12 @@ function Layout({ children }) {
           path: '/consultar-turnos',
           icon: FileText,
           description: 'Ver y liquidar turnos'
+        },
+        {
+          name: 'Cuadre Diario',
+          path: '/cuadre-diario',
+          icon: Calculator,
+          description: 'Cuadre contable final'
         }
       ]
     },

@@ -7,8 +7,8 @@ import {
 } from 'lucide-react'
 import {
   getTurnoById,
-  getContometrosActivos,
-  getProductosActivos
+  getContometros,
+  getProductos
 } from '../utils/api'
 
 function DetalleTurno() {
@@ -33,8 +33,8 @@ function DetalleTurno() {
       
       const [turnoData, contometrosData, productosData] = await Promise.all([
         getTurnoById(id),
-        getContometrosActivos(),
-        getProductosActivos()
+        getContometros(),
+        getProductos()
       ])
       
       setTurno(turnoData)
