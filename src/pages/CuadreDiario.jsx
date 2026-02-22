@@ -78,6 +78,12 @@ export default function CuadreDiario() {
   
   // Estado de carga
   const [isLoading, setIsLoading] = useState(false)
+  const [notificacion, setNotificacion] = useState(null) // { tipo: 'success'|'error', mensaje: string }
+
+  const mostrarNotificacion = (tipo, mensaje) => {
+    setNotificacion({ tipo, mensaje })
+    setTimeout(() => setNotificacion(null), 6000)
+  }
 
   // --- ESTADOS ESPECÍFICOS DE LOS MODALES ---
   // Almacenamos la info detallada aquí para enviarla al backend luego
@@ -153,7 +159,7 @@ export default function CuadreDiario() {
       detallesPOS.length > 0
     
     if (!tieneDetalles) {
-      alert('Debe agregar al menos un detalle (depósito, producto, crédito, etc.) antes de guardar el cuadre.')
+      mostrarNotificacion('error', 'Debe agregar al menos un detalle antes de guardar el cuadre.')
       return
     }
     
@@ -163,9 +169,9 @@ export default function CuadreDiario() {
         detalles: {
           depositos: detallesDepositos.map(d => ({
             monto: parseFloat(d.monto),
-            recibido_por: parseInt(d.recibidoPor), // ID como integer (FK a empleados)
-            numero_comprobante: d.numeroComprobante,
-            observaciones: d.observaciones
+            recibido_por: d.recibidoPor ? parseInt(d.recibidoPor) : null,
+            numero_comprobante: d.numeroComprobante || null,
+            observaciones: d.observaciones || null
           })),
           productos: detallesProductos.map(p => ({
             producto_id: parseInt(p.productoId),
@@ -177,22 +183,22 @@ export default function CuadreDiario() {
           creditos: detallesCreditos.map(c => ({
             cliente_id: parseInt(c.clienteId),
             monto: parseFloat(c.monto),
-            numero_documento: c.numeroDocumento,
+            numero_documento: c.documento || c.numeroDocumento || null,
             fecha_vencimiento: c.fechaVencimiento || new Date().toISOString().split('T')[0],
-            observaciones: c.observaciones
+            observaciones: c.observaciones || null
           })),
           descuentos: detallesDescuentos.map(d => {
             const montoVenta = parseFloat(d.montoVenta) || 0
-            const porcentaje = parseFloat(d.porcentajeDescuento) || 0
-            const montoDescuento = montoVenta * porcentaje / 100
+            const porcentaje = parseFloat(d.porcentaje || d.porcentajeDescuento) || 0
+            const montoDescuento = parseFloat(d.montoDescuento) || (montoVenta * porcentaje / 100)
             const montoFinal = montoVenta - montoDescuento
             
             return {
               cliente_id: parseInt(d.clienteId),
               monto_venta: montoVenta,
               porcentaje_descuento: porcentaje,
-              monto_descuento: montoDescuento,
-              monto_final: montoFinal
+              monto_descuento: parseFloat(montoDescuento.toFixed(2)),
+              monto_final: parseFloat(montoFinal.toFixed(2))
             }
           }),
           gastos: detallesGastos.map(g => ({
@@ -211,15 +217,15 @@ export default function CuadreDiario() {
           vales: detallesVales.map(v => ({
             tipo_vale_id: parseInt(v.tipoId),
             monto: parseFloat(v.monto),
-            beneficiario: v.beneficiario,
-            numero_vale: v.numeroVale,
-            observaciones: v.observaciones
+            beneficiario: v.beneficiario || 'N/A',
+            numero_vale: v.numeroVale || 'S/N',
+            observaciones: v.observaciones || null
           })),
           pos: detallesPOS.map(p => ({
             monto: parseFloat(p.monto),
-            numero_lote: p.numeroLote || '',
-            numero_operacion: p.numeroOperacion,
-            tipo_tarjeta: p.tipoTarjeta.toLowerCase(),
+            numero_lote: p.numeroLote || 'S/L',
+            numero_operacion: p.numeroOperacion || 'S/N',
+            tipo_tarjeta: (p.tipoTarjeta || 'debito').toLowerCase(),
             terminal_id: parseInt(p.terminalId)
           }))
         },
@@ -251,12 +257,19 @@ export default function CuadreDiario() {
 
       console.log("Enviando payload:", payload)
       const response = await guardarCuadreCompleto(payload)
-      alert(response.message || "Cuadre guardado exitosamente")
+      mostrarNotificacion('success', response.message || '¡Cuadre guardado exitosamente!')
       
     } catch (error) {
       console.error("Error guardando cuadre:", error)
-      const msg = error.response?.data?.detail || "Error al guardar el cuadre"
-      alert(msg)
+      const detail = error.response?.data?.detail
+      let msg = 'Error al guardar el cuadre'
+      if (Array.isArray(detail)) {
+        // Errores de validación Pydantic: [{loc, msg, type}]
+        msg = detail.map(e => `• ${e.loc?.slice(-1)[0] ?? ''}: ${e.msg}`).join('\n')
+      } else if (typeof detail === 'string') {
+        msg = detail
+      }
+      mostrarNotificacion('error', msg)
     }
   }
 
@@ -441,11 +454,28 @@ export default function CuadreDiario() {
           </div>
         </div>
       )}
+
+      {/* Banner de Notificación */}
+      {notificacion && (
+        <div className={`mb-4 p-4 rounded-xl border flex items-start gap-3 ${
+          notificacion.tipo === 'success'
+            ? 'bg-green-50 border-green-200 text-green-800'
+            : 'bg-red-50 border-red-200 text-red-800'
+        }`}>
+          <span className="text-xl leading-none">
+            {notificacion.tipo === 'success' ? '✅' : '❌'}
+          </span>
+          <pre className="flex-1 text-sm font-medium whitespace-pre-wrap break-words font-sans">
+            {notificacion.mensaje}
+          </pre>
+          <button onClick={() => setNotificacion(null)} className="text-current opacity-50 hover:opacity-100 text-xl leading-none">×</button>
+        </div>
+      )}
       <div className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
             <Calculator className="w-8 h-8 text-primary-600" />
-            Cuadre Contable Final
+            Cuadre Contable por Usuario
           </h1>
           <p className="text-gray-500 mt-1">Gestión y balance diario de operaciones</p>
         </div>
@@ -574,6 +604,7 @@ export default function CuadreDiario() {
         onClose={handleCloseModal}
         onSave={handleSaveCreditos}
         listaInicial={detallesCreditos}
+        fecha={fecha}
       />
 
       <ModalDescuentos 
