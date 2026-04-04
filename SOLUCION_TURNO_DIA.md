@@ -174,7 +174,7 @@ Se creó una vista dedicada para que los **Supervisores** gestionen el Turno Dí
 
 ```bash
 # 1. Asegúrate de que el backend y frontend están corriendo
-cd c:\Users\jorge\Proyectos\autopasa\autopasa-backend
+cd c:\Users\jorge\Proyectos\autopasa\autopasa-api
 .\venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload
 

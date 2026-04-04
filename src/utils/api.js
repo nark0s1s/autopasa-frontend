@@ -59,46 +59,46 @@ export const getCurrentUser = async () => {
 }
 
 // ============================================================================
-// TURNOS
+// TURNOS LIQUIDACION
 // ============================================================================
 
 export const getTurnoDiaActual = async () => {
-  const response = await api.get('/api/turnos/dia/actual')
+  const response = await api.get('/api/turnos-liquidacion/actual')
   return response.data
 }
 
 export const crearTurnoDia = async (data) => {
-  const response = await api.post('/api/turnos/dia', data)
+  const response = await api.post('/api/turnos-liquidacion', data)
   return response.data
 }
 
-export const cerrarTurnoDia = async (turnoDiaId, data) => {
-  const response = await api.post(`/api/turnos/dia/${turnoDiaId}/cerrar`, data)
+export const cerrarTurnoDia = async (turnoLiquidacionId, data) => {
+  const response = await api.post(`/api/turnos-liquidacion/${turnoLiquidacionId}/cerrar`, data)
   return response.data
 }
 
 export const getTurnoGriferoActual = async () => {
-  const response = await api.get('/api/turnos/grifero/actual')
+  const response = await api.get('/api/turnos-liquidacion/grifero/actual')
   return response.data
 }
 
 export const crearTurnoGrifero = async (data) => {
-  const response = await api.post('/api/turnos/grifero', data)
+  const response = await api.post('/api/turnos-liquidacion/grifero', data)
   return response.data
 }
 
 export const getTurnosGrifero = async (params = {}) => {
-  const response = await api.get('/api/turnos/grifero', { params })
+  const response = await api.get('/api/turnos-liquidacion/grifero', { params })
   return response.data
 }
 
 export const listarTurnosGrifero = async (params = {}) => {
-  const response = await api.get('/api/turnos/grifero', { params })
+  const response = await api.get('/api/turnos-liquidacion/grifero', { params })
   return response.data
 }
 
 export const getTurnoById = async (turnoId) => {
-  const response = await api.get(`/api/turnos/grifero/${turnoId}`)
+  const response = await api.get(`/api/turnos-liquidacion/grifero/${turnoId}`)
   return response.data
 }
 
@@ -107,12 +107,12 @@ export const getTurnoById = async (turnoId) => {
 // ============================================================================
 
 export const getContometrosActivos = async () => {
-  const response = await api.get('/api/turnos/contometros')
+  const response = await api.get('/api/infraestructura/contometros')
   return response.data
 }
 
 export const getProductosActivos = async () => {
-  const response = await api.get('/api/turnos/productos')
+  const response = await api.get('/api/infraestructura/productos')
   return response.data
 }
 
@@ -121,12 +121,12 @@ export const getProductosActivos = async () => {
 // ============================================================================
 
 export const agregarLecturaContometro = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/lecturas`, data)
+  const response = await api.post(`/api/turnos-liquidacion/grifero/${turnoId}/lecturas`, data)
   return response.data
 }
 
 export const actualizarLecturaFinal = async (lecturaId, data) => {
-  const response = await api.put(`/api/turnos/grifero/lecturas/${lecturaId}`, data)
+  const response = await api.put(`/api/turnos-liquidacion/grifero/lecturas/${lecturaId}`, data)
   return response.data
 }
 
@@ -135,22 +135,22 @@ export const actualizarLecturaFinal = async (lecturaId, data) => {
 // ============================================================================
 
 export const agregarVentaProducto = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/ventas-producto`, data)
+  const response = await api.post(`/api/turnos-liquidacion/grifero/${turnoId}/ventas-producto`, data)
   return response.data
 }
 
 export const agregarVentaPOS = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/ventas-pos`, data)
+  const response = await api.post(`/api/turnos-liquidacion/grifero/${turnoId}/ventas-pos`, data)
   return response.data
 }
 
 export const agregarVale = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/vales`, data)
+  const response = await api.post(`/api/turnos-liquidacion/grifero/${turnoId}/vales`, data)
   return response.data
 }
 
 export const agregarDeposito = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/depositos`, data)
+  const response = await api.post(`/api/turnos-liquidacion/grifero/${turnoId}/depositos`, data)
   return response.data
 }
 
@@ -159,7 +159,7 @@ export const agregarDeposito = async (turnoId, data) => {
 // ============================================================================
 
 export const cerrarTurnoGrifero = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/cerrar`, data)
+  const response = await api.post(`/api/turnos-liquidacion/grifero/${turnoId}/cerrar`, data)
   return response.data
 }
 
