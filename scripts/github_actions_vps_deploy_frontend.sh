@@ -214,8 +214,9 @@ fi
 
 # D) Nginx: archivos que citan el host (solo lectura)
 echo ""
-echo "=== D) Nginx sites-enabled (líneas listen / server_name / root / try_files) ==="
+echo "=== D) Nginx sites-enabled (listen / server_name / root / try_files) ==="
 NGINX_FOUND=0
+EXPECTED_ROOT_LINE="root $DEPLOY_PATH/dist"
 if [ -n "$HOST_FOR_NGINX" ] && [ -d /etc/nginx/sites-enabled ]; then
   for f in /etc/nginx/sites-enabled/*; do
     [ -f "$f" ] || continue
@@ -223,18 +224,30 @@ if [ -n "$HOST_FOR_NGINX" ] && [ -d /etc/nginx/sites-enabled ]; then
       NGINX_FOUND=1
       echo "--- $f ---"
       grep -nE "listen|server_name|^[[:space:]]*root|try_files|index[[:space:]]" "$f" 2>/dev/null | head -50 || echo "    (sin permiso de lectura)"
+      echo ">>> Todas las directivas root en este fichero (localiza el bloque con listen 443 ssl + server_name $HOST_FOR_NGINX):"
+      _root_lines=$(grep -nE '^[[:space:]]*root[[:space:]]' "$f" 2>/dev/null || true)
+      if [ -n "$_root_lines" ]; then
+        printf '%s\n' "$_root_lines" | sed 's/^/    /'
+      else
+        echo "    (ninguna línea root en este fichero — improbable; revisa permisos de lectura)"
+      fi
     fi
   done
 fi
 if [ -n "$HOST_FOR_NGINX" ] && [ "$NGINX_FOUND" -eq 0 ]; then
   echo "[WARN] Ningún archivo en /etc/nginx/sites-enabled menciona $HOST_FOR_NGINX (permiso denegado, o vhost en otro path)."
 fi
-EXPECTED_ROOT_LINE="root $DEPLOY_PATH/dist"
 if [ -n "$HOST_FOR_NGINX" ] && [ -d /etc/nginx/sites-enabled ]; then
-  if grep -r --include='*' -l "$HOST_FOR_NGINX" /etc/nginx/sites-enabled 2>/dev/null | xargs -r grep -l "$DEPLOY_PATH/dist" 2>/dev/null | head -1 | grep -q .; then
-    echo "[OK] Algún vhost que menciona $HOST_FOR_NGINX incluye la ruta de deploy ($DEPLOY_PATH/dist)."
+  if grep -r --include='*' -l "$HOST_FOR_NGINX" /etc/nginx/sites-enabled 2>/dev/null | xargs -r grep -lF "$DEPLOY_PATH/dist" 2>/dev/null | head -1 | grep -q .; then
+    echo "[OK] Algún vhost que menciona $HOST_FOR_NGINX incluye la ruta literal del deploy ($DEPLOY_PATH/dist)."
   else
-    echo "[WARN] No se encontró '$DEPLOY_PATH/dist' en sites-enabled junto con $HOST_FOR_NGINX → Nginx podría servir otra carpeta."
+    echo "[WARN] Ningún sites-enabled contiene la ruta '$DEPLOY_PATH/dist' donde también aparece $HOST_FOR_NGINX."
+    echo ">>> ACCIÓN (en el server { } que tiene listen 443 ssl y server_name $HOST_FOR_NGINX, p. ej. tras la línea de Certbot):"
+    echo "    $EXPECTED_ROOT_LINE"
+    echo "    index index.html;"
+    echo "    location / { try_files \$uri \$uri/ /index.html; }"
+    echo "    Luego: sudo nginx -t && sudo systemctl reload nginx"
+    echo ">>> Si ese bloque no tiene root, Nginx usa otro contexto y devuelve 404 para /."
   fi
 fi
 

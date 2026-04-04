@@ -6,7 +6,8 @@
 # Variables por Environment (recomendado):
 #   VITE_API_URL  → URL base del API para el build (ej. https://autopasa-api-staging.devjal.tech)
 # Opcionales:
-#   SSH_DEPLOY_VERBOSITY (0|1|2), PUBLIC_FRONTEND_STAGING_URL, PUBLIC_FRONTEND_PRODUCTION_URL
+#   SSH_DEPLOY_VERBOSITY: vacío o 0 = SSH sin -v (log limpio; default). 1 = -vv, 2 = -vvv (depurar auth/red).
+#   PUBLIC_FRONTEND_STAGING_URL, PUBLIC_FRONTEND_PRODUCTION_URL
 #   FRONTEND_REQUIRE_PUBLIC_HTTP = 1 → el job falla si HTTPS público no devuelve 200/301/302 tras reintentos
 #     (por defecto relajado: el script igual ejecuta diagnóstico completo, ::error:: en el log y resumen).
 # Post-build (script remoto): exige dist/index.html no vacío + dist/assets; diagnóstico loopback :80/:443 + Host,
@@ -144,7 +145,7 @@ jobs:
           case "$VERB" in
             1) SSH_ARGS+=(-vv) ;;
             2) SSH_ARGS+=(-vvv) ;;
-            *) SSH_ARGS+=(-v) ;;
+            *) ;; # sin -v: evita mezclar líneas debug1: de OpenSSH con la salida del script remoto
           esac
 
           echo "::group::SSH + deploy remoto"
