@@ -1,24 +1,35 @@
-# Deploy Autopasa frontend (Vite) al VPS — mismo criterio que autopasa-api deploy-vps.yml (SSH + script en repo).
+# Deploy Autopasa frontend (Vite) al VPS — misma base que autopasa-api/.github/workflows/deploy-vps.yml
+# (mismo usuario Linux secrets.VPS_USERNAME, típicamente deploy_autopasa; mismos VPS_HOST / VPS_SSH_KEY).
 #
-# DISPARO (on.push): solo al hacer push a las ramas `release` y `main` (p. ej. merge del PR a esas ramas).
-#   - push → release  → Environment staging  → build contra rama release
-#   - push → main     → Environment production → build contra rama main
-# workflow_dispatch: ejecución manual desde la pestaña Actions.
+# Requiere: Environments "staging" y "production" con secrets:
+#   VPS_HOST, VPS_USERNAME, VPS_SSH_KEY
+# Variables por Environment (recomendado):
+#   VITE_API_URL  → URL base del API para el build (ej. https://autopasa-api-staging.devjal.tech)
+# Opcionales:
+#   SSH_DEPLOY_VERBOSITY (0|1|2), PUBLIC_FRONTEND_STAGING_URL, PUBLIC_FRONTEND_PRODUCTION_URL
 #
-# Secrets / variables: ver comentarios abajo (VPS_*, VITE_API_URL por Environment).
+# VPS_USERNAME: p. ej. deploy_autopasa (usuario dedicado Autopasa; el mismo que en el workflow del API).
+# git en el VPS usa HTTPS con github.token (repo privado); no hagas echo del remoto (lleva token).
+#
+# La sesión SSH es ya ese usuario: bajo /var/www puede hacer falta mkdir sin sudo si root ya hizo chown
+# (ver autopasa-api/docs/USUARIO_DEPLOY_AUTOPASA.md — frontend /var/www).
+# El script remoto está en scripts/github_actions_vps_deploy_frontend.sh (no inline en YAML).
+#
+# Si el job usa `environment: staging|production`, los secrets deben existir en ese Environment
+# (Settings → Environments → staging) o a nivel de repositorio; si faltan, verás longitud 0 en pre-flight.
+#
+# Ramas: push a release → staging; push a main → production (develop no dispara deploy).
+# Tras build: valida HTTP 200/301/302 en la URL pública del SPA.
 
 name: Deploy frontend to VPS
 
 on:
   push:
-    branches:
-      - release
-      - main
+    branches: [release, main]
   workflow_dispatch:
 
 jobs:
   deploy:
-    # Solo ejecutar si el evento es push a release o main (evita otros refs por si acaso)
     if: github.ref == 'refs/heads/release' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
@@ -48,56 +59,73 @@ jobs:
           die() { echo "::error::$1" >&2; exit 1; }
 
           echo "::group::Pre-flight: secretos (longitudes en bruto del runner)"
-          echo "[INFO] Ref del workflow: ${{ github.ref }} (release=staging, main=production)"
           echo "[INFO] Entorno del job: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"
           echo "[INFO] Longitud bruta VPS_HOST=${#VPS_HOST} | VPS_USER=${#VPS_USER} | VPS_SSH_KEY=${#VPS_SSH_KEY}"
-          echo "[INFO] VITE_API_URL longitud=${#VITE_API_URL}"
           if [ -z "${VPS_HOST:-}" ]; then
-            die "VPS_HOST vacío: define el secret VPS_HOST en el Environment (staging/production) o en el repo."
+            die "VPS_HOST vacío: define el secret VPS_HOST en el repo o en el Environment (staging/production) de este workflow."
           fi
           if [ -z "${VPS_USER:-}" ]; then
-            die "VPS_USERNAME vacío: define secrets.VPS_USERNAME (p. ej. deploy_autopasa)."
+            die "VPS_USERNAME vacío: define secrets.VPS_USERNAME (mismo usuario Linux que en el VPS, p. ej. deploy_autopasa — el mismo que autopasa-api)."
           fi
           if [ -z "${VPS_SSH_KEY:-}" ]; then
-            die "VPS_SSH_KEY vacío: pega la clave PRIVADA completa en el secret."
+            die "VPS_SSH_KEY vacío: pega la clave PRIVADA completa en el secret (o revisa que el Environment tenga acceso al secret)."
           fi
           if [ -z "${VITE_API_URL:-}" ]; then
             die "VITE_API_URL vacío: define la Variable VITE_API_URL en el Environment (ej. https://autopasa-api-staging.devjal.tech)."
           fi
           echo "::endgroup::"
 
-          echo "::group::Pre-flight: normalizar usuario y host"
+          echo "::group::Pre-flight: normalizar usuario y host (espacios finales rompen SSH)"
+          _RAW_USER="$VPS_USER"
+          _RAW_HOST="$VPS_HOST"
+          _RAW_DEPLOY="$DEPLOY_USER"
           VPS_USER=$(printf '%s' "$VPS_USER" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
           VPS_HOST=$(printf '%s' "$VPS_HOST" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
           DEPLOY_USER=$(printf '%s' "$DEPLOY_USER" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-          echo "[INFO] Usuario SSH efectivo: $(printf '%q' "$VPS_USER")"
+          if [ "$_RAW_USER" != "$VPS_USER" ] || [ "$_RAW_HOST" != "$VPS_HOST" ] || [ "$_RAW_DEPLOY" != "$DEPLOY_USER" ]; then
+            echo "::warning::Se recortaron espacios o \\r en VPS_HOST / VPS_USERNAME / DEPLOY_USER. Vuelve a guardar los secrets en GitHub sin espacios al inicio/final."
+          fi
+          if [ -z "$VPS_USER" ]; then
+            die "Tras normalizar, VPS_USERNAME quedó vacío."
+          fi
+          echo "[INFO] Usuario SSH efectivo: longitud=${#VPS_USER} repr=$(printf '%q' "$VPS_USER")"
+          echo "[INFO] Host efectivo: longitud=${#VPS_HOST} repr=$(printf '%q' "$VPS_HOST")"
           echo "::endgroup::"
 
-          echo "::group::Pre-flight: clave SSH"
-          KEY="$RUNNER_TEMP/vps_deploy_key_frontend"
+          echo "::group::Pre-flight: fichero de clave y huella (sin exponer la clave)"
+          KEY="$RUNNER_TEMP/vps_deploy_key"
           umask 077
           printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > "$KEY"
           chmod 600 "$KEY"
           FIRST=$(head -n1 "$KEY" | tr -d '\r' || true)
           if ! echo "$FIRST" | grep -q "BEGIN"; then
-            die "VPS_SSH_KEY no parece PEM/OpenSSH (primera línea sin BEGIN)."
+            die "VPS_SSH_KEY no parece PEM/OpenSSH (primera línea sin BEGIN). ¿Pegaste la clave pública o el contenido está truncado?"
           fi
           if ! FP_OUT=$(ssh-keygen -lf "$KEY" 2>&1); then
             die "ssh-keygen -lf falló: $FP_OUT"
           fi
           echo "$FP_OUT"
+          echo "[OK] Esta huella debe coincidir con la pública en el VPS (misma línea que en authorized_keys del usuario deploy_autopasa)."
+          echo "[OK] Clave privada parseable."
+          FP_SHA=$(echo "$FP_OUT" | awk '{print $2}')
+          echo "[INFO] SHA256 corto para comparar: $FP_SHA"
           echo "::endgroup::"
 
-          echo "::group::Pre-flight: TCP puerto 22"
+          echo "::group::Pre-flight: variables de build (solo longitudes)"
+          echo "[INFO] VITE_API_URL longitud=${#VITE_API_URL}"
+          echo "[INFO] PUBLIC_FRONTEND_CHECK_URL longitud=${#PUBLIC_FRONTEND_CHECK_URL}"
+          echo "::endgroup::"
+
+          echo "::group::Pre-flight: conectividad TCP puerto 22"
           if timeout 10 bash -c "echo >/dev/tcp/${VPS_HOST}/22" 2>/dev/null; then
             echo "[OK] Puerto 22 alcanzable"
           else
-            echo "[WARN] No se pudo abrir TCP al puerto 22."
+            echo "[WARN] No se pudo abrir TCP al puerto 22 de este host (firewall, IP o DNS)."
           fi
           echo "::endgroup::"
 
           REMOTE_SH="${GITHUB_WORKSPACE}/scripts/github_actions_vps_deploy_frontend.sh"
-          test -f "$REMOTE_SH" || die "No existe ${REMOTE_SH}"
+          test -f "$REMOTE_SH" || die "No existe ${REMOTE_SH} (¿checkout completo?)"
 
           SSH_ARGS=(
             -i "$KEY"
@@ -113,7 +141,7 @@ jobs:
             *) SSH_ARGS+=(-v) ;;
           esac
 
-          echo "::group::SSH + deploy remoto (frontend)"
+          echo "::group::SSH + deploy remoto"
           set +e
           {
             printf 'export REPO_URL=%q\n' "$REPO_URL"
@@ -129,9 +157,25 @@ jobs:
 
           if [ "$EC" -ne 0 ]; then
             if [ "$EC" -eq 255 ]; then
-              echo "::error::SSH falló (255). Revisa VPS_SSH_KEY y authorized_keys del usuario $VPS_USER."
+              echo "::group::Diagnóstico: SSH falló (255 → suele ser auth / conexión)"
+              echo "::error::SSH o canal remoto falló con código 255. Si ves 'Permission denied (publickey)' arriba:"
+              echo "  1) La clave PÚBLICA pareja de VPS_SSH_KEY no está en /home/$VPS_USER/.ssh/authorized_keys en el VPS."
+              echo "  2) VPS_USERNAME no es el usuario dueño de ese authorized_keys (repr del usuario arriba = login Linux exacto; debe ser el mismo deploy_autopasa que en autopasa-api)."
+              echo "  3) Secret VPS_SSH_KEY no coincide con el par del servidor: en repo autopasa-api, python scripts/ensure_github_actions_ssh_key.py --env ${VPS_ENV_HINT:-staging} --apply"
+              echo "Huella de la clave privada del secret (en el VPS: ssh-keygen -lf ~/.ssh/id_ed25519_github_actions.pub debe coincidir):"
+              ssh-keygen -lf "$KEY" 2>/dev/null || true
+              PUB_LINE=$(ssh-keygen -y -f "$KEY" 2>/dev/null | head -1 || true)
+              if [ -n "$PUB_LINE" ]; then
+                echo "Línea pública derivada del secret (debe existir íntegra en /home/$VPS_USER/.ssh/authorized_keys):"
+                echo "$PUB_LINE"
+              fi
+              echo "En el VPS (root): sudo test -r /home/$VPS_USER/.ssh/authorized_keys && sudo wc -l /home/$VPS_USER/.ssh/authorized_keys"
+              echo "::endgroup::"
             else
-              echo "::error::Script remoto devolvió $EC. Revisa git, npm, sudo /var/www y validación HTTP."
+              echo "::group::Diagnóstico: script remoto (código $EC)"
+              echo "::error::La sesión SSH se abrió pero el script remoto devolvió $EC. Revisa la salida del grupo 'SSH + deploy remoto' (git, npm, /var/www, validación HTTP)."
+              echo "  Doc: autopasa-api/docs/USUARIO_DEPLOY_AUTOPASA.md (chown de /var/www para deploy_autopasa)."
+              echo "::endgroup::"
             fi
             exit "$EC"
           fi
