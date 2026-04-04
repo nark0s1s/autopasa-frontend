@@ -25,14 +25,19 @@ api.interceptors.request.use(
   }
 )
 
-// Interceptor para manejar errores de autenticación
+// Interceptor: 401 en rutas autenticadas → limpiar sesión y volver al login.
+// No redirigir en 401 del POST /api/auth/login (credenciales malas): si no, la página recarga y parece que "no pasa nada".
 api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      localStorage.removeItem('token')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
+      const reqUrl = String(error.config?.url || '')
+      const isLoginPost = reqUrl.includes('/api/auth/login')
+      if (!isLoginPost) {
+        localStorage.removeItem('token')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+      }
     }
     return Promise.reject(error)
   }
@@ -42,14 +47,15 @@ api.interceptors.response.use(
 // AUTH
 // ============================================================================
 
-function loginAbsoluteUrl() {
+/** URL absoluta del POST de login (mismo valor que verás en Red → XHR). */
+export function getLoginPostUrl() {
   const base = String(API_URL).replace(/\/$/, '')
   return `${base}/api/auth/login`
 }
 
 /** POST OAuth2-style a /api/auth/login en el host VITE_API_URL (no GET al API en /login). */
 export const login = async (usuario, password) => {
-  const loginUrl = loginAbsoluteUrl()
+  const loginUrl = getLoginPostUrl()
   console.info('[Autopasa debug] Inicio login', {
     loginUrl,
     pageOrigin: typeof window !== 'undefined' ? window.location.origin : null,
