@@ -15,9 +15,11 @@ function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    console.info('[Autopasa debug] Formulario enviado (login en contexto → api.js)')
 
     try {
       await login(usuario, password)
+      console.info('[Autopasa debug] Login completo; navegando a /liquidacion-grifero')
       navigate('/liquidacion-grifero')
     } catch (err) {
       const d = err.response?.data?.detail
@@ -31,7 +33,7 @@ function Login() {
         msg = d.map((x) => x.msg || JSON.stringify(x)).join('; ')
       }
       setError(msg)
-      console.error(err)
+      console.error('[Autopasa debug] Login.jsx catch (resumen en pantalla):', msg, err)
     } finally {
       setLoading(false)
     }

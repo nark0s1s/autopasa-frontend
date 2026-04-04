@@ -38,12 +38,22 @@ export const AuthProvider = ({ children }) => {
   const login = async (usuario, password) => {
     const data = await apiLogin(usuario, password)
     localStorage.setItem('token', data.access_token)
-    
-    const userData = await getCurrentUser()
-    setUser(userData)
-    localStorage.setItem('user', JSON.stringify(userData))
-    
-    return userData
+    console.info('[Autopasa debug] Token guardado; solicitando /api/auth/me')
+    try {
+      const userData = await getCurrentUser()
+      console.info('[Autopasa debug] /api/auth/me OK', { usuario: userData?.usuario })
+      setUser(userData)
+      localStorage.setItem('user', JSON.stringify(userData))
+      return userData
+    } catch (e) {
+      console.warn('[Autopasa debug] /api/auth/me falló después del login', {
+        status: e.response?.status,
+        data: e.response?.data,
+        message: e.message,
+        code: e.code,
+      })
+      throw e
+    }
   }
 
   const logout = () => {
