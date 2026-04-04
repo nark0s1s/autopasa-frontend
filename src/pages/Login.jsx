@@ -20,7 +20,17 @@ function Login() {
       await login(usuario, password)
       navigate('/liquidacion-grifero')
     } catch (err) {
-      setError('Usuario o contraseña incorrectos')
+      const d = err.response?.data?.detail
+      let msg = 'Usuario o contraseña incorrectos'
+      if (!err.response) {
+        msg =
+          'No se pudo contactar al API. Revise la red, CORS o que VITE_API_URL apunte al backend correcto.'
+      } else if (typeof d === 'string') {
+        msg = d
+      } else if (Array.isArray(d)) {
+        msg = d.map((x) => x.msg || JSON.stringify(x)).join('; ')
+      }
+      setError(msg)
       console.error(err)
     } finally {
       setLoading(false)

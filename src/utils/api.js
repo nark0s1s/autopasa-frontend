@@ -44,11 +44,10 @@ api.interceptors.response.use(
 
 /** POST OAuth2-style a /api/auth/login en el host VITE_API_URL (no GET al API en /login). */
 export const login = async (usuario, password) => {
-  const formData = new FormData()
-  formData.append('username', usuario)
-  formData.append('password', password)
-  
-  const response = await api.post('/api/auth/login', formData, {
+  const body = new URLSearchParams()
+  body.set('username', usuario)
+  body.set('password', password)
+  const response = await api.post('/api/auth/login', body.toString(), {
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
