@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 # Ejecutado en el VPS vía SSH desde .github/workflows/deploy-frontend-vps.yml
+# Misma convención que autopasa-api (scripts/github_actions_vps_deploy.sh): código bajo /home/$DEPLOY_USER,
+# sin sudo para mkdir (usuario deploy_autopasa).
+#
 # Variables obligatorias: REPO_URL, GITHUB_REF, DEPLOY_USER, VITE_API_URL
 set -euo pipefail
 
@@ -13,13 +16,15 @@ if [ "$DEPLOY_USER" = "deploy" ]; then
   exit 1
 fi
 
+HOME_BASE="/home/$DEPLOY_USER"
+
 if [ "$GITHUB_REF" = "refs/heads/main" ]; then
-  DEPLOY_PATH="/var/www/autopasa.devjal.tech/frontend"
+  DEPLOY_PATH="$HOME_BASE/autopasa-frontend-production"
   BRANCH="main"
   ENV_HINT="production"
   DEFAULT_PUBLIC_URL="https://autopasa.devjal.tech/"
 elif [ "$GITHUB_REF" = "refs/heads/release" ]; then
-  DEPLOY_PATH="/var/www/autopasa-staging.devjal.tech/frontend"
+  DEPLOY_PATH="$HOME_BASE/autopasa-frontend-staging"
   BRANCH="release"
   ENV_HINT="staging"
   DEFAULT_PUBLIC_URL="https://autopasa-staging.devjal.tech/"
@@ -37,39 +42,9 @@ echo "Entorno: $ENV_HINT"
 echo "Deploy user: $DEPLOY_USER"
 echo "VITE_API_URL length: ${#VITE_API_URL}"
 
-sudo_mkdir_chown_hint() {
-  local root_staging="/var/www/autopasa-staging.devjal.tech"
-  local root_prod="/var/www/autopasa.devjal.tech"
-  echo "[ERROR] No se pudo preparar $DEPLOY_PATH (sin permiso o sudo -n denegado)."
-  echo "  Una vez en el VPS como root (recomendado — luego el deploy no necesita sudo aquí):"
-  echo "    sudo mkdir -p $root_staging/frontend $root_prod/frontend"
-  echo "    sudo chown -R $DEPLOY_USER:$DEPLOY_USER $root_staging $root_prod"
-  echo "  Alternativa: en /etc/sudoers.d/autopasa-deploy añade NOPASSWD para mkdir y chown:"
-  echo "    $DEPLOY_USER ALL=(ALL) NOPASSWD: /usr/bin/mkdir, /bin/mkdir, /usr/bin/chown, /bin/chown"
-  echo "  Doc: autopasa-api/docs/USUARIO_DEPLOY_AUTOPASA.md (sección sudo + frontend /var/www)."
-}
-
-# 1) Si el directorio ya existe y el usuario actual puede escribir → OK (típico tras chown previo).
-# 2) Si el padre bajo /var/www es del deploy → mkdir -p sin sudo.
-# 3) Si no, intentar sudo -n (NOPASSWD en sudoers).
-ensure_deploy_path_writable() {
-  if [[ -d "$DEPLOY_PATH" && -w "$DEPLOY_PATH" ]]; then
-    echo "[OK] $DEPLOY_PATH existe y es escribible"
-    return 0
-  fi
-  if mkdir -p "$DEPLOY_PATH" 2>/dev/null && [[ -w "$DEPLOY_PATH" ]]; then
-    echo "[OK] mkdir -p $DEPLOY_PATH (sin sudo)"
-    return 0
-  fi
-  if sudo -n mkdir -p "$DEPLOY_PATH" 2>/dev/null && sudo -n chown -R "$DEPLOY_USER:$DEPLOY_USER" "$DEPLOY_PATH" 2>/dev/null; then
-    echo "[OK] Directorio preparado con sudo -n"
-    return 0
-  fi
-  sudo_mkdir_chown_hint
-  return 1
-}
-
-if ! ensure_deploy_path_writable; then
+if ! mkdir -p "$DEPLOY_PATH"; then
+  echo "[ERROR] mkdir -p $DEPLOY_PATH falló (permisos en $HOME_BASE?)."
+  echo "  En el VPS (root): sudo chown -R $DEPLOY_USER:$DEPLOY_USER $HOME_BASE"
   exit 1
 fi
 
@@ -109,6 +84,7 @@ if [ ! -f "$DEPLOY_PATH/dist/index.html" ]; then
   exit 1
 fi
 echo "[OK] Build en $DEPLOY_PATH/dist"
+echo "[INFO] Nginx root debe ser: $DEPLOY_PATH/dist (ver autopasa-api/docs/VPS_Y_CI_CD_AUTOPASA.md §2.10)."
 
 echo ""
 echo "=== Validación HTTP pública (SPA, esperado 200) ==="
@@ -127,7 +103,8 @@ done
 
 if [ "$PUB_OK" != "1" ]; then
   echo "[ERROR] No se obtuvo 200/301/302 en $PUBLIC_FRONTEND_CHECK_URL"
-  echo "  Revisa Nginx: root debe apuntar a .../frontend/dist (docs/VPS_Y_CI_CD_AUTOPASA.md §2.10)."
+  echo "  Nginx: root → $DEPLOY_PATH/dist (docs/VPS_Y_CI_CD_AUTOPASA.md §2.10)."
+  echo "  Si ves 403: chmod 755 /home/$DEPLOY_USER para que www-data atraviese el home (o mueve estáticos a /var/www)."
   echo "  sudo nginx -t && sudo systemctl reload nginx"
   exit 1
 fi

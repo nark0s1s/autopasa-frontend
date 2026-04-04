@@ -11,8 +11,8 @@
 # VPS_USERNAME: p. ej. deploy_autopasa (usuario dedicado Autopasa; el mismo que en el workflow del API).
 # git en el VPS usa HTTPS con github.token (repo privado); no hagas echo del remoto (lleva token).
 #
-# La sesión SSH es ya ese usuario: bajo /var/www puede hacer falta mkdir sin sudo si root ya hizo chown
-# (ver autopasa-api/docs/USUARIO_DEPLOY_AUTOPASA.md — frontend /var/www).
+# La sesión SSH es ya ese usuario: el front se despliega bajo /home/deploy_autopasa/autopasa-frontend-{staging|production}
+# (igual patrón que el API en /home/deploy_autopasa/autopasa-api-*), sin sudo para mkdir.
 # El script remoto está en scripts/github_actions_vps_deploy_frontend.sh (no inline en YAML).
 #
 # Si el job usa `environment: staging|production`, los secrets deben existir en ese Environment
@@ -174,7 +174,7 @@ jobs:
             else
               echo "::group::Diagnóstico: script remoto (código $EC)"
               echo "::error::La sesión SSH se abrió pero el script remoto devolvió $EC. Revisa la salida del grupo 'SSH + deploy remoto' (git, npm, /var/www, validación HTTP)."
-              echo "  Doc: autopasa-api/docs/USUARIO_DEPLOY_AUTOPASA.md (chown de /var/www para deploy_autopasa)."
+              echo "  Doc: autopasa-api/docs/USUARIO_DEPLOY_AUTOPASA.md (frontend bajo home deploy_autopasa + Nginx root → dist)."
               echo "::endgroup::"
             fi
             exit "$EC"
