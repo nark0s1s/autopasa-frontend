@@ -8,6 +8,10 @@ import GestionTurnoDia from './pages/GestionTurnoDia'
 import ConsultarTurnos from './pages/ConsultarTurnos'
 import CuadreDiario from './pages/CuadreDiario'
 import ProximamentePage from './pages/ProximamentePage'
+import Empleados from './pages/Empleados'
+import Productos from './pages/Productos'
+import Clientes from './pages/Clientes'
+import CuadreContable from './pages/CuadreContable'
 
 // Componente para rutas protegidas
 function PrivateRoute({ children }) {
@@ -80,7 +84,37 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <ProximamentePage titulo="Gestión de Empleados" />
+                  <Empleados />
+                </Layout>
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/productos" 
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <Productos />
+                </Layout>
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/clientes" 
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <Clientes />
+                </Layout>
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/cuadre-contable" 
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <CuadreContable />
                 </Layout>
               </PrivateRoute>
             } 
