@@ -1,0 +1,137 @@
+# Deploy Autopasa frontend (Vite) al VPS — mismo criterio que autopasa-api deploy-vps.yml (SSH + script en repo).
+#
+# DISPARO (on.push): solo al hacer push a las ramas `release` y `main` (p. ej. merge del PR a esas ramas).
+#   - push → release  → Environment staging  → build contra rama release
+#   - push → main     → Environment production → build contra rama main
+# workflow_dispatch: ejecución manual desde la pestaña Actions.
+#
+# Secrets / variables: ver comentarios abajo (VPS_*, VITE_API_URL por Environment).
+
+name: Deploy frontend to VPS
+
+on:
+  push:
+    branches:
+      - release
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    # Solo ejecutar si el evento es push a release o main (evita otros refs por si acaso)
+    if: github.ref == 'refs/heads/release' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    environment:
+      name: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+      url: ${{ github.ref == 'refs/heads/main' && 'https://autopasa.devjal.tech' || 'https://autopasa-staging.devjal.tech' }}
+
+    steps:
+      - name: Checkout (valida repo)
+        uses: actions/checkout@v4
+
+      - name: Deploy over SSH
+        env:
+          REPO_URL: https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git
+          GITHUB_REF: ${{ github.ref }}
+          DEPLOY_USER: ${{ secrets.VPS_USERNAME }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USERNAME }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          SSH_LOG_VERBOSITY: ${{ vars.SSH_DEPLOY_VERBOSITY }}
+          VPS_ENV_HINT: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
+          VITE_API_URL: ${{ vars.VITE_API_URL }}
+          PUBLIC_FRONTEND_CHECK_URL: ${{ github.ref == 'refs/heads/main' && (vars.PUBLIC_FRONTEND_PRODUCTION_URL || 'https://autopasa.devjal.tech/') || (vars.PUBLIC_FRONTEND_STAGING_URL || 'https://autopasa-staging.devjal.tech/') }}
+        run: |
+          set -euo pipefail
+          die() { echo "::error::$1" >&2; exit 1; }
+
+          echo "::group::Pre-flight: secretos (longitudes en bruto del runner)"
+          echo "[INFO] Ref del workflow: ${{ github.ref }} (release=staging, main=production)"
+          echo "[INFO] Entorno del job: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"
+          echo "[INFO] Longitud bruta VPS_HOST=${#VPS_HOST} | VPS_USER=${#VPS_USER} | VPS_SSH_KEY=${#VPS_SSH_KEY}"
+          echo "[INFO] VITE_API_URL longitud=${#VITE_API_URL}"
+          if [ -z "${VPS_HOST:-}" ]; then
+            die "VPS_HOST vacío: define el secret VPS_HOST en el Environment (staging/production) o en el repo."
+          fi
+          if [ -z "${VPS_USER:-}" ]; then
+            die "VPS_USERNAME vacío: define secrets.VPS_USERNAME (p. ej. deploy_autopasa)."
+          fi
+          if [ -z "${VPS_SSH_KEY:-}" ]; then
+            die "VPS_SSH_KEY vacío: pega la clave PRIVADA completa en el secret."
+          fi
+          if [ -z "${VITE_API_URL:-}" ]; then
+            die "VITE_API_URL vacío: define la Variable VITE_API_URL en el Environment (ej. https://autopasa-api-staging.devjal.tech)."
+          fi
+          echo "::endgroup::"
+
+          echo "::group::Pre-flight: normalizar usuario y host"
+          VPS_USER=$(printf '%s' "$VPS_USER" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          VPS_HOST=$(printf '%s' "$VPS_HOST" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          DEPLOY_USER=$(printf '%s' "$DEPLOY_USER" | tr -d '\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          echo "[INFO] Usuario SSH efectivo: $(printf '%q' "$VPS_USER")"
+          echo "::endgroup::"
+
+          echo "::group::Pre-flight: clave SSH"
+          KEY="$RUNNER_TEMP/vps_deploy_key_frontend"
+          umask 077
+          printf '%s\n' "$VPS_SSH_KEY" | tr -d '\r' > "$KEY"
+          chmod 600 "$KEY"
+          FIRST=$(head -n1 "$KEY" | tr -d '\r' || true)
+          if ! echo "$FIRST" | grep -q "BEGIN"; then
+            die "VPS_SSH_KEY no parece PEM/OpenSSH (primera línea sin BEGIN)."
+          fi
+          if ! FP_OUT=$(ssh-keygen -lf "$KEY" 2>&1); then
+            die "ssh-keygen -lf falló: $FP_OUT"
+          fi
+          echo "$FP_OUT"
+          echo "::endgroup::"
+
+          echo "::group::Pre-flight: TCP puerto 22"
+          if timeout 10 bash -c "echo >/dev/tcp/${VPS_HOST}/22" 2>/dev/null; then
+            echo "[OK] Puerto 22 alcanzable"
+          else
+            echo "[WARN] No se pudo abrir TCP al puerto 22."
+          fi
+          echo "::endgroup::"
+
+          REMOTE_SH="${GITHUB_WORKSPACE}/scripts/github_actions_vps_deploy_frontend.sh"
+          test -f "$REMOTE_SH" || die "No existe ${REMOTE_SH}"
+
+          SSH_ARGS=(
+            -i "$KEY"
+            -o BatchMode=yes
+            -o IdentitiesOnly=yes
+            -o StrictHostKeyChecking=no
+            -o UserKnownHostsFile=/dev/null
+          )
+          VERB="${SSH_LOG_VERBOSITY:-0}"
+          case "$VERB" in
+            1) SSH_ARGS+=(-vv) ;;
+            2) SSH_ARGS+=(-vvv) ;;
+            *) SSH_ARGS+=(-v) ;;
+          esac
+
+          echo "::group::SSH + deploy remoto (frontend)"
+          set +e
+          {
+            printf 'export REPO_URL=%q\n' "$REPO_URL"
+            printf 'export GITHUB_REF=%q\n' "$GITHUB_REF"
+            printf 'export DEPLOY_USER=%q\n' "$DEPLOY_USER"
+            printf 'export VITE_API_URL=%q\n' "$VITE_API_URL"
+            printf 'export PUBLIC_FRONTEND_CHECK_URL=%q\n' "${PUBLIC_FRONTEND_CHECK_URL:-}"
+            cat "$REMOTE_SH"
+          } | ssh "${SSH_ARGS[@]}" "${VPS_USER}@${VPS_HOST}" "bash -s"
+          EC=$?
+          set -e
+          echo "::endgroup::"
+
+          if [ "$EC" -ne 0 ]; then
+            if [ "$EC" -eq 255 ]; then
+              echo "::error::SSH falló (255). Revisa VPS_SSH_KEY y authorized_keys del usuario $VPS_USER."
+            else
+              echo "::error::Script remoto devolvió $EC. Revisa git, npm, sudo /var/www y validación HTTP."
+            fi
+            exit "$EC"
+          fi
