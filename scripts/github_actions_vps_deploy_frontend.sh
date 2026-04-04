@@ -12,7 +12,7 @@ set -euo pipefail
 : "${VITE_API_URL:?Falta VITE_API_URL (variable VITE_API_URL del Environment en GitHub)}"
 
 if [ "$DEPLOY_USER" = "deploy" ]; then
-  echo "[ERROR] DEPLOY_USER no puede ser 'deploy' (reservado SGC). Define VPS_USERNAME=deploy_autopasa en GitHub."
+  echo "[ERROR] DEPLOY_USER no puede ser el usuario literal 'deploy' en este flujo. Define VPS_USERNAME=deploy_autopasa en GitHub."
   exit 1
 fi
 
@@ -107,6 +107,17 @@ _host_from_url() {
 }
 HOST_FOR_NGINX="$(_host_from_url "$PUBLIC_FRONTEND_CHECK_URL")"
 STRICT_PUBLIC="${FRONTEND_REQUIRE_PUBLIC_HTTP:-0}"
+
+# sites-enabled puede tener vhosts de otros productos en el mismo VPS; el diagnóstico frontend
+# solo debe inspeccionar ficheros del ámbito Autopasa (no mezclar configs ajenas).
+_nginx_site_file_is_autopasa_frontend_scope() {
+  local bn
+  bn=$(basename "$1" | tr '[:upper:]' '[:lower:]')
+  case "$bn" in
+    *sgc*) return 1 ;;
+  esac
+  return 0
+}
 
 DIAG_TMP=$(mktemp -d)
 trap 'rm -rf "$DIAG_TMP"' EXIT
