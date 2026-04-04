@@ -12,7 +12,7 @@ set -euo pipefail
 : "${VITE_API_URL:?Falta VITE_API_URL (variable VITE_API_URL del Environment en GitHub)}"
 
 if [ "$DEPLOY_USER" = "deploy" ]; then
-  echo "[ERROR] DEPLOY_USER no puede ser 'deploy' (reservado SGC). Define VPS_USERNAME=deploy_autopasa en GitHub."
+  echo "[ERROR] DEPLOY_USER no puede ser el usuario literal 'deploy' en este flujo. Define VPS_USERNAME=deploy_autopasa en GitHub."
   exit 1
 fi
 
@@ -107,6 +107,17 @@ _host_from_url() {
 }
 HOST_FOR_NGINX="$(_host_from_url "$PUBLIC_FRONTEND_CHECK_URL")"
 STRICT_PUBLIC="${FRONTEND_REQUIRE_PUBLIC_HTTP:-0}"
+
+# sites-enabled puede tener vhosts de otros productos en el mismo VPS; el diagnóstico frontend
+# solo debe inspeccionar ficheros del ámbito Autopasa (no mezclar configs ajenas).
+_nginx_site_file_is_autopasa_frontend_scope() {
+  local bn
+  bn=$(basename "$1" | tr '[:upper:]' '[:lower:]')
+  case "$bn" in
+    *sgc*) return 1 ;;
+  esac
+  return 0
+}
 
 DIAG_TMP=$(mktemp -d)
 trap 'rm -rf "$DIAG_TMP"' EXIT
@@ -212,42 +223,57 @@ if [ -n "$HOST_FOR_NGINX" ] && _http_ok "$LB80_CODE" && ! _http_ok "$LB443_CODE"
   echo ">>> INTERPRETACIÓN: :80 responde ($LB80_CODE, a menudo redirección) pero :443 no sirve el SPA → edita el bloque listen 443 ssl con server_name $HOST_FOR_NGINX: root $DEPLOY_PATH/dist; try_files \$uri \$uri/ /index.html;"
 fi
 
-# D) Nginx: archivos que citan el host (solo lectura)
+# D) Nginx: solo ficheros Autopasa (nombre del enlace en sites-enabled sin prefijos de otros productos)
 echo ""
-echo "=== D) Nginx sites-enabled (listen / server_name / root / try_files) ==="
+echo "=== D) Nginx sites-enabled — vhost Autopasa frontend (excl. otros proyectos en el mismo VPS) ==="
 NGINX_FOUND=0
 EXPECTED_ROOT_LINE="root $DEPLOY_PATH/dist"
 if [ -n "$HOST_FOR_NGINX" ] && [ -d /etc/nginx/sites-enabled ]; then
   for f in /etc/nginx/sites-enabled/*; do
     [ -f "$f" ] || continue
+    _nginx_site_file_is_autopasa_frontend_scope "$f" || continue
     if grep -q "$HOST_FOR_NGINX" "$f" 2>/dev/null; then
       NGINX_FOUND=1
       echo "--- $f ---"
       grep -nE "listen|server_name|^[[:space:]]*root|try_files|index[[:space:]]" "$f" 2>/dev/null | head -50 || echo "    (sin permiso de lectura)"
-      echo ">>> Todas las directivas root en este fichero (localiza el bloque con listen 443 ssl + server_name $HOST_FOR_NGINX):"
+      echo ">>> Directivas root en este fichero (bloque listen 443 ssl + server_name $HOST_FOR_NGINX):"
       _root_lines=$(grep -nE '^[[:space:]]*root[[:space:]]' "$f" 2>/dev/null || true)
       if [ -n "$_root_lines" ]; then
         printf '%s\n' "$_root_lines" | sed 's/^/    /'
       else
-        echo "    (ninguna línea root en este fichero — improbable; revisa permisos de lectura)"
+        echo "    (ninguna línea root — revisa que este sea el vhost dedicado Autopasa y permisos de lectura)"
       fi
     fi
   done
 fi
 if [ -n "$HOST_FOR_NGINX" ] && [ "$NGINX_FOUND" -eq 0 ]; then
-  echo "[WARN] Ningún archivo en /etc/nginx/sites-enabled menciona $HOST_FOR_NGINX (permiso denegado, o vhost en otro path)."
+  echo "[WARN] Ningún fichero Autopasa en sites-enabled menciona $HOST_FOR_NGINX (o solo aparece en vhosts de otros productos, ignorados aquí)."
+  echo "    Esperado: enlace tipo sites-enabled/00-$HOST_FOR_NGINX → sites-available/$HOST_FOR_NGINX"
 fi
 if [ -n "$HOST_FOR_NGINX" ] && [ -d /etc/nginx/sites-enabled ]; then
-  if grep -r --include='*' -l "$HOST_FOR_NGINX" /etc/nginx/sites-enabled 2>/dev/null | xargs -r grep -lF "$DEPLOY_PATH/dist" 2>/dev/null | head -1 | grep -q .; then
-    echo "[OK] Algún vhost que menciona $HOST_FOR_NGINX incluye la ruta literal del deploy ($DEPLOY_PATH/dist)."
+  DIST_IN_AUTOPASA_VHOST=0
+  for f in /etc/nginx/sites-enabled/*; do
+    [ -f "$f" ] || continue
+    _nginx_site_file_is_autopasa_frontend_scope "$f" || continue
+    grep -q "$HOST_FOR_NGINX" "$f" 2>/dev/null || continue
+    if grep -qF "$DEPLOY_PATH/dist" "$f" 2>/dev/null; then
+      DIST_IN_AUTOPASA_VHOST=1
+      break
+    fi
+  done
+  if [ "$DIST_IN_AUTOPASA_VHOST" -eq 1 ]; then
+    echo "[OK] Un vhost Autopasa (fichero sites-enabled filtrado) menciona $HOST_FOR_NGINX y la ruta del deploy ($DEPLOY_PATH/dist)."
   else
-    echo "[WARN] Ningún sites-enabled contiene la ruta '$DEPLOY_PATH/dist' donde también aparece $HOST_FOR_NGINX."
-    echo ">>> ACCIÓN (en el server { } que tiene listen 443 ssl y server_name $HOST_FOR_NGINX, p. ej. tras la línea de Certbot):"
+    echo "[WARN] Ningún vhost Autopasa en sites-enabled une $HOST_FOR_NGINX con '$DEPLOY_PATH/dist'."
+    echo ">>> ACCIÓN — vhost dedicado Autopasa (independiente de otros .conf en el mismo servidor):"
+    echo "    sudo nano /etc/nginx/sites-available/$HOST_FOR_NGINX"
+    echo "    En el server { } con listen 443 ssl y server_name $HOST_FOR_NGINX:"
     echo "    $EXPECTED_ROOT_LINE"
     echo "    index index.html;"
     echo "    location / { try_files \$uri \$uri/ /index.html; }"
-    echo "    Luego: sudo nginx -t && sudo systemctl reload nginx"
-    echo ">>> Si ese bloque no tiene root, Nginx usa otro contexto y devuelve 404 para /."
+    echo "    sudo ln -sf /etc/nginx/sites-available/$HOST_FOR_NGINX /etc/nginx/sites-enabled/00-$HOST_FOR_NGINX"
+    echo "    sudo nginx -t && sudo systemctl reload nginx"
+    echo ">>> Si el server_name solo existía dentro de un vhost de otro producto, elimínalo allí y usa solo este fichero."
   fi
 fi
 
