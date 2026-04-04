@@ -1,5 +1,7 @@
 import axios from 'axios'
 
+// Base del backend (VITE_API_URL en build). Las rutas /login, /dashboard, etc. del DOM son del SPA
+// (mismo origen que el HTML); el login va con POST a `${API_URL}/api/auth/login`, no con GET al API en /login.
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 
 const api = axios.create({
@@ -40,6 +42,7 @@ api.interceptors.response.use(
 // AUTH
 // ============================================================================
 
+/** POST OAuth2-style a /api/auth/login en el host VITE_API_URL (no GET al API en /login). */
 export const login = async (usuario, password) => {
   const formData = new FormData()
   formData.append('username', usuario)

@@ -79,6 +79,12 @@ jobs:
           if [ -z "${VITE_API_URL:-}" ]; then
             die "VITE_API_URL vacío: define la Variable VITE_API_URL en el Environment (ej. https://autopasa-api-staging.devjal.tech)."
           fi
+          _vite_lc=$(printf '%s' "$VITE_API_URL" | tr '[:upper:]' '[:lower:]')
+          case "${_vite_lc}" in
+            http://*)
+              die "VITE_API_URL debe ser https:// en deploy público. Con http:// el navegador marca 'No es seguro' (contenido mixto: página HTTPS + API HTTP). Ejemplo: https://autopasa-api-staging.devjal.tech"
+              ;;
+          esac
           echo "::endgroup::"
 
           echo "::group::Pre-flight: normalizar usuario y host (espacios finales rompen SSH)"
@@ -117,8 +123,15 @@ jobs:
           echo "[INFO] SHA256 corto para comparar: $FP_SHA"
           echo "::endgroup::"
 
-          echo "::group::Pre-flight: variables de build (solo longitudes)"
+          echo "::group::Pre-flight: variables de build (VITE_API_URL + rutas SPA vs API)"
+          _vite_trim="${VITE_API_URL%/}"
+          _vh="${_vite_trim#https://}"
+          _vh="${_vh#http://}"
+          _vhost="${_vh%%/*}"
           echo "[INFO] VITE_API_URL longitud=${#VITE_API_URL}"
+          echo "[INFO] VITE_API_URL host esperado en el bundle: ${_vhost}"
+          echo "[INFO] Tras deploy, login real del API: POST ${_vite_trim}/api/auth/login"
+          echo "[INFO] GET https://.../login en el dominio del frontend = ruta de la SPA (React), no llamada al API."
           echo "[INFO] PUBLIC_FRONTEND_CHECK_URL longitud=${#PUBLIC_FRONTEND_CHECK_URL}"
           echo "[INFO] FRONTEND_REQUIRE_PUBLIC_HTTP=${FRONTEND_REQUIRE_PUBLIC_HTTP:-<vacío, comprobación HTTPS no bloquea>}"
           echo "::endgroup::"

@@ -42,6 +42,28 @@ echo "Entorno: $ENV_HINT"
 echo "Deploy user: $DEPLOY_USER"
 echo "VITE_API_URL length: ${#VITE_API_URL}"
 
+# El build inyecta esta URL en axios; si es http:// y el SPA se sirve por https:// → contenido mixto
+# y Chrome muestra "No es seguro" / bloquea llamadas al API.
+_VITE_API_URL_LC=$(printf '%s' "$VITE_API_URL" | tr '[:upper:]' '[:lower:]')
+case "$_VITE_API_URL_LC" in
+  http://*)
+    echo "[ERROR] VITE_API_URL no puede usar http:// en deploy staging/producción."
+    echo "  El sitio público es HTTPS; el API embebido en el bundle debe ser https:// (ej. https://autopasa-api-staging.devjal.tech)."
+    echo "  Corrige la variable VITE_API_URL en GitHub → Settings → Environments → ${ENV_HINT}."
+    exit 1
+    ;;
+esac
+
+# Validación visible en log: host del API y diferencia SPA (GET /login) vs POST al API
+VITE_BASE_NOSLASH="${VITE_API_URL%/}"
+_tmp="${VITE_BASE_NOSLASH#https://}"
+_tmp="${_tmp#http://}"
+VITE_API_HOST="${_tmp%%/*}"
+echo "[INFO] VITE_API_URL → host del API en el bundle: ${VITE_API_HOST}"
+echo "[INFO] axios baseURL tras build (sin barra final recomendada): ${VITE_BASE_NOSLASH}"
+echo "[INFO] SPA React Router: GET ${DEFAULT_PUBLIC_URL%/}/login (u otras rutas) → Nginx entrega index.html; 304 Not Modified es caché, no es un fallo."
+echo "[INFO] Credenciales: POST ${VITE_BASE_NOSLASH}/api/auth/login (no existe GET .../login en el API para el formulario)."
+
 if ! mkdir -p "$DEPLOY_PATH"; then
   echo "[ERROR] mkdir -p $DEPLOY_PATH falló (permisos en $HOME_BASE?)."
   echo "  En el VPS (root): sudo chown -R $DEPLOY_USER:$DEPLOY_USER $HOME_BASE"
@@ -77,6 +99,12 @@ echo "=== npm ci + vite build (VITE_API_URL inyectada en este shell) ==="
   npm -v
   npm ci
   npm run build
+  # Comprobar que Vite incrustó el origen del API en el JS (no imprime secretos; solo presencia del host)
+  if grep -RqF "$VITE_API_HOST" dist/assets/ 2>/dev/null; then
+    echo "[OK] dist/assets contiene el host del API (${VITE_API_HOST}) — VITE_API_URL aplicada en el build."
+  else
+    echo "[WARN] No se encontró '${VITE_API_HOST}' bajo dist/assets/ (revisa VITE_API_URL y vite.config)."
+  fi
 )
 
 if [ ! -f "$DEPLOY_PATH/dist/index.html" ]; then
