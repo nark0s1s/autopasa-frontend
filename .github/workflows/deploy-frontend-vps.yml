@@ -7,6 +7,10 @@
 #   VITE_API_URL  → URL base del API para el build (ej. https://autopasa-api-staging.devjal.tech)
 # Opcionales:
 #   SSH_DEPLOY_VERBOSITY (0|1|2), PUBLIC_FRONTEND_STAGING_URL, PUBLIC_FRONTEND_PRODUCTION_URL
+#   FRONTEND_REQUIRE_PUBLIC_HTTP = 1 → el job falla si HTTPS público no devuelve 200/301/302 tras reintentos
+#     (por defecto relajado: el script igual ejecuta diagnóstico completo, ::error:: en el log y resumen).
+# Post-build (script remoto): exige dist/index.html no vacío + dist/assets; diagnóstico loopback :80/:443 + Host,
+# grep de Nginx sites-enabled, HTTPS público con cuerpo/stderr en log.
 #
 # VPS_USERNAME: p. ej. deploy_autopasa (usuario dedicado Autopasa; el mismo que en el workflow del API).
 # git en el VPS usa HTTPS con github.token (repo privado); no hagas echo del remoto (lleva token).
@@ -54,6 +58,7 @@ jobs:
           VPS_ENV_HINT: ${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}
           VITE_API_URL: ${{ vars.VITE_API_URL }}
           PUBLIC_FRONTEND_CHECK_URL: ${{ github.ref == 'refs/heads/main' && (vars.PUBLIC_FRONTEND_PRODUCTION_URL || 'https://autopasa.devjal.tech/') || (vars.PUBLIC_FRONTEND_STAGING_URL || 'https://autopasa-staging.devjal.tech/') }}
+          FRONTEND_REQUIRE_PUBLIC_HTTP: ${{ vars.FRONTEND_REQUIRE_PUBLIC_HTTP }}
         run: |
           set -euo pipefail
           die() { echo "::error::$1" >&2; exit 1; }
@@ -114,6 +119,7 @@ jobs:
           echo "::group::Pre-flight: variables de build (solo longitudes)"
           echo "[INFO] VITE_API_URL longitud=${#VITE_API_URL}"
           echo "[INFO] PUBLIC_FRONTEND_CHECK_URL longitud=${#PUBLIC_FRONTEND_CHECK_URL}"
+          echo "[INFO] FRONTEND_REQUIRE_PUBLIC_HTTP=${FRONTEND_REQUIRE_PUBLIC_HTTP:-<vacío, comprobación HTTPS no bloquea>}"
           echo "::endgroup::"
 
           echo "::group::Pre-flight: conectividad TCP puerto 22"
@@ -149,6 +155,7 @@ jobs:
             printf 'export DEPLOY_USER=%q\n' "$DEPLOY_USER"
             printf 'export VITE_API_URL=%q\n' "$VITE_API_URL"
             printf 'export PUBLIC_FRONTEND_CHECK_URL=%q\n' "${PUBLIC_FRONTEND_CHECK_URL:-}"
+            printf 'export FRONTEND_REQUIRE_PUBLIC_HTTP=%q\n' "${FRONTEND_REQUIRE_PUBLIC_HTTP:-}"
             cat "$REMOTE_SH"
           } | ssh "${SSH_ARGS[@]}" "${VPS_USER}@${VPS_HOST}" "bash -s"
           EC=$?
