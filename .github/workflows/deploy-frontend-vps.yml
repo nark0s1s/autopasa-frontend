@@ -79,6 +79,10 @@ jobs:
           if [ -z "${VITE_API_URL:-}" ]; then
             die "VITE_API_URL vacío: define la Variable VITE_API_URL en el Environment (ej. https://autopasa-api-staging.devjal.tech)."
           fi
+          VITE_API_URL=$(printf '%s' "$VITE_API_URL" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+          if [ -z "$VITE_API_URL" ]; then
+            die "VITE_API_URL solo contenía espacios; guarda la URL sin espacios al inicio/final."
+          fi
           _vite_lc=$(printf '%s' "$VITE_API_URL" | tr '[:upper:]' '[:lower:]')
           case "${_vite_lc}" in
             http://*)

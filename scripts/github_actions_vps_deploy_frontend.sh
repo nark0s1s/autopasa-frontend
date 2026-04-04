@@ -10,6 +10,12 @@ set -euo pipefail
 : "${GITHUB_REF:?Falta GITHUB_REF}"
 : "${DEPLOY_USER:?Falta DEPLOY_USER}"
 : "${VITE_API_URL:?Falta VITE_API_URL (variable VITE_API_URL del Environment en GitHub)}"
+# Sin recortar espacios, " https://host..." deja el "host" como " https:" (primer / es el de https://).
+VITE_API_URL=$(printf '%s' "$VITE_API_URL" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+if [ -z "$VITE_API_URL" ]; then
+  echo "[ERROR] VITE_API_URL quedó vacío tras quitar espacios al inicio/final. Revisa la variable en GitHub Environment."
+  exit 1
+fi
 
 if [ "$DEPLOY_USER" = "deploy" ]; then
   echo "[ERROR] DEPLOY_USER no puede ser el usuario literal 'deploy' en este flujo. Define VPS_USERNAME=deploy_autopasa en GitHub."
