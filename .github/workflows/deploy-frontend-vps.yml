@@ -133,6 +133,7 @@ jobs:
           _vh="${_vh#http://}"
           _vhost="${_vh%%/*}"
           echo "[INFO] VITE_API_URL longitud=${#VITE_API_URL}"
+          printf '[INFO] VITE_API_URL valor (repr, sin secretos): %q\n' "$VITE_API_URL"
           echo "[INFO] VITE_API_URL host esperado en el bundle: ${_vhost}"
           echo "[INFO] Tras deploy, login real del API: POST ${_vite_trim}/api/auth/login"
           echo "[INFO] GET https://.../login en el dominio del frontend = ruta de la SPA (React), no llamada al API."

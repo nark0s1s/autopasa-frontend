@@ -111,6 +111,12 @@ echo "=== npm ci + vite build (VITE_API_URL inyectada en este shell) ==="
   else
     echo "[WARN] No se encontró '${VITE_API_HOST}' bajo dist/assets/ (revisa VITE_API_URL y vite.config)."
   fi
+  _embed=$(grep -Rh "https://" dist/assets/*.js 2>/dev/null | grep -F "$VITE_API_HOST" | head -1 || true)
+  if [ -n "$_embed" ]; then
+    _short="${_embed:0:180}"
+    echo "[INFO] Recorte de JS donde aparece el API (Vite incrustó VITE_API_URL): ${_short}..."
+  fi
+  printf '[INFO] Valor exacto usado en este build (repr shell): %q\n' "$VITE_API_URL"
 )
 
 if [ ! -f "$DEPLOY_PATH/dist/index.html" ]; then
