@@ -1,11 +1,9 @@
 import { useState, useEffect } from 'react'
-import { Search, Trash2, PlusCircle, Save, X } from 'lucide-react'
-import { getClienteByDocumento } from '../../utils/api'
+import { Trash2, PlusCircle, Save, X, Search } from 'lucide-react'
+import { getClientes } from '../../utils/api'
 
-// Componente Modal Genérico (reutilizado o importado si moves Layout)
 function ModalWrapper({ isOpen, onClose, title, children }) {
   if (!isOpen) return null
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl mx-4 overflow-hidden">
@@ -15,69 +13,100 @@ function ModalWrapper({ isOpen, onClose, title, children }) {
             <X className="w-5 h-5 text-gray-500" />
           </button>
         </div>
-        <div className="p-6">
-          {children}
-        </div>
+        <div className="p-6">{children}</div>
       </div>
     </div>
   )
 }
 
-export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = [] }) {
+export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = [], fecha }) {
   const [listaCreditos, setListaCreditos] = useState(listaInicial)
-  const [nuevoCredito, setNuevoCredito] = useState({ 
-    documento: '', 
-    monto: '', 
-    nombre: '',
-    fechaVencimiento: new Date().toISOString().split('T')[0] // Default: hoy
-  })
-  const [buscandoCliente, setBuscandoCliente] = useState(false)
 
-  // Sincronizar estado si la prop cambia (opcional, depende de si queremos persistencia al cerrar)
+  // Lista completa para autocomplete
+  const [clientesDisponibles, setClientesDisponibles] = useState([])
+  const [cargando, setCargando] = useState(false)
+
+  // Estado del form
+  const [busqueda, setBusqueda] = useState('')
+  const [resultados, setResultados] = useState([])
+  const [mostrandoResultados, setMostrandoResultados] = useState(false)
+  const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
+  const [monto, setMonto] = useState('')
+
+  // Calcular fecha de vencimiento = fecha del cuadre + 30 días
+  const calcularFechaVencimiento = () => {
+    const base = fecha ? new Date(fecha + 'T00:00:00') : new Date()
+    base.setDate(base.getDate() + 30)
+    return base.toISOString().split('T')[0]
+  }
+
+  // Cargar todos los clientes al abrir
   useEffect(() => {
-    if (isOpen) {
-      setListaCreditos(listaInicial)
-    }
-  }, [isOpen, listaInicial])
-
-  const buscarCliente = async () => {
-    if (!nuevoCredito.documento) return
-    setBuscandoCliente(true)
-    try {
-      const cliente = await getClienteByDocumento(nuevoCredito.documento)
-      if (cliente) {
-        setNuevoCredito(prev => ({ 
-          ...prev, 
-          nombre: cliente.razon_social || cliente.nombre_comercial,
-          clienteId: cliente.id 
-        }))
-      } else {
-        alert("Cliente no encontrado o no tiene crédito autorizado")
-        setNuevoCredito(prev => ({ ...prev, nombre: '' }))
+    if (!isOpen) return
+    setListaCreditos(listaInicial)
+    const fetchClientes = async () => {
+      setCargando(true)
+      try {
+        const data = await getClientes(true)
+        setClientesDisponibles(data || [])
+      } catch (err) {
+        console.warn('Error al cargar clientes:', err)
+        setClientesDisponibles([])
+      } finally {
+        setCargando(false)
       }
-    } catch (error) {
-      console.error("Error buscando cliente:", error)
-      alert("Error al buscar cliente")
-    } finally {
-      setBuscandoCliente(false)
     }
+    fetchClientes()
+  }, [isOpen])
+
+  // Filtro client-side tipo LIKE "%busqueda%"
+  useEffect(() => {
+    if (busqueda.trim() === '') {
+      setResultados(clientesDisponibles)
+    } else {
+      const q = busqueda.toLowerCase()
+      setResultados(
+        clientesDisponibles.filter(c =>
+          c.razon_social?.toLowerCase().includes(q)
+        )
+      )
+    }
+  }, [busqueda, clientesDisponibles])
+
+  const seleccionarCliente = (cliente) => {
+    setClienteSeleccionado(cliente)
+    setBusqueda(cliente.razon_social)
+    setResultados([])
+    setMostrandoResultados(false)
+  }
+
+  const limpiarSeleccion = () => {
+    setClienteSeleccionado(null)
+    setBusqueda('')
   }
 
   const agregarCredito = () => {
-    if (!nuevoCredito.documento || !nuevoCredito.monto || !nuevoCredito.nombre || !nuevoCredito.fechaVencimiento) return
-    setListaCreditos([...listaCreditos, { ...nuevoCredito, id: Date.now() }])
-    setNuevoCredito({ 
-      documento: '', 
-      monto: '', 
-      nombre: '',
-      fechaVencimiento: new Date().toISOString().split('T')[0]
-    })
+    if (!clienteSeleccionado || !monto) return
+    const fechaVencimiento = calcularFechaVencimiento()
+    setListaCreditos([
+      ...listaCreditos,
+      {
+        id: Date.now(),
+        clienteId: clienteSeleccionado.id,
+        nombre: clienteSeleccionado.razon_social,
+        documento: clienteSeleccionado.numero_documento,
+        monto,
+        fechaVencimiento
+      }
+    ])
+    limpiarSeleccion()
+    setMonto('')
   }
 
   const eliminarCredito = (id) => {
     setListaCreditos(listaCreditos.filter(c => c.id !== id))
   }
-  
+
   const handleSave = () => {
     onSave(listaCreditos)
     onClose()
@@ -86,62 +115,70 @@ export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = 
   return (
     <ModalWrapper isOpen={isOpen} onClose={onClose} title="Detalle de Créditos">
       <div className="space-y-6">
-        {/* Formulario de Agregado */}
-        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
-          <div className="flex gap-2 items-end">
-            <div className="flex-1">
-              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">Cliente (Doc)</label>
-              <div className="flex gap-2">
-                <input 
-                  type="text" 
-                  placeholder="N° Documento"
-                  className="w-full h-10 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                  value={nuevoCredito.documento}
-                  onChange={e => setNuevoCredito({...nuevoCredito, documento: e.target.value.replace(/\D/g, '')})} 
+        {/* Formulario */}
+        <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
+          <div className="flex gap-3 items-end">
+
+            {/* Buscador de Cliente por Razón Social */}
+            <div className="flex-1 relative">
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">
+                Cliente {cargando && <span className="text-gray-400 font-normal">cargando...</span>}
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  className="w-full h-10 pl-3 pr-10 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Escriba razón social para buscar..."
+                  value={busqueda}
+                  onChange={e => {
+                    setBusqueda(e.target.value)
+                    if (!e.target.value) limpiarSeleccion()
+                  }}
+                  onFocus={() => setMostrandoResultados(true)}
+                  onBlur={() => setTimeout(() => setMostrandoResultados(false), 200)}
+                  disabled={cargando}
                 />
-                <button 
-                  onClick={buscarCliente}
-                  disabled={buscandoCliente}
-                  className="h-10 w-10 flex items-center justify-center bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                >
-                  <Search className="w-5 h-5" />
-                </button>
+                <Search className="w-4 h-4 text-gray-400 absolute right-3 top-3" />
               </div>
+
+              {/* Lista flotante de resultados */}
+              {mostrandoResultados && resultados.length > 0 && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
+                  {resultados.map(c => (
+                    <div
+                      key={c.id}
+                      className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm text-gray-700"
+                      onClick={() => seleccionarCliente(c)}
+                    >
+                      <span className="font-medium">{c.razon_social}</span>
+                      <span className="ml-2 text-xs text-gray-400">{c.tipo_documento}: {c.numero_documento}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-            
-            <div className="w-48">
-              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">Fecha Vencimiento</label>
-              <input 
-                type="date" 
-                className="w-full h-10 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                value={nuevoCredito.fechaVencimiento}
-                onChange={e => setNuevoCredito({...nuevoCredito, fechaVencimiento: e.target.value})} 
-              />
-            </div>
-            
+
+            {/* Monto */}
             <div className="w-40">
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">Monto</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 placeholder="0.00"
                 className="w-full h-10 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                value={nuevoCredito.monto}
-                onChange={e => setNuevoCredito({...nuevoCredito, monto: e.target.value})} 
+                value={monto}
+                onChange={e => setMonto(e.target.value)}
+                disabled={!clienteSeleccionado}
               />
             </div>
-            
-            <button 
+
+            {/* Botón Agregar */}
+            <button
               onClick={agregarCredito}
               className="h-10 w-10 flex items-center justify-center bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
             >
               <PlusCircle className="w-6 h-6" />
             </button>
           </div>
-          {nuevoCredito.nombre && (
-            <div className="text-sm text-gray-600 font-medium bg-white p-2 rounded border border-gray-200">
-              {nuevoCredito.nombre}
-            </div>
-          )}
         </div>
 
         {/* Listado */}
@@ -150,7 +187,6 @@ export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = 
             <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Fecha Vencimiento</th>
                 <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -160,19 +196,13 @@ export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = 
                 <tr key={credito.id}>
                   <td className="px-4 py-2">
                     <div className="text-sm font-medium text-gray-900">{credito.nombre}</div>
-                    <div className="text-xs text-gray-500">{credito.documento}</div>
-                  </td>
-                  <td className="px-4 py-2 text-sm text-gray-700">
-                    {credito.fechaVencimiento}
+                    <div className="text-xs text-gray-400">{credito.documento}</div>
                   </td>
                   <td className="px-4 py-2 text-right text-sm font-bold text-gray-900">
                     S/ {parseFloat(credito.monto).toFixed(2)}
                   </td>
                   <td className="px-4 py-2 text-right">
-                    <button 
-                      onClick={() => eliminarCredito(credito.id)}
-                      className="text-red-500 hover:text-red-700"
-                    >
+                    <button onClick={() => eliminarCredito(credito.id)} className="text-red-500 hover:text-red-700">
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </td>
@@ -180,7 +210,7 @@ export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = 
               ))}
               {listaCreditos.length === 0 && (
                 <tr>
-                  <td colSpan="4" className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan="3" className="px-4 py-8 text-center text-sm text-gray-500">
                     No hay créditos agregados
                   </td>
                 </tr>
@@ -190,7 +220,7 @@ export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = 
         </div>
 
         <div className="pt-4 border-t border-gray-100 flex justify-end">
-          <button 
+          <button
             onClick={handleSave}
             className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-sm"
           >

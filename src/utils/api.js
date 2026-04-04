@@ -177,6 +177,11 @@ export const getContometros = async (activo = true) => {
   return response.data
 }
 
+export const getIslas = async (activo = true) => {
+  const response = await api.get('/api/catalogos/islas', { params: { activo } })
+  return response.data
+}
+
 export const getProductos = async (activo = true) => {
   const response = await api.get('/api/catalogos/productos', { params: { activo } })
   return response.data
@@ -184,6 +189,11 @@ export const getProductos = async (activo = true) => {
 
 export const getTerminales = async (activo = true) => {
   const response = await api.get('/api/catalogos/terminales', { params: { activo } })
+  return response.data
+}
+
+export const getClientes = async (activo = true) => {
+  const response = await api.get('/api/catalogos/clientes', { params: { activo } })
   return response.data
 }
 
@@ -210,6 +220,94 @@ export const obtenerCuadreHoy = async (fecha) => {
   if (!fecha) throw new Error("Fecha es requerida")
   const params = { fecha }
   const response = await api.get('/api/cuadre', { params })
+  return response.data
+}
+
+// ============================================================================
+// EMPLEADOS (Admin only)
+// ============================================================================
+
+export const getEmpleadosF = async (activo = null) => {
+  const params = activo !== null ? { activo } : {}
+  const response = await api.get('/api/empleados/', { params })
+  return response.data
+}
+
+export const crearEmpleado = async (data) => {
+  const response = await api.post('/api/empleados/', data)
+  return response.data
+}
+
+export const actualizarEmpleado = async (id, data) => {
+  const response = await api.put(`/api/empleados/${id}`, data)
+  return response.data
+}
+
+export const desactivarEmpleado = async (id) => {
+  const response = await api.delete(`/api/empleados/${id}`)
+  return response.data
+}
+
+// ============================================================================
+// ROLES
+// ============================================================================
+
+export const getRoles = async () => {
+  const response = await api.get('/api/roles/')
+  return response.data
+}
+
+// ============================================================================
+// PRODUCTOS (Admin)
+// ============================================================================
+
+export const getProductosAdmin = async (activo = null) => {
+  const params = activo !== null ? { activo } : {}
+  const response = await api.get('/api/infraestructura/productos', { params })
+  return response.data
+}
+
+export const crearProducto = async (data) => {
+  const response = await api.post('/api/infraestructura/productos', data)
+  return response.data
+}
+
+export const actualizarProducto = async (id, data) => {
+  const response = await api.put(`/api/infraestructura/productos/${id}`, data)
+  return response.data
+}
+
+export const getCategoriasProducto = async () => {
+  const response = await api.get('/api/infraestructura/categorias-producto')
+  return response.data
+}
+
+// ============================================================================
+// CLIENTES
+// ============================================================================
+
+export const getClientesAdmin = async (activo = null) => {
+  const params = activo !== null ? { activo } : {}
+  const response = await api.get('/api/infraestructura/clientes', { params })
+  return response.data
+}
+
+export const crearCliente = async (data) => {
+  const response = await api.post('/api/infraestructura/clientes', data)
+  return response.data
+}
+
+export const actualizarCliente = async (id, data) => {
+  const response = await api.put(`/api/infraestructura/clientes/${id}`, data)
+  return response.data
+}
+
+// ============================================================================
+// CUADRE CONTABLE FINAL (Admin)
+// ============================================================================
+
+export const getCuadreConsolidado = async (fecha) => {
+  const response = await api.get('/api/cuadre/consolidado', { params: { fecha } })
   return response.data
 }
 

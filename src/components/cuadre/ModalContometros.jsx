@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Trash2, PlusCircle, Save, X } from 'lucide-react'
-import { getContometros } from '../../utils/api'
+import { getIslas } from '../../utils/api'
 
 // Componente Modal Genérico
 function ModalWrapper({ isOpen, onClose, title, children }) {
@@ -25,116 +25,121 @@ function ModalWrapper({ isOpen, onClose, title, children }) {
 
 export default function ModalContometros({ isOpen, onClose, onSave, listaInicial = [] }) {
   const [listaContometros, setListaContometros] = useState(listaInicial)
-  // Estado para contometros
-  const [contometrosDisponibles, setContometrosDisponibles] = useState([])
-  const [cargando, setCargando] = useState(false)
-  
-  const [nuevo, setNuevo] = useState({ 
-    contometroId: '', 
-    codigo: '', 
-    producto: '', 
-    lecturaInicial: '', 
-    lecturaFinal: '', 
-    galones: '', 
-    precio: '', 
-    monto: '' 
-  })
-  
-  // Mock de Contómetros (Fallback)
-  const contometrosMock = [
-    { id: 1, codigo: 'MANG-01', producto: 'GASOLINA 90', lectura_actual: 14500.50, precio: 15.50 },
-    { id: 2, codigo: 'MANG-02', producto: 'GASOLINA 90', lectura_actual: 12300.20, precio: 15.50 },
-    { id: 3, codigo: 'MANG-03', producto: 'GASOLINA 95', lectura_actual: 8900.00, precio: 17.20 },
-    { id: 4, codigo: 'MANG-04', producto: 'GLP', lectura_actual: 25600.80, precio: 8.50 },
-    { id: 5, codigo: 'MANG-05', producto: 'DIESEL', lectura_actual: 34200.10, precio: 16.00 },
-  ]
 
-  // Cargar contómetros desde API
+  // Jerarquía: islas con surtidores y contómetros
+  const [islas, setIslas] = useState([])
+  const [cargando, setCargando] = useState(false)
+
+  // Selección en cascada
+  const [islaSeleccionada, setIslaSeleccionada] = useState('')
+
+  // Contómetros filtrados según la isla seleccionada
+  const [contometrosFiltrados, setContometrosFiltrados] = useState([])
+
+  const [nuevo, setNuevo] = useState({
+    contometroId: '',
+    codigo: '',
+    producto: '',
+    lecturaInicial: '',
+    lecturaFinal: '',
+    galones: '',
+    precio: '',
+    monto: ''
+  })
+
+  // Cargar jerarquía islas → surtidores → contómetros desde API
   useEffect(() => {
-    const fetchContometros = async () => {
-      if (isOpen) {
-        setCargando(true)
-        try {
-          const data = await getContometros()
-          if (data && data.length > 0) {
-            const contometrosMapeados = data.map(c => ({
-              id: c.id,
-              codigo: c.codigo,
-              producto: c.producto?.nombre || 'Sin Producto',
-              lectura_actual: parseFloat(c.lectura_actual).toFixed(2), 
-              precio: parseFloat(c.producto?.precio_venta).toFixed(2)
-            }))
-            setContometrosDisponibles(contometrosMapeados)
-          } else {
-            setContometrosDisponibles(contometrosMock)
-          }
-        } catch (error) {
-          console.warn("Error al cargar contómetros (usando mock):", error)
-          setContometrosDisponibles(contometrosMock)
-        } finally {
-          setCargando(false)
-        }
+    if (!isOpen) return
+
+    const fetchIslas = async () => {
+      setCargando(true)
+      try {
+        const data = await getIslas(true)
+        setIslas(data || [])
+      } catch (error) {
+        console.warn('Error al cargar islas:', error)
+        setIslas([])
+      } finally {
+        setCargando(false)
       }
     }
-    
-    fetchContometros()
+
+    fetchIslas()
   }, [isOpen])
 
+  // Cuando cambia la isla, aplanar todos los contómetros de sus surtidores
   useEffect(() => {
-    if (isOpen) {
-      setListaContometros(listaInicial)
+    if (!islaSeleccionada) {
+      setContometrosFiltrados([])
+      resetNuevo()
+      return
     }
+
+    const isla = islas.find(i => i.id === parseInt(islaSeleccionada))
+    if (!isla) return
+
+    const todos = []
+    isla.surtidores.forEach(sur => {
+      sur.contometros.forEach(cnt => {
+        todos.push({
+          ...cnt,
+          surtidorNombre: sur.nombre,
+          surtidorCodigo: sur.codigo
+        })
+      })
+    })
+    setContometrosFiltrados(todos)
+    resetNuevo()
+  }, [islaSeleccionada, islas])
+
+  useEffect(() => {
+    if (isOpen) setListaContometros(listaInicial)
   }, [isOpen, listaInicial])
 
-  // Cálculo Automático
+  // Cálculo automático de galones y monto
   useEffect(() => {
-    const lecturaInicial = parseFloat(nuevo.lecturaInicial)
-    const lecturaFinal = parseFloat(nuevo.lecturaFinal)
-    const precio = parseFloat(nuevo.precio)
+    const lI = parseFloat(nuevo.lecturaInicial)
+    const lF = parseFloat(nuevo.lecturaFinal)
+    const pr = parseFloat(nuevo.precio)
 
-    if (
-      !isNaN(lecturaInicial) && 
-      !isNaN(lecturaFinal) && 
-      !isNaN(precio) && 
-      lecturaFinal >= lecturaInicial
-    ) {
-      const galones = lecturaFinal - lecturaInicial
-      const monto = galones * precio
-      setNuevo(prev => ({ 
-        ...prev, 
-        galones: galones.toFixed(2), 
-        monto: monto.toFixed(2) 
+    if (!isNaN(lI) && !isNaN(lF) && !isNaN(pr) && lF >= lI) {
+      const galones = lF - lI
+      setNuevo(prev => ({
+        ...prev,
+        galones: galones.toFixed(2),
+        monto: (galones * pr).toFixed(2)
       }))
     } else {
       setNuevo(prev => ({ ...prev, galones: '', monto: '' }))
     }
   }, [nuevo.lecturaFinal, nuevo.lecturaInicial, nuevo.precio])
 
+  const resetNuevo = () => {
+    setNuevo({ contometroId: '', codigo: '', producto: '', lecturaInicial: '', lecturaFinal: '', galones: '', precio: '', monto: '' })
+  }
+
+  const handleIslaChange = (e) => {
+    setIslaSeleccionada(e.target.value)
+  }
+
   const handleContometroChange = (e) => {
     const selectedId = parseInt(e.target.value)
-    const selected = contometrosDisponibles.find(c => c.id === selectedId)
-    
+    const selected = contometrosFiltrados.find(c => c.id === selectedId)
+
     if (selected) {
-      // Adaptar si viene del backend (donde producto es un objeto anidado o ID)
-      // Asumiremos que el backend devuelve algo como { id, codigo, producto: { nombre: '...' }, lectura_actual: ... }
-      // O usaremos el mock si no coincide.
-      
-      const nombreProducto = selected.producto?.nombre || selected.producto || 'Producto'
-      const lecturaActual = selected.lectura_actual || selected.lecturaActual || 0
-      
       setNuevo(prev => ({
         ...prev,
         contometroId: selected.id,
         codigo: selected.codigo,
-        producto: nombreProducto,
-        lecturaInicial: lecturaActual, // Auto-llenar lectura inicial con la actual del sistema
-        lecturaFinal: '', 
+        producto: selected.producto,
+        lecturaInicial: selected.lectura_actual,
+        lecturaFinal: '',
         galones: '',
-        precio: selected.precio, // El precio ya viene formateado
+        precio: selected.precio,
         monto: ''
       }))
     } else {
-       setNuevo({ contometroId: '', codigo: '', producto: '', lecturaInicial: '', lecturaFinal: '', galones: '', precio: '', monto: '' })
+      resetNuevo()
     }
   }
 
@@ -144,17 +149,15 @@ export default function ModalContometros({ isOpen, onClose, onSave, listaInicial
 
   const agregarContometro = () => {
     if (!nuevo.contometroId || !nuevo.lecturaFinal || !nuevo.monto) return
-    
     setListaContometros([...listaContometros, { ...nuevo, id: Date.now() }])
-    
-    // Resetear formulario parcial (mantener ID vacío o lo que prefieras)
-    setNuevo({ contometroId: '', codigo: '', producto: '', lecturaInicial: '', lecturaFinal: '', galones: '', precio: '', monto: '' })
+    resetNuevo()
+    // Mantener la isla seleccionada para agilizar el ingreso de múltiples contómetros
   }
 
   const eliminarContometro = (id) => {
     setListaContometros(listaContometros.filter(c => c.id !== id))
   }
-  
+
   const handleSave = () => {
     onSave(listaContometros)
     onClose()
@@ -165,33 +168,59 @@ export default function ModalContometros({ isOpen, onClose, onSave, listaInicial
       <div className="space-y-6">
         {/* Formulario */}
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-          <div className="flex gap-4 items-end">
-            
-            {/* Contómetro Selector */}
-            <div className="w-64">
+          <div className="flex gap-4 items-end flex-wrap">
+
+            {/* Selector ISLA — primer orden */}
+            <div className="w-44">
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">
-                Contómetro {cargando && <span className="text-gray-400 font-normal">...</span>}
+                Isla Asignada {cargando && <span className="text-gray-400 font-normal">...</span>}
               </label>
               <select
                 className="w-full h-10 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm"
-                value={nuevo.contometroId}
-                onChange={handleContometroChange}
+                value={islaSeleccionada}
+                onChange={handleIslaChange}
                 disabled={cargando}
               >
                 <option value="">Seleccione...</option>
-                {contometrosDisponibles.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.codigo} - {c.producto?.nombre || c.producto}
+                {islas.map(isla => (
+                  <option key={isla.id} value={isla.id}>
+                    {isla.nombre}
                   </option>
                 ))}
               </select>
             </div>
 
-            {/* Actual Lectura */}
-            <div className="w-32">
+            {/* Selector Contómetro (filtrado por isla) */}
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">
+                Contómetro
+              </label>
+              <select
+                className="w-full h-10 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm"
+                value={nuevo.contometroId}
+                onChange={handleContometroChange}
+                disabled={!islaSeleccionada || contometrosFiltrados.length === 0}
+              >
+                <option value="">
+                  {!islaSeleccionada
+                    ? '← Seleccione una isla'
+                    : contometrosFiltrados.length === 0
+                      ? 'Sin contómetros'
+                      : 'Seleccione...'}
+                </option>
+                {contometrosFiltrados.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.codigo} — {c.producto}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Lect. Actual */}
+            <div className="w-28">
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase text-center">Lect. Actual</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 className="w-full h-10 border-gray-300 rounded-md bg-gray-100 text-gray-600 text-center"
                 readOnly
                 value={nuevo.lecturaInicial}
@@ -199,44 +228,46 @@ export default function ModalContometros({ isOpen, onClose, onSave, listaInicial
             </div>
 
             {/* Nueva Lectura */}
-            <div className="w-32">
+            <div className="w-28">
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase text-center">Nueva Lect.</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 className="w-full h-10 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-center font-bold text-blue-600"
                 placeholder="0.00"
                 value={nuevo.lecturaFinal}
                 onChange={e => handleInputChange('lecturaFinal', e.target.value)}
+                disabled={!nuevo.contometroId}
               />
             </div>
 
-            {/* Precio Unit */}
+            {/* P. Unit */}
             <div className="w-24">
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase text-center">P. Unit</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 className="w-full h-10 border-gray-300 rounded-md bg-gray-100 text-gray-600 text-center"
                 readOnly
                 value={nuevo.precio}
               />
             </div>
 
-            {/* Monto */}
-            <div className="w-32">
+            {/* Monto calculado */}
+            <div className="w-28">
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase text-center">Monto</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 className="w-full h-10 border-gray-300 rounded-md bg-gray-100 font-bold text-gray-900 text-center"
                 readOnly
                 placeholder="0.00"
                 value={nuevo.monto}
               />
             </div>
-            
+
             {/* Botón Agregar */}
-            <button 
+            <button
               onClick={agregarContometro}
               className="h-10 w-12 flex items-center justify-center bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+              title="Agregar lectura"
             >
               <PlusCircle className="w-6 h-6" />
             </button>
@@ -261,21 +292,14 @@ export default function ModalContometros({ isOpen, onClose, onSave, listaInicial
                 <tr key={item.id}>
                   <td className="px-4 py-2 text-sm text-gray-900 font-medium">
                     {item.codigo}
+                    <span className="ml-1 text-xs text-gray-400">({item.producto})</span>
                   </td>
-                  <td className="px-4 py-2 text-right text-sm text-gray-500">
-                    {item.lecturaInicial}
-                  </td>
-                  <td className="px-4 py-2 text-right text-sm text-gray-900 font-bold">
-                    {item.lecturaFinal}
-                  </td>
-                  <td className="px-4 py-2 text-right text-sm text-blue-600 font-medium">
-                    {item.galones}
-                  </td>
-                  <td className="px-4 py-2 text-right text-sm font-bold text-green-600">
-                    S/ {item.monto}
-                  </td>
+                  <td className="px-4 py-2 text-right text-sm text-gray-500">{item.lecturaInicial}</td>
+                  <td className="px-4 py-2 text-right text-sm text-gray-900 font-bold">{item.lecturaFinal}</td>
+                  <td className="px-4 py-2 text-right text-sm text-blue-600 font-medium">{item.galones}</td>
+                  <td className="px-4 py-2 text-right text-sm font-bold text-green-600">S/ {item.monto}</td>
                   <td className="px-4 py-2 text-right">
-                    <button 
+                    <button
                       onClick={() => eliminarContometro(item.id)}
                       className="text-red-500 hover:text-red-700"
                     >
@@ -296,7 +320,7 @@ export default function ModalContometros({ isOpen, onClose, onSave, listaInicial
         </div>
 
         <div className="pt-4 border-t border-gray-100 flex justify-end">
-          <button 
+          <button
             onClick={handleSave}
             className="flex items-center gap-2 px-6 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-sm"
           >

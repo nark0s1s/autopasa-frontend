@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  Fuel, Gauge, FileText, Users, Settings, LogOut, Menu, X, Calendar, Calculator
+  Fuel, Gauge, FileText, Users, Settings, LogOut, Menu, X, Calendar, Calculator, Package, Building2, BookOpen
 } from 'lucide-react'
 
 function Layout({ children }) {
@@ -44,10 +44,17 @@ function Layout({ children }) {
           description: 'Ver y liquidar turnos'
         },
         {
-          name: 'Cuadre Diario',
+          name: 'Cuadre Contable por Usuario',
           path: '/cuadre-diario',
           icon: Calculator,
-          description: 'Cuadre contable final'
+          description: 'Cuadre contable por empleado'
+        },
+        {
+          name: 'Cuadre Contable Final',
+          path: '/cuadre-contable',
+          icon: BookOpen,
+          description: 'Consolidado diario del día',
+          adminOnly: true
         }
       ]
     },
@@ -58,7 +65,22 @@ function Layout({ children }) {
           name: 'Empleados',
           path: '/empleados',
           icon: Users,
-          description: 'Gestionar personal'
+          description: 'Gestionar personal',
+          adminOnly: true
+        },
+        {
+          name: 'Productos',
+          path: '/productos',
+          icon: Package,
+          description: 'Catálogo de productos',
+          adminOnly: false
+        },
+        {
+          name: 'Clientes',
+          path: '/clientes',
+          icon: Building2,
+          description: 'Gestionar clientes',
+          adminOnly: false
         },
         {
           name: 'Configuración',
@@ -70,12 +92,14 @@ function Layout({ children }) {
     }
   ]
 
+  const isAdmin = user?.rol?.nombre === 'admin'
+
   return (
-    <div className="min-h-screen flex" style={{ backgroundColor: '#f5f3e0' }}>
+    <div className="h-screen overflow-hidden flex" style={{ backgroundColor: '#f5f3e0' }}>
       {/* Sidebar */}
       <aside className={`${
         sidebarOpen ? 'w-64' : 'w-20'
-      } border-r border-gray-200 transition-all duration-300 flex flex-col`} style={{ backgroundColor: '#faf8e4' }}>
+      } h-screen border-r border-gray-200 transition-all duration-300 flex flex-col`} style={{ backgroundColor: '#faf8e4' }}>
         {/* Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
           {sidebarOpen && (
@@ -98,21 +122,6 @@ function Layout({ children }) {
           </button>
         </div>
 
-        {/* User Info */}
-        <div className="px-4 py-4 border-b border-gray-200">
-          {sidebarOpen ? (
-            <div>
-              <p className="text-sm font-medium text-gray-900">{user?.nombres} {user?.apellidos}</p>
-              <p className="text-xs text-gray-600">{user?.cargo}</p>
-            </div>
-          ) : (
-            <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center mx-auto">
-              <span className="text-sm font-bold text-primary-600">
-                {user?.nombres?.[0]}{user?.apellidos?.[0]}
-              </span>
-            </div>
-          )}
-        </div>
 
         {/* Menu */}
         <nav className="flex-1 overflow-y-auto py-4">
@@ -124,7 +133,7 @@ function Layout({ children }) {
                 </h3>
               )}
               <div className="space-y-1 px-2">
-                {section.items.map((item) => {
+                {section.items.filter(item => !item.adminOnly || isAdmin).map((item) => {
                   const isActive = location.pathname === item.path || 
                     (item.path === '/liquidacion' && location.pathname.startsWith('/liquidacion'))
                   const Icon = item.icon
@@ -155,23 +164,51 @@ function Layout({ children }) {
           ))}
         </nav>
 
-        {/* Logout */}
-        <div className="p-4 border-t border-gray-200">
-          <button
-            onClick={handleLogout}
-            className={`w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors ${
-              !sidebarOpen && 'justify-center'
-            }`}
-            title={!sidebarOpen ? 'Cerrar Sesión' : ''}
-          >
-            <LogOut className="w-5 h-5" />
-            {sidebarOpen && <span className="text-sm font-medium">Cerrar Sesión</span>}
-          </button>
+        {/* Footer: Usuario + Cerrar Sesión */}
+        <div className="border-t border-gray-200">
+          {/* Info del usuario */}
+          {sidebarOpen ? (
+            <div className="px-4 pt-3 pb-1">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span className="text-sm font-bold text-primary-600">
+                    {user?.nombres?.[0]}{user?.apellidos?.[0]}
+                  </span>
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{user?.nombres} {user?.apellidos}</p>
+                  <p className="text-xs text-gray-500 truncate">{user?.cargo}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-9 h-9 bg-primary-100 rounded-full flex items-center justify-center">
+                <span className="text-sm font-bold text-primary-600">
+                  {user?.nombres?.[0]}{user?.apellidos?.[0]}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Botón Cerrar Sesión */}
+          <div className="px-3 pb-3 pt-1">
+            <button
+              onClick={handleLogout}
+              className={`w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors ${
+                !sidebarOpen && 'justify-center'
+              }`}
+              title={!sidebarOpen ? 'Cerrar Sesión' : ''}
+            >
+              <LogOut className="w-5 h-5 flex-shrink-0" />
+              {sidebarOpen && <span className="text-sm font-medium">Cerrar Sesión</span>}
+            </button>
+          </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden">
+      <main className="flex-1 overflow-y-auto">
         {children}
       </main>
     </div>
