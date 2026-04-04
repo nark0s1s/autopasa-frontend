@@ -173,7 +173,9 @@ if [ -s "$DIAG_TMP/lb80.out" ]; then
   echo ">>> Primeros bytes de la respuesta (:80):"
   _preview_file "$DIAG_TMP/lb80.out" 400
   if _body_looks_like_html "$DIAG_TMP/lb80.out"; then
-    if [ "$LB80_CODE" = "404" ]; then
+    if [ "$LB80_CODE" = "301" ] || [ "$LB80_CODE" = "302" ]; then
+      echo ">>> INTERPRETACIÓN: :80 solo redirige a HTTPS (normal). La SPA debe servirse bien en :443 (listen ssl) con root → $DEPLOY_PATH/dist"
+    elif [ "$LB80_CODE" = "404" ]; then
       echo ">>> INTERPRETACIÓN: cuerpo HTML con 404 → suele ser default_server o root distinta a $DEPLOY_PATH/dist"
     elif [ "$LB80_CODE" = "502" ] || [ "$LB80_CODE" = "503" ]; then
       echo ">>> INTERPRETACIÓN: HTML 502/503 → upstream/proxy mal configurado en este server block (raro para SPA estática)."
@@ -207,7 +209,7 @@ if [ -s "$DIAG_TMP/lb443.out" ]; then
   _preview_file "$DIAG_TMP/lb443.out" 400
 fi
 if [ -n "$HOST_FOR_NGINX" ] && _http_ok "$LB80_CODE" && ! _http_ok "$LB443_CODE"; then
-  echo ">>> INTERPRETACIÓN: :80 OK pero :443 no → revisa bloque ssl/listen 443 para server_name $HOST_FOR_NGINX (p. ej. tras certbot)."
+  echo ">>> INTERPRETACIÓN: :80 responde ($LB80_CODE, a menudo redirección) pero :443 no sirve el SPA → edita el bloque listen 443 ssl con server_name $HOST_FOR_NGINX: root $DEPLOY_PATH/dist; try_files \$uri \$uri/ /index.html;"
 fi
 
 # D) Nginx: archivos que citan el host (solo lectura)
@@ -274,13 +276,27 @@ if [ -s "$DIAG_TMP/pub.out" ]; then
   fi
 fi
 
-# F) Coherencia loopback vs público
+# F) Coherencia loopback vs público (no confundir 301 en :80 con “todo OK” frente a 404 en público)
 echo ""
 echo "=== F) Coherencia (misma máquina) ==="
-if _http_ok "$LB80_CODE" && [ "$PUB_OK" != "1" ]; then
-  echo "[WARN] Loopback :80 OK pero HTTPS público falló → DNS externo, firewall, CDN u otra IP distinta a este VPS."
-elif ! _http_ok "$LB80_CODE" && [ "$PUB_OK" = "1" ]; then
-  echo "[WARN] HTTPS público OK pero loopback :80 no → comprobación local no coincide (proxy delante del VPS o default_server distinto)."
+if [ "$PUB_OK" = "1" ]; then
+  if ! _http_ok "$LB80_CODE" && [ -n "$HOST_FOR_NGINX" ]; then
+    echo "[WARN] HTTPS público OK pero loopback :80 + Host → HTTP $LB80_CODE (proxy delante, default_server u otro vhost en :80)."
+  else
+    echo "[OK] URL pública OK; diagnóstico local alineado o no aplicable."
+  fi
+else
+  if _http_ok "$LB443_CODE"; then
+    echo "[WARN] Loopback https://127.0.0.1:443 + Host → HTTP $LB443_CODE OK, pero la URL pública falló → revisa DNS (¿otra IP?), CDN o certificado/SNI distinto al de este VPS."
+  elif [ "$LAST_PUB_CODE" = "$LB443_CODE" ] && [ -n "$LAST_PUB_CODE" ] && [ "$LAST_PUB_CODE" != "000" ]; then
+    echo "[INFO] Mismo HTTP $LAST_PUB_CODE en loopback :443 y en URL pública → es el mismo Nginx (este servidor); no es un fallo de DNS a otro host."
+    echo "       Corrige el bloque ssl (listen 443) de server_name $HOST_FOR_NGINX: $EXPECTED_ROOT_LINE y try_files para SPA."
+  else
+    echo "[INFO] Público HTTP $LAST_PUB_CODE vs loopback :443 HTTP $LB443_CODE → si ambos son 404 HTML de Nginx, unifica root en el vhost ssl."
+  fi
+  if _http_ok "$LB80_CODE" && ! _http_ok "$LB443_CODE"; then
+    echo "[INFO] :80 devuelve $LB80_CODE (suele ser redirección a HTTPS) y :443 devuelve $LB443_CODE → el arreglo va en el server { ssl } de $HOST_FOR_NGINX, no en el de solo :80."
+  fi
 fi
 
 # Resumen final
