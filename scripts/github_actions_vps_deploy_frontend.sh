@@ -248,7 +248,21 @@ if [ -n "$HOST_FOR_NGINX" ] && [ -d /etc/nginx/sites-enabled ]; then
 fi
 if [ -n "$HOST_FOR_NGINX" ] && [ "$NGINX_FOUND" -eq 0 ]; then
   echo "[WARN] Ningún fichero Autopasa en sites-enabled menciona $HOST_FOR_NGINX (o solo aparece en vhosts de otros productos, ignorados aquí)."
-  echo "    Esperado: enlace tipo sites-enabled/00-$HOST_FOR_NGINX → sites-available/$HOST_FOR_NGINX"
+  echo "    Esperado: enlace tipo sites-enabled/0-$HOST_FOR_NGINX → sites-available/$HOST_FOR_NGINX (0- ordena antes que sgc-*)"
+  if [ -d /etc/nginx/sites-enabled ]; then
+    for f in /etc/nginx/sites-enabled/*; do
+      [ -f "$f" ] || continue
+      bn=$(basename "$f" | tr '[:upper:]' '[:lower:]')
+      case "$bn" in *sgc*) ;; *) continue ;; esac
+      if grep -q "$HOST_FOR_NGINX" "$f" 2>/dev/null; then
+        echo "[INFO] El host $HOST_FOR_NGINX aún aparece en $f (nombre *sgc* — fuera del diagnóstico Autopasa)."
+        echo "    Eso suele explicar el 404 en :443: Nginx toma un server block ahí sin root del SPA."
+        echo "    Quita de ese fichero los bloques server { } que usen server_name $HOST_FOR_NGINX y activa solo"
+        echo "    sites-available/$HOST_FOR_NGINX con enlace sites-enabled/0-$HOST_FOR_NGINX."
+        break
+      fi
+    done
+  fi
 fi
 if [ -n "$HOST_FOR_NGINX" ] && [ -d /etc/nginx/sites-enabled ]; then
   DIST_IN_AUTOPASA_VHOST=0
@@ -271,7 +285,7 @@ if [ -n "$HOST_FOR_NGINX" ] && [ -d /etc/nginx/sites-enabled ]; then
     echo "    $EXPECTED_ROOT_LINE"
     echo "    index index.html;"
     echo "    location / { try_files \$uri \$uri/ /index.html; }"
-    echo "    sudo ln -sf /etc/nginx/sites-available/$HOST_FOR_NGINX /etc/nginx/sites-enabled/00-$HOST_FOR_NGINX"
+    echo "    sudo ln -sf /etc/nginx/sites-available/$HOST_FOR_NGINX /etc/nginx/sites-enabled/0-$HOST_FOR_NGINX"
     echo "    sudo nginx -t && sudo systemctl reload nginx"
     echo ">>> Si el server_name solo existía dentro de un vhost de otro producto, elimínalo allí y usa solo este fichero."
   fi
