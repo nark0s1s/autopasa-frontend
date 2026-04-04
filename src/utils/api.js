@@ -42,17 +42,44 @@ api.interceptors.response.use(
 // AUTH
 // ============================================================================
 
+function loginAbsoluteUrl() {
+  const base = String(API_URL).replace(/\/$/, '')
+  return `${base}/api/auth/login`
+}
+
 /** POST OAuth2-style a /api/auth/login en el host VITE_API_URL (no GET al API en /login). */
 export const login = async (usuario, password) => {
+  const loginUrl = loginAbsoluteUrl()
+  console.info('[Autopasa debug] Inicio login', {
+    loginUrl,
+    pageOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+    usuarioLength: usuario?.length ?? 0,
+    note: 'La contraseña no se registra. GET /login en la barra es el SPA; el backend es el POST anterior.',
+  })
   const body = new URLSearchParams()
   body.set('username', usuario)
   body.set('password', password)
-  const response = await api.post('/api/auth/login', body.toString(), {
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
-  })
-  return response.data
+  try {
+    const response = await api.post('/api/auth/login', body.toString(), {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+    })
+    console.info('[Autopasa debug] Login POST OK', { status: response.status, hasToken: !!response.data?.access_token })
+    return response.data
+  } catch (e) {
+    const reqUrl = e.config ? `${e.config.baseURL || ''}${e.config.url || ''}` : loginUrl
+    console.warn('[Autopasa debug] Login POST falló', {
+      requestUrl: reqUrl,
+      message: e.message,
+      code: e.code,
+      status: e.response?.status,
+      statusText: e.response?.statusText,
+      responseData: e.response?.data,
+      corsOrNetwork: !e.response,
+    })
+    throw e
+  }
 }
 
 export const getCurrentUser = async () => {
