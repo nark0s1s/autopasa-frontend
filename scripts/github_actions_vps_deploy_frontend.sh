@@ -38,18 +38,38 @@ echo "Deploy user: $DEPLOY_USER"
 echo "VITE_API_URL length: ${#VITE_API_URL}"
 
 sudo_mkdir_chown_hint() {
-  echo "[ERROR] sudo sin NOPASSWD o permiso denegado para preparar $DEPLOY_PATH"
-  echo "  En el VPS (root): el usuario $DEPLOY_USER necesita poder crear/chown bajo /var/www, p. ej.:"
-  echo "    sudo mkdir -p $DEPLOY_PATH && sudo chown -R $DEPLOY_USER:$DEPLOY_USER $DEPLOY_PATH"
-  echo "  O en /etc/sudoers.d/autopasa-deploy añade NOPASSWD para los comandos que uses (ver docs/USUARIO_DEPLOY_AUTOPASA.md)."
+  local root_staging="/var/www/autopasa-staging.devjal.tech"
+  local root_prod="/var/www/autopasa.devjal.tech"
+  echo "[ERROR] No se pudo preparar $DEPLOY_PATH (sin permiso o sudo -n denegado)."
+  echo "  Una vez en el VPS como root (recomendado — luego el deploy no necesita sudo aquí):"
+  echo "    sudo mkdir -p $root_staging/frontend $root_prod/frontend"
+  echo "    sudo chown -R $DEPLOY_USER:$DEPLOY_USER $root_staging $root_prod"
+  echo "  Alternativa: en /etc/sudoers.d/autopasa-deploy añade NOPASSWD para mkdir y chown:"
+  echo "    $DEPLOY_USER ALL=(ALL) NOPASSWD: /usr/bin/mkdir, /bin/mkdir, /usr/bin/chown, /bin/chown"
+  echo "  Doc: autopasa-api/docs/USUARIO_DEPLOY_AUTOPASA.md (sección sudo + frontend /var/www)."
 }
 
-if ! sudo -n mkdir -p "$DEPLOY_PATH" 2>/dev/null; then
+# 1) Si el directorio ya existe y el usuario actual puede escribir → OK (típico tras chown previo).
+# 2) Si el padre bajo /var/www es del deploy → mkdir -p sin sudo.
+# 3) Si no, intentar sudo -n (NOPASSWD en sudoers).
+ensure_deploy_path_writable() {
+  if [[ -d "$DEPLOY_PATH" && -w "$DEPLOY_PATH" ]]; then
+    echo "[OK] $DEPLOY_PATH existe y es escribible"
+    return 0
+  fi
+  if mkdir -p "$DEPLOY_PATH" 2>/dev/null && [[ -w "$DEPLOY_PATH" ]]; then
+    echo "[OK] mkdir -p $DEPLOY_PATH (sin sudo)"
+    return 0
+  fi
+  if sudo -n mkdir -p "$DEPLOY_PATH" 2>/dev/null && sudo -n chown -R "$DEPLOY_USER:$DEPLOY_USER" "$DEPLOY_PATH" 2>/dev/null; then
+    echo "[OK] Directorio preparado con sudo -n"
+    return 0
+  fi
   sudo_mkdir_chown_hint
-  exit 1
-fi
-if ! sudo -n chown -R "$DEPLOY_USER:$DEPLOY_USER" "$DEPLOY_PATH" 2>/dev/null; then
-  sudo_mkdir_chown_hint
+  return 1
+}
+
+if ! ensure_deploy_path_writable; then
   exit 1
 fi
 
