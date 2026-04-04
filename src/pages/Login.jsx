@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import { getLoginPostUrl } from '../utils/api'
 import { Fuel, Lock, User, AlertCircle } from 'lucide-react'
 
 function Login() {
@@ -8,17 +9,39 @@ function Login() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [apiDebugLines, setApiDebugLines] = useState([])
   const { login } = useAuth()
   const navigate = useNavigate()
+
+  const showApiDebugPanel = useMemo(() => {
+    if (typeof window === 'undefined') return false
+    const q = new URLSearchParams(window.location.search).get('apiDebug')
+    if (q === '1' || q === 'true') return true
+    return import.meta.env.VITE_SHOW_LOGIN_DEBUG === 'true'
+  }, [])
+
+  const appendDebug = (line) => {
+    const t = new Date().toISOString()
+    setApiDebugLines((prev) => [...prev.slice(-24), `[${t}] ${line}`])
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
+    const postUrl = getLoginPostUrl()
+    if (showApiDebugPanel) {
+      const ts = new Date().toISOString()
+      setApiDebugLines([
+        `[${ts}] Barra del navegador (solo HTML del SPA): ${window.location.href}`,
+        `[${ts}] POST real del login (busca ESTO en Red → XHR): ${postUrl}`,
+      ])
+    }
     console.info('[Autopasa debug] Formulario enviado (login en contexto → api.js)')
 
     try {
       await login(usuario, password)
+      if (showApiDebugPanel) appendDebug('POST /api/auth/login → OK; /api/auth/me OK; navegando…')
       console.info('[Autopasa debug] Login completo; navegando a /liquidacion-grifero')
       navigate('/liquidacion-grifero')
     } catch (err) {
@@ -33,6 +56,11 @@ function Login() {
         msg = d.map((x) => x.msg || JSON.stringify(x)).join('; ')
       }
       setError(msg)
+      if (showApiDebugPanel) {
+        appendDebug(
+          `Error: ${err.code || '—'} status=${err.response?.status ?? 'sin respuesta (CORS/red)'} → ${msg}`
+        )
+      }
       console.error('[Autopasa debug] Login.jsx catch (resumen en pantalla):', msg, err)
     } finally {
       setLoading(false)
@@ -137,6 +165,26 @@ function Login() {
         <div className="mt-8 text-center text-primary-100 text-sm">
           <p>© 2026 Autopasa. Todos los derechos reservados.</p>
         </div>
+
+        {showApiDebugPanel && (
+          <div className="mt-6 w-full max-w-lg mx-auto rounded-lg bg-black/80 text-green-400 text-xs font-mono p-4 text-left shadow-lg border border-green-700/50">
+            <p className="text-green-300 font-sans font-semibold mb-2">
+              Depuración API (añade <code className="bg-black/50 px-1">?apiDebug=1</code> a la URL)
+            </p>
+            <p className="text-gray-400 font-sans text-[11px] mb-2">
+              El GET a <code className="text-gray-300">…/login</code> con 304 es solo el HTML; el login es el POST de abajo.
+            </p>
+            <ul className="space-y-1 whitespace-pre-wrap break-all max-h-48 overflow-y-auto">
+              {apiDebugLines.length === 0 ? (
+                <li className="text-gray-500">Pulsa Ingresar para ver el flujo.</li>
+              ) : (
+                apiDebugLines.map((line, i) => (
+                  <li key={i}>{line}</li>
+                ))
+              )}
+            </ul>
+          </div>
+        )}
       </div>
     </div>
   )
