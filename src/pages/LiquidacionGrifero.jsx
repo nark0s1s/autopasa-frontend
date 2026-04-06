@@ -35,11 +35,10 @@ function LiquidacionGrifero() {
     try {
       setLoading(true)
       
-      // Cargar turno actual (si existe)
       try {
         const turnoData = await getTurnoGriferoActual()
-        setTurnoActual(turnoData)
-      } catch (err) {
+        setTurnoActual(turnoData ?? null)
+      } catch {
         setTurnoActual(null)
       }
       
@@ -64,44 +63,44 @@ function LiquidacionGrifero() {
   const handleIniciarTurno = async () => {
     try {
       setIniciandoTurno(true)
-      
-      // Primero verificar si hay turno del día
-      let turnoDia
-      try {
-        turnoDia = await getTurnoDiaActual()
-        console.log('Turno del día encontrado:', turnoDia)
-      } catch (err) {
-        // No hay turno del día, intentar crear uno
-        console.log('No hay turno del día, creando uno nuevo...')
+
+      const hoy = new Date().toISOString().split('T')[0]
+      // GET /actual devuelve 200 con null si no hay turno (no lanza error)
+      let turnoDia = await getTurnoDiaActual()
+
+      if (!turnoDia?.id) {
         try {
-          const hoy = new Date().toISOString().split('T')[0]
           turnoDia = await crearTurnoDia({
             fecha: hoy,
-            supervisor_apertura_id: user.id
+            supervisor_apertura_id: user.id,
           })
-          console.log('Turno del día creado:', turnoDia)
           mostrarMensaje('Turno del día creado exitosamente', 'success')
         } catch (createError) {
-          console.error('Error al crear turno del día:', createError)
-          
-          // Si el error es que ya existe, intentar obtenerlo de nuevo
-          if (createError.response?.data?.detail?.includes('Ya existe')) {
+          const det = createError.response?.data?.detail
+          const msg =
+            typeof det === 'string'
+              ? det
+              : Array.isArray(det)
+                ? JSON.stringify(det)
+                : ''
+          if (msg.includes('Ya existe')) {
             turnoDia = await getTurnoDiaActual()
           } else {
-            throw new Error('No se pudo crear el turno del día: ' + (createError.response?.data?.detail || createError.message))
+            throw new Error(
+              'No se pudo crear el turno del día: ' + (msg || createError.message)
+            )
           }
         }
       }
-      
-      // Verificar que tenemos un turno día
-      if (!turnoDia || !turnoDia.id) {
+
+      if (!turnoDia?.id) {
         throw new Error('No se pudo obtener o crear el turno del día')
       }
       
-      // Crear turno del grifero
-      console.log('Creando turno de grifero con turno_dia_id:', turnoDia.id)
+      // Crear turno del grifero (turno de liquidación del día = padre en API)
+      console.log('Creando turno de grifero con turno_liquidacion_id:', turnoDia.id)
       const nuevoTurno = await crearTurnoGrifero({
-        turno_dia_id: turnoDia.id,
+        turno_liquidacion_id: turnoDia.id,
         empleado_id: user.id,
         observaciones_apertura: 'Turno iniciado desde el sistema'
       })
@@ -113,7 +112,7 @@ function LiquidacionGrifero() {
       
       // Recargar datos y navegar
       await cargarDatos()
-      navigate(`/liquidacion/${nuevoTurno.id}`)
+      navigate(`/consultar-turnos?turno=${nuevoTurno.id}`)
       
     } catch (error) {
       console.error('Error al iniciar turno:', error)
@@ -172,7 +171,8 @@ function LiquidacionGrifero() {
             <div className="flex gap-3">
               {turnoActual && (
                 <button
-                  onClick={() => navigate(`/liquidacion/${turnoActual.id}`)}
+                  type="button"
+                  onClick={() => navigate(`/consultar-turnos?turno=${turnoActual.id}`)}
                   className="btn btn-success flex items-center gap-2"
                 >
                   <Fuel className="w-5 h-5" />
@@ -227,7 +227,8 @@ function LiquidacionGrifero() {
                 </p>
               </div>
               <button
-                onClick={() => navigate(`/liquidacion/${turnoActual.id}`)}
+                type="button"
+                onClick={() => navigate(`/consultar-turnos?turno=${turnoActual.id}`)}
                 className="btn btn-primary flex items-center gap-2 px-6"
               >
                 <Eye className="w-5 h-5" />
@@ -355,7 +356,7 @@ function LiquidacionGrifero() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <button
-                          onClick={() => navigate(`/liquidacion/${turno.id}`)}
+                          onClick={() => navigate(`/consultar-turnos?turno=${turno.id}`)}
                           className="text-primary-600 hover:text-primary-900 inline-flex items-center gap-1"
                         >
                           <Eye className="w-4 h-4" />

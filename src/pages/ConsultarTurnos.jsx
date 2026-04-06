@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Fuel, LogOut, Plus, Save, CheckCircle, AlertCircle,
   Gauge, ShoppingCart, CreditCard, Receipt, DollarSign, X
@@ -16,12 +16,15 @@ import {
   agregarVale,
   agregarDeposito,
   cerrarTurnoGrifero,
-  getTurnoById
+  getTurnoById,
+  getTiposVale,
+  getPrefillLecturaContometro
 } from '../utils/api'
 
 function ConsultarTurnos() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
   
   // Estados principales
   const [turnos, setTurnos] = useState([])
@@ -29,6 +32,7 @@ function ConsultarTurnos() {
   const [turno, setTurno] = useState(null)
   const [contometros, setContometros] = useState([])
   const [productos, setProductos] = useState([])
+  const [tiposVale, setTiposVale] = useState([])
   const [loading, setLoading] = useState(true)
   const [mensaje, setMensaje] = useState(null)
   const [tabActiva, setTabActiva] = useState('lecturas')
@@ -46,23 +50,37 @@ function ConsultarTurnos() {
     cargarDatos()
   }, [])
 
+  const cargarListaYCatalogos = async () => {
+    const turnosData = await getTurnosGrifero()
+    setTurnos(turnosData)
+    const [contometrosData, productosData, tiposValeData] = await Promise.all([
+      getContometros(),
+      getProductos(),
+      getTiposVale()
+    ])
+    setContometros(contometrosData)
+    setProductos(productosData.filter(p =>
+      Number(p.categoria_id) !== 1 &&
+      String(p.categoria || '').toLowerCase() !== 'combustible'
+    ))
+    setTiposVale(tiposValeData)
+  }
+
   const cargarDatos = async () => {
     try {
       setLoading(true)
-      
-      // Cargar lista de turnos del día
-      const turnosData = await getTurnosGrifero()
-      setTurnos(turnosData)
-      
-      // Cargar contómetros y productos
-      const [contometrosData, productosData] = await Promise.all([
-        getContometros(),
-        getProductos()
-      ])
-      
-      setContometros(contometrosData)
-      setProductos(productosData.filter(p => p.categoria !== 'combustible'))
-      
+      await cargarListaYCatalogos()
+
+      const tid = searchParams.get('turno')
+      if (tid) {
+        const nid = Number(tid)
+        if (!Number.isNaN(nid)) {
+          const turnoData = await getTurnoById(nid)
+          setTurno(turnoData)
+          setTurnoSeleccionado(nid)
+          setVistaActual('detalle')
+        }
+      }
     } catch (error) {
       console.error('Error al cargar datos:', error)
       mostrarMensaje('Error al cargar datos', 'error')
@@ -78,6 +96,7 @@ function ConsultarTurnos() {
       setTurno(turnoData)
       setTurnoSeleccionado(turnoId)
       setVistaActual('detalle')
+      setSearchParams({ turno: String(turnoId) }, { replace: true })
     } catch (error) {
       console.error('Error al cargar turno:', error)
       mostrarMensaje('Error al cargar turno', 'error')
@@ -86,11 +105,35 @@ function ConsultarTurnos() {
     }
   }
   
-  const volverALista = () => {
+  const volverALista = async () => {
     setVistaActual('lista')
     setTurno(null)
     setTurnoSeleccionado(null)
-    cargarDatos()
+    setSearchParams({}, { replace: true })
+    try {
+      setLoading(true)
+      await cargarListaYCatalogos()
+    } catch (error) {
+      console.error('Error al cargar datos:', error)
+      mostrarMensaje('Error al cargar datos', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const recargarDatosLiquidacion = async () => {
+    const idDetalle = turnoSeleccionado
+    try {
+      const turnosData = await getTurnosGrifero()
+      setTurnos(turnosData)
+      if (idDetalle) {
+        const turnoData = await getTurnoById(idDetalle)
+        setTurno(turnoData)
+      }
+    } catch (error) {
+      console.error('Error al recargar:', error)
+      mostrarMensaje('Error al recargar datos', 'error')
+    }
   }
 
   const mostrarMensaje = (texto, tipo = 'success') => {
@@ -108,32 +151,13 @@ function ConsultarTurnos() {
   const calcularTotales = () => {
     if (!turno) return null
 
-    const totalCombustible = turno.lecturas_contometro
-      ?.filter(l => l.total_venta)
-      ?.reduce((sum, l) => sum + parseFloat(l.total_venta), 0) || 0
-
-    const totalProductos = turno.ventas_producto
-      ?.filter(v => v.tipo_pago === 'efectivo')
-      ?.reduce((sum, v) => sum + parseFloat(v.total), 0) || 0
-
-    const totalPOS = turno.ventas_pos
-      ?.reduce((sum, v) => sum + parseFloat(v.monto), 0) || 0
-
-    const totalVales = turno.vales
-      ?.reduce((sum, v) => sum + parseFloat(v.monto), 0) || 0
-
-    const totalDepositos = turno.depositos
-      ?.reduce((sum, d) => sum + parseFloat(d.monto), 0) || 0
-
-    const efectivoEsperado = totalCombustible + totalProductos - totalPOS - totalVales - totalDepositos
-
     return {
-      totalCombustible,
-      totalProductos,
-      totalPOS,
-      totalVales,
-      totalDepositos,
-      efectivoEsperado
+      totalCombustible: parseFloat(turno.total_venta_combustible || 0),
+      totalProductos: parseFloat(turno.total_venta_productos || 0),
+      totalPOS: parseFloat(turno.total_ventas_pos || 0),
+      totalVales: parseFloat(turno.total_vales || 0),
+      totalDepositos: parseFloat(turno.total_depositos_caja || 0),
+      efectivoEsperado: parseFloat(turno.efectivo_esperado || 0)
     }
   }
 
@@ -208,10 +232,13 @@ function ConsultarTurnos() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {turnos.map(t => {
-                const estado = t.estado || 'abierto'
-                const estadoColor = estado === 'abierto' ? 'bg-green-100 text-green-800' :
-                                   estado === 'cerrado' ? 'bg-gray-100 text-gray-800' :
-                                   'bg-gray-100 text-gray-800'
+                const estadoLabel =
+                  t.estado_id === 1 ? 'abierto' :
+                  t.estado_id === 2 ? 'cerrado' : 'auditado'
+                const estadoColor =
+                  t.estado_id === 1 ? 'bg-green-100 text-green-800' :
+                  t.estado_id === 2 ? 'bg-gray-100 text-gray-800' :
+                  'bg-blue-100 text-blue-800'
                 
                 return (
                   <div 
@@ -224,7 +251,7 @@ function ConsultarTurnos() {
                         <Gauge className="w-6 h-6 text-primary-600" />
                       </div>
                       <span className={`px-3 py-1 text-xs font-medium rounded-full ${estadoColor}`}>
-                        {estado}
+                        {estadoLabel}
                       </span>
                     </div>
                     
@@ -380,7 +407,7 @@ function ConsultarTurnos() {
               <TabLecturas
                 turno={turno}
                 contometros={contometros}
-                onReload={cargarDatos}
+                onReload={recargarDatosLiquidacion}
                 onMensaje={mostrarMensaje}
               />
             )}
@@ -388,28 +415,29 @@ function ConsultarTurnos() {
               <TabVentas
                 turno={turno}
                 productos={productos}
-                onReload={cargarDatos}
+                onReload={recargarDatosLiquidacion}
                 onMensaje={mostrarMensaje}
               />
             )}
             {tabActiva === 'pos' && (
               <TabPOS
                 turno={turno}
-                onReload={cargarDatos}
+                onReload={recargarDatosLiquidacion}
                 onMensaje={mostrarMensaje}
               />
             )}
             {tabActiva === 'vales' && (
               <TabVales
                 turno={turno}
-                onReload={cargarDatos}
+                tiposVale={tiposVale}
+                onReload={recargarDatosLiquidacion}
                 onMensaje={mostrarMensaje}
               />
             )}
             {tabActiva === 'depositos' && (
               <TabDepositos
                 turno={turno}
-                onReload={cargarDatos}
+                onReload={recargarDatosLiquidacion}
                 onMensaje={mostrarMensaje}
               />
             )}
@@ -417,7 +445,7 @@ function ConsultarTurnos() {
         </div>
 
         {/* Botón de Cierre */}
-        {turno.estado === 'abierto' && totales && (
+        {turno.estado_id === 1 && totales && (
           <div className="card p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -439,29 +467,29 @@ function ConsultarTurnos() {
           </div>
         )}
 
-        {turno.cierre && (
+        {turno.estado_id === 2 && (
           <div className={`card p-6 ${
-            turno.cierre.diferencia === 0 ? 'bg-green-50 border-green-200' :
-            turno.cierre.diferencia < 0 ? 'bg-red-50 border-red-200' :
+            parseFloat(turno.diferencia || 0) === 0 ? 'bg-green-50 border-green-200' :
+            parseFloat(turno.diferencia || 0) < 0 ? 'bg-red-50 border-red-200' :
             'bg-yellow-50 border-yellow-200'
           }`}>
             <div className="text-center">
               <h3 className="text-2xl font-bold mb-2">
-                {turno.cierre.diferencia === 0 ? '✅ Turno Cuadrado' :
-                 turno.cierre.diferencia < 0 ? '❌ Turno con Faltante' :
+                {parseFloat(turno.diferencia || 0) === 0 ? '✅ Turno Cuadrado' :
+                 parseFloat(turno.diferencia || 0) < 0 ? '❌ Turno con Faltante' :
                  '⚠️ Turno con Sobrante'}
               </h3>
               <p className="text-lg mb-4">
-                Diferencia: <span className="font-bold">S/ {turno.cierre.diferencia}</span>
+                Diferencia: <span className="font-bold">S/ {parseFloat(turno.diferencia || 0).toFixed(2)}</span>
               </p>
               <div className="grid grid-cols-2 gap-4 max-w-md mx-auto">
                 <div>
                   <p className="text-sm text-gray-600">Efectivo Esperado</p>
-                  <p className="text-xl font-bold">S/ {parseFloat(turno.cierre.efectivo_esperado).toFixed(2)}</p>
+                  <p className="text-xl font-bold">S/ {parseFloat(turno.efectivo_esperado || 0).toFixed(2)}</p>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Efectivo Entregado</p>
-                  <p className="text-xl font-bold">S/ {parseFloat(turno.cierre.efectivo_entregado).toFixed(2)}</p>
+                  <p className="text-xl font-bold">S/ {parseFloat(turno.efectivo_entregado || 0).toFixed(2)}</p>
                 </div>
               </div>
             </div>
@@ -493,7 +521,14 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
 
   const handleAgregar = async (data) => {
     try {
-      await agregarLecturaContometro(turno.id, data)
+      await agregarLecturaContometro(turno.id, {
+        contometro_id: Number(data.contometro_id),
+        lectura_inicial: data.lectura_inicial,
+        lectura_final: data.lectura_final,
+        precio_venta: data.precio_venta,
+        tiene_anomalia: Boolean(data.tiene_anomalia),
+        observaciones: data.observaciones || null
+      })
       onMensaje('Lectura agregada correctamente')
       setShowModal(false)
       onReload()
@@ -516,15 +551,21 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Lecturas de Contómetros</h3>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary">
-          <Plus className="w-5 h-5 mr-2" />
-          Nueva Lectura
-        </button>
+        {turno.estado_id === 1 && (
+          <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
+            <Plus className="w-5 h-5 mr-2" />
+            Nueva Lectura
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
         {turno.lecturas_contometro?.map(lectura => {
           const contometro = contometros.find(c => c.id === lectura.contometro_id)
+          const gal = parseFloat(lectura.lectura_final) - parseFloat(lectura.lectura_inicial)
+          const monto = gal * parseFloat(lectura.precio_venta)
+          const pendienteFinal =
+            Number(lectura.lectura_final) === Number(lectura.lectura_inicial)
           return (
             <div key={lectura.id} className="card p-4">
               <div className="flex justify-between items-start">
@@ -533,19 +574,16 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
                   <p className="text-sm text-gray-600">
                     Lectura Inicial: {lectura.lectura_inicial} gal
                   </p>
-                  {lectura.lectura_final && (
-                    <>
-                      <p className="text-sm text-gray-600">
-                        Lectura Final: {lectura.lectura_final} gal
-                      </p>
-                      <p className="text-sm font-semibold text-primary-600">
-                        Total: {lectura.total_galones} gal × S/ {lectura.precio_venta} = S/ {lectura.total_venta}
-                      </p>
-                    </>
-                  )}
+                  <p className="text-sm text-gray-600">
+                    Lectura Final: {lectura.lectura_final} gal
+                  </p>
+                  <p className="text-sm font-semibold text-primary-600">
+                    Total: {gal.toFixed(3)} gal × S/ {lectura.precio_venta} = S/ {monto.toFixed(2)}
+                  </p>
                 </div>
-                {!lectura.lectura_final && (
+                {turno.estado_id === 1 && pendienteFinal && (
                   <button
+                    type="button"
                     onClick={() => setLecturaEdit(lectura)}
                     className="btn btn-primary btn-sm"
                   >
@@ -560,6 +598,7 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
 
       {showModal && (
         <ModalLectura
+          cabeceraGriferoId={turno.id}
           contometros={contometros}
           onClose={() => setShowModal(false)}
           onSubmit={handleAgregar}
@@ -585,7 +624,11 @@ function TabVentas({ turno, productos, onReload, onMensaje }) {
 
   const handleAgregar = async (data) => {
     try {
-      await agregarVentaProducto(turno.id, data)
+      await agregarVentaProducto(turno.id, {
+        producto_id: Number(data.producto_id),
+        cantidad: data.cantidad,
+        precio_unitario: data.precio_unitario
+      })
       onMensaje('Venta agregada correctamente')
       setShowModal(false)
       onReload()
@@ -598,28 +641,27 @@ function TabVentas({ turno, productos, onReload, onMensaje }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Ventas de Productos</h3>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary">
-          <Plus className="w-5 h-5 mr-2" />
-          Nueva Venta
-        </button>
+        {turno.estado_id === 1 && (
+          <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
+            <Plus className="w-5 h-5 mr-2" />
+            Nueva Venta
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
         {turno.ventas_producto?.map(venta => {
           const producto = productos.find(p => p.id === venta.producto_id)
+          const subtotal =
+            parseFloat(venta.cantidad) * parseFloat(venta.precio_unitario)
           return (
             <div key={venta.id} className="card p-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <p className="font-medium">{producto?.nombre}</p>
+                  <p className="font-medium">{producto?.nombre || venta.nombre_producto || 'Producto'}</p>
                   <p className="text-sm text-gray-600">
-                    {venta.cantidad} × S/ {venta.precio_unitario} = S/ {venta.total}
+                    {venta.cantidad} × S/ {venta.precio_unitario} = S/ {subtotal.toFixed(2)}
                   </p>
-                  <span className={`inline-block mt-1 px-2 py-1 text-xs rounded ${
-                    venta.tipo_pago === 'efectivo' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                  }`}>
-                    {venta.tipo_pago}
-                  </span>
                 </div>
               </div>
             </div>
@@ -643,7 +685,14 @@ function TabPOS({ turno, onReload, onMensaje }) {
 
   const handleAgregar = async (data) => {
     try {
-      await agregarVentaPOS(turno.id, data)
+      await agregarVentaPOS(turno.id, {
+        monto: data.monto,
+        numero_operacion: data.numero_operacion,
+        tipo_tarjeta: data.tipo_tarjeta,
+        numero_lote: data.numero_lote || null,
+        terminal_id: data.terminal_id || null,
+        autorizacion: data.autorizacion || null
+      })
       onMensaje('Venta POS agregada correctamente')
       setShowModal(false)
       onReload()
@@ -656,10 +705,12 @@ function TabPOS({ turno, onReload, onMensaje }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Ventas con Tarjeta (POS)</h3>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary">
-          <Plus className="w-5 h-5 mr-2" />
-          Nueva Venta POS
-        </button>
+        {turno.estado_id === 1 && (
+          <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
+            <Plus className="w-5 h-5 mr-2" />
+            Nueva Venta POS
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
@@ -687,12 +738,20 @@ function TabPOS({ turno, onReload, onMensaje }) {
   )
 }
 
-function TabVales({ turno, onReload, onMensaje }) {
+function TabVales({ turno, tiposVale, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
+  const vales = turno.vales_caja ?? turno.vales ?? []
 
   const handleAgregar = async (data) => {
     try {
-      await agregarVale(turno.id, data)
+      await agregarVale(turno.id, {
+        tipo_vale_id: Number(data.tipo_vale_id),
+        monto: data.monto,
+        beneficiario: data.beneficiario,
+        autorizado_por: data.autorizado_por,
+        numero_vale: data.numero_vale,
+        observaciones: data.observaciones || null
+      })
       onMensaje('Vale agregado correctamente')
       setShowModal(false)
       onReload()
@@ -705,21 +764,23 @@ function TabVales({ turno, onReload, onMensaje }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Vales</h3>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary">
-          <Plus className="w-5 h-5 mr-2" />
-          Nuevo Vale
-        </button>
+        {turno.estado_id === 1 && (
+          <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
+            <Plus className="w-5 h-5 mr-2" />
+            Nuevo Vale
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
-        {turno.vales?.map(vale => (
+        {vales.map(vale => (
           <div key={vale.id} className="card p-4">
             <div className="flex justify-between items-center">
               <div>
-                <p className="font-medium">{vale.numero_vale} - S/ {vale.monto}</p>
-                <p className="text-sm text-gray-600">{vale.concepto}</p>
+                <p className="font-medium">{vale.numero_vale} — S/ {vale.monto}</p>
+                <p className="text-sm text-gray-600">{vale.beneficiario}</p>
                 <span className="inline-block mt-1 px-2 py-1 text-xs rounded bg-orange-100 text-orange-800">
-                  {vale.tipo}
+                  {vale.estado}
                 </span>
               </div>
             </div>
@@ -729,6 +790,7 @@ function TabVales({ turno, onReload, onMensaje }) {
 
       {showModal && (
         <ModalVale
+          tiposVale={tiposVale}
           onClose={() => setShowModal(false)}
           onSubmit={handleAgregar}
         />
@@ -739,10 +801,16 @@ function TabVales({ turno, onReload, onMensaje }) {
 
 function TabDepositos({ turno, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
+  const depositos = turno.depositos_caja ?? turno.depositos ?? []
 
   const handleAgregar = async (data) => {
     try {
-      await agregarDeposito(turno.id, data)
+      await agregarDeposito(turno.id, {
+        monto: data.monto,
+        recibido_por: data.recibido_por || null,
+        numero_comprobante: data.numero_comprobante || null,
+        observaciones: data.observaciones || null
+      })
       onMensaje('Depósito agregado correctamente')
       setShowModal(false)
       onReload()
@@ -755,19 +823,23 @@ function TabDepositos({ turno, onReload, onMensaje }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Depósitos en Caja</h3>
-        <button onClick={() => setShowModal(true)} className="btn btn-primary">
-          <Plus className="w-5 h-5 mr-2" />
-          Nuevo Depósito
-        </button>
+        {turno.estado_id === 1 && (
+          <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
+            <Plus className="w-5 h-5 mr-2" />
+            Nuevo Depósito
+          </button>
+        )}
       </div>
 
       <div className="space-y-3">
-        {turno.depositos?.map(deposito => (
+        {depositos.map(deposito => (
           <div key={deposito.id} className="card p-4">
             <div className="flex justify-between items-center">
               <div>
                 <p className="font-medium">S/ {deposito.monto}</p>
-                <p className="text-sm text-gray-600">{deposito.concepto}</p>
+                {deposito.observaciones && (
+                  <p className="text-sm text-gray-600">{deposito.observaciones}</p>
+                )}
                 {deposito.recibido_por && (
                   <p className="text-xs text-gray-500">Recibido por: {deposito.recibido_por}</p>
                 )}
@@ -787,36 +859,94 @@ function TabDepositos({ turno, onReload, onMensaje }) {
   )
 }
 
-// Modales (Continuará en siguiente mensaje por limitación de espacio)
-function ModalLectura({ contometros, onClose, onSubmit }) {
+function ModalLectura({ cabeceraGriferoId, contometros, onClose, onSubmit }) {
   const [formData, setFormData] = useState({
     contometro_id: '',
     lectura_inicial: '',
-    precio_venta: ''
+    lectura_final: '',
+    precio_venta: '',
+    tiene_anomalia: false,
+    observaciones: ''
   })
+  const [prefillLoading, setPrefillLoading] = useState(false)
+  const [productoNombre, setProductoNombre] = useState('')
+
+  useEffect(() => {
+    const cid = formData.contometro_id
+    if (!cid || !cabeceraGriferoId) {
+      setProductoNombre('')
+      return undefined
+    }
+    let cancelled = false
+    setPrefillLoading(true)
+    getPrefillLecturaContometro(cabeceraGriferoId, cid)
+      .then((data) => {
+        if (cancelled) return
+        const raw = data.lectura_inicial_desde_cuadre_anterior
+        const s =
+          raw !== undefined && raw !== null && raw !== '' ? String(raw) : '0'
+        setFormData((prev) => ({
+          ...prev,
+          contometro_id: cid,
+          lectura_inicial: s,
+          lectura_final: s,
+          precio_venta:
+            data.precio_venta !== undefined && data.precio_venta !== null
+              ? String(data.precio_venta)
+              : '',
+        }))
+        setProductoNombre(data.producto_nombre || '')
+      })
+      .catch(() => {
+        if (cancelled) return
+        setFormData((prev) => ({
+          ...prev,
+          contometro_id: cid,
+          lectura_inicial: '0',
+          lectura_final: '0',
+          precio_venta: '',
+        }))
+        setProductoNombre('')
+      })
+      .finally(() => {
+        if (!cancelled) setPrefillLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [formData.contometro_id, cabeceraGriferoId])
 
   const handleSubmit = (e) => {
     e.preventDefault()
     onSubmit(formData)
   }
 
+  const puedeGuardar =
+    !prefillLoading &&
+    formData.contometro_id &&
+    formData.precio_venta !== '' &&
+    formData.lectura_inicial !== '' &&
+    formData.lectura_final !== ''
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Nueva Lectura de Contómetro</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
-        
+
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium mb-2">Contómetro</label>
             <select
               className="input"
               value={formData.contometro_id}
-              onChange={e => setFormData({...formData, contometro_id: e.target.value})}
+              onChange={e =>
+                setFormData(prev => ({ ...prev, contometro_id: e.target.value }))
+              }
               required
             >
               <option value="">Seleccione...</option>
@@ -824,8 +954,12 @@ function ModalLectura({ contometros, onClose, onSubmit }) {
                 <option key={c.id} value={c.id}>{c.codigo}</option>
               ))}
             </select>
+            <p className="text-xs text-gray-500 mt-1">
+              La lectura inicial propuesta es la <strong>lectura final del último turno cerrado</strong>
+              para este contómetro; si no hay historial, se usa <strong>0</strong>.
+            </p>
           </div>
-          
+
           <div>
             <label className="block text-sm font-medium mb-2">Lectura Inicial (galones)</label>
             <input
@@ -833,28 +967,89 @@ function ModalLectura({ contometros, onClose, onSubmit }) {
               step="0.01"
               className="input"
               value={formData.lectura_inicial}
-              onChange={e => setFormData({...formData, lectura_inicial: e.target.value})}
+              onChange={e =>
+                setFormData({
+                  ...formData,
+                  lectura_inicial: e.target.value,
+                })
+              }
               required
+              disabled={prefillLoading && !!formData.contometro_id}
             />
           </div>
-          
+
           <div>
-            <label className="block text-sm font-medium mb-2">Precio de Venta</label>
+            <label className="block text-sm font-medium mb-2">Lectura Final (galones)</label>
             <input
               type="number"
               step="0.01"
               className="input"
-              value={formData.precio_venta}
-              onChange={e => setFormData({...formData, precio_venta: e.target.value})}
+              value={formData.lectura_final}
+              onChange={e =>
+                setFormData({
+                  ...formData,
+                  lectura_final: e.target.value,
+                })
+              }
               required
+              disabled={prefillLoading && !!formData.contometro_id}
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Puede igualar la inicial y registrar el final después con &quot;Registrar Final&quot;.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Precio de venta (solo lectura)</label>
+            <input
+              type="text"
+              readOnly
+              className="input bg-gray-50 text-gray-800 cursor-not-allowed"
+              value={
+                formData.precio_venta !== ''
+                  ? `S/ ${formData.precio_venta}${productoNombre ? ` · ${productoNombre}` : ''}`
+                  : prefillLoading
+                    ? 'Cargando…'
+                    : '—'
+              }
+            />
+            <p className="text-xs text-gray-500 mt-1">
+              Tomado del producto/combustible en mantenimiento; el servidor valida el mismo valor al guardar.
+            </p>
+          </div>
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={formData.tiene_anomalia}
+              onChange={e =>
+                setFormData({ ...formData, tiene_anomalia: e.target.checked })
+              }
+            />
+            Hay anomalía en el contómetro
+          </label>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Observaciones</label>
+            <textarea
+              className="input min-h-[72px]"
+              value={formData.observaciones}
+              onChange={e =>
+                setFormData({ ...formData, observaciones: e.target.value })
+              }
+              rows={2}
             />
           </div>
-          
+
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary flex-1">
+            <button
+              type="submit"
+              className="btn btn-primary flex-1"
+              disabled={!puedeGuardar}
+            >
               Guardar
             </button>
           </div>
@@ -931,11 +1126,9 @@ function ModalVenta({ productos, onClose, onSubmit }) {
   const [formData, setFormData] = useState({
     producto_id: '',
     cantidad: '',
-    precio_unitario: '',
-    tipo_pago: 'efectivo'
+    precio_unitario: ''
   })
 
-  const producto = productos.find(p => p.id == formData.producto_id)
   const total = formData.cantidad && formData.precio_unitario ? 
     parseFloat(formData.cantidad) * parseFloat(formData.precio_unitario) : 0
 
@@ -949,7 +1142,7 @@ function ModalVenta({ productos, onClose, onSubmit }) {
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Nueva Venta de Producto</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1001,19 +1194,6 @@ function ModalVenta({ productos, onClose, onSubmit }) {
             />
           </div>
           
-          <div>
-            <label className="block text-sm font-medium mb-2">Tipo de Pago</label>
-            <select
-              className="input"
-              value={formData.tipo_pago}
-              onChange={e => setFormData({...formData, tipo_pago: e.target.value})}
-              required
-            >
-              <option value="efectivo">Efectivo</option>
-              <option value="pos">POS</option>
-            </select>
-          </div>
-          
           {total > 0 && (
             <div className="p-3 bg-green-50 rounded-lg">
               <p className="text-sm text-green-700">Total</p>
@@ -1039,7 +1219,10 @@ function ModalPOS({ onClose, onSubmit }) {
   const [formData, setFormData] = useState({
     monto: '',
     numero_operacion: '',
-    tipo_tarjeta: 'VISA'
+    tipo_tarjeta: 'credito',
+    numero_lote: '',
+    terminal_id: '',
+    autorizacion: ''
   })
 
   const handleSubmit = (e) => {
@@ -1052,7 +1235,7 @@ function ModalPOS({ onClose, onSubmit }) {
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Nueva Venta POS</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1078,20 +1261,51 @@ function ModalPOS({ onClose, onSubmit }) {
               className="input"
               value={formData.numero_operacion}
               onChange={e => setFormData({...formData, numero_operacion: e.target.value})}
+              required
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium mb-2">Tipo de Tarjeta</label>
+            <label className="block text-sm font-medium mb-2">Tipo de tarjeta</label>
             <select
               className="input"
               value={formData.tipo_tarjeta}
               onChange={e => setFormData({...formData, tipo_tarjeta: e.target.value})}
             >
-              <option value="VISA">VISA</option>
-              <option value="Mastercard">Mastercard</option>
-              <option value="Amex">American Express</option>
+              <option value="credito">Crédito</option>
+              <option value="debito">Débito</option>
+              <option value="prepagada">Prepagada</option>
             </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Número de lote (opcional)</label>
+            <input
+              type="text"
+              className="input"
+              value={formData.numero_lote}
+              onChange={e => setFormData({...formData, numero_lote: e.target.value})}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Terminal ID (opcional)</label>
+            <input
+              type="text"
+              className="input"
+              value={formData.terminal_id}
+              onChange={e => setFormData({...formData, terminal_id: e.target.value})}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Autorización (opcional)</label>
+            <input
+              type="text"
+              className="input"
+              value={formData.autorizacion}
+              onChange={e => setFormData({...formData, autorizacion: e.target.value})}
+            />
           </div>
           
           <div className="flex gap-2">
@@ -1108,12 +1322,13 @@ function ModalPOS({ onClose, onSubmit }) {
   )
 }
 
-function ModalVale({ onClose, onSubmit }) {
+function ModalVale({ tiposVale = [], onClose, onSubmit }) {
+  const firstTipoId = tiposVale[0]?.id != null ? String(tiposVale[0].id) : ''
   const [formData, setFormData] = useState({
+    tipo_vale_id: firstTipoId,
     numero_vale: '',
-    tipo: 'retiro_efectivo',
     monto: '',
-    concepto: '',
+    observaciones: '',
     beneficiario: '',
     autorizado_por: ''
   })
@@ -1128,12 +1343,33 @@ function ModalVale({ onClose, onSubmit }) {
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Nuevo Vale</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
         
         <form onSubmit={handleSubmit} className="space-y-4">
+          {!tiposVale.length && (
+            <p className="text-sm text-amber-700 bg-amber-50 p-3 rounded">
+              No hay tipos de vale en catálogo. Cargue tipos en mantenimiento o ejecute el seed de catálogos.
+            </p>
+          )}
+          <div>
+            <label className="block text-sm font-medium mb-2">Tipo de vale</label>
+            <select
+              className="input"
+              value={formData.tipo_vale_id}
+              onChange={e => setFormData({...formData, tipo_vale_id: e.target.value})}
+              required
+              disabled={!tiposVale.length}
+            >
+              <option value="">Seleccione...</option>
+              {tiposVale.map(t => (
+                <option key={t.id} value={t.id}>{t.nombre || t.codigo}</option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="block text-sm font-medium mb-2">Número de Vale</label>
             <input
@@ -1144,20 +1380,6 @@ function ModalVale({ onClose, onSubmit }) {
               required
               autoFocus
             />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-medium mb-2">Tipo</label>
-            <select
-              className="input"
-              value={formData.tipo}
-              onChange={e => setFormData({...formData, tipo: e.target.value})}
-              required
-            >
-              <option value="retiro_efectivo">Retiro de Efectivo</option>
-              <option value="pago_menor">Pago Menor</option>
-              <option value="gasto">Gasto</option>
-            </select>
           </div>
           
           <div>
@@ -1173,33 +1395,34 @@ function ModalVale({ onClose, onSubmit }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium mb-2">Concepto</label>
-            <input
-              type="text"
-              className="input"
-              value={formData.concepto}
-              onChange={e => setFormData({...formData, concepto: e.target.value})}
-              required
-            />
-          </div>
-          
-          <div>
             <label className="block text-sm font-medium mb-2">Beneficiario</label>
             <input
               type="text"
               className="input"
               value={formData.beneficiario}
               onChange={e => setFormData({...formData, beneficiario: e.target.value})}
+              required
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium mb-2">Autorizado Por</label>
+            <label className="block text-sm font-medium mb-2">Autorizado por</label>
             <input
               type="text"
               className="input"
               value={formData.autorizado_por}
               onChange={e => setFormData({...formData, autorizado_por: e.target.value})}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Observaciones (opcional)</label>
+            <textarea
+              className="input min-h-[72px]"
+              value={formData.observaciones}
+              onChange={e => setFormData({ ...formData, observaciones: e.target.value })}
+              rows={2}
             />
           </div>
           
@@ -1220,7 +1443,8 @@ function ModalVale({ onClose, onSubmit }) {
 function ModalDeposito({ onClose, onSubmit }) {
   const [formData, setFormData] = useState({
     monto: '',
-    concepto: '',
+    observaciones: '',
+    numero_comprobante: '',
     recibido_por: ''
   })
 
@@ -1234,7 +1458,7 @@ function ModalDeposito({ onClose, onSubmit }) {
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Nuevo Depósito</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -1254,17 +1478,27 @@ function ModalDeposito({ onClose, onSubmit }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium mb-2">Concepto</label>
+            <label className="block text-sm font-medium mb-2">Observaciones (opcional)</label>
+            <textarea
+              className="input min-h-[72px]"
+              value={formData.observaciones}
+              onChange={e => setFormData({ ...formData, observaciones: e.target.value })}
+              rows={2}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Número de comprobante (opcional)</label>
             <input
               type="text"
               className="input"
-              value={formData.concepto}
-              onChange={e => setFormData({...formData, concepto: e.target.value})}
+              value={formData.numero_comprobante}
+              onChange={e => setFormData({...formData, numero_comprobante: e.target.value})}
             />
           </div>
           
           <div>
-            <label className="block text-sm font-medium mb-2">Recibido Por</label>
+            <label className="block text-sm font-medium mb-2">Recibido por (opcional)</label>
             <input
               type="text"
               className="input"

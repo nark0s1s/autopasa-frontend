@@ -12,6 +12,13 @@ import {
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
+function safeFormatDate(value, fmt, opts) {
+  if (value == null || value === '') return '—'
+  const d = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return format(d, fmt, opts)
+}
+
 function GestionTurnoDia() {
   const { user } = useAuth()
   
@@ -32,16 +39,8 @@ function GestionTurnoDia() {
     try {
       setLoading(true)
       
-      try {
-        const turnoData = await getTurnoDiaActual()
-        setTurnoDia(turnoData)
-      } catch (err) {
-        if (err.response?.status === 404) {
-          setTurnoDia(null)
-        } else {
-          throw err
-        }
-      }
+      const turnoData = await getTurnoDiaActual()
+      setTurnoDia(turnoData ?? null)
       
     } catch (error) {
       console.error('Error al cargar datos:', error)
@@ -186,7 +185,7 @@ function GestionTurnoDia() {
                     Turno del Día
                   </h2>
                   <p className="text-gray-600">
-                    {format(new Date(turnoDia.fecha), "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}
+                    {safeFormatDate(turnoDia.fecha, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}
                   </p>
                 </div>
               </div>
@@ -214,7 +213,7 @@ function GestionTurnoDia() {
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Hora:</span>
                     <span className="text-sm font-medium text-gray-900">
-                      {format(new Date(turnoDia.fecha_hora_apertura), 'HH:mm:ss')}
+                      {safeFormatDate(turnoDia.hora_apertura, 'HH:mm:ss')}
                     </span>
                   </div>
                 </div>
@@ -236,7 +235,7 @@ function GestionTurnoDia() {
                     <div className="flex justify-between">
                       <span className="text-sm text-gray-600">Hora:</span>
                       <span className="text-sm font-medium text-gray-900">
-                        {format(new Date(turnoDia.fecha_hora_cierre), 'HH:mm:ss')}
+                        {safeFormatDate(turnoDia.hora_cierre, 'HH:mm:ss')}
                       </span>
                     </div>
                   </div>

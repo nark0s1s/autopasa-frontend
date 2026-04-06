@@ -94,46 +94,48 @@ export const getCurrentUser = async () => {
 }
 
 // ============================================================================
-// TURNOS
+// TURNOS (router FastAPI: prefix /api/turnos-liquidacion)
 // ============================================================================
 
+const API_TURNOS_LIQ = '/api/turnos-liquidacion'
+
 export const getTurnoDiaActual = async () => {
-  const response = await api.get('/api/turnos/dia/actual')
+  const response = await api.get(`${API_TURNOS_LIQ}/actual`)
   return response.data
 }
 
 export const crearTurnoDia = async (data) => {
-  const response = await api.post('/api/turnos/dia', data)
+  const response = await api.post(`${API_TURNOS_LIQ}/`, data)
   return response.data
 }
 
 export const cerrarTurnoDia = async (turnoDiaId, data) => {
-  const response = await api.post(`/api/turnos/dia/${turnoDiaId}/cerrar`, data)
+  const response = await api.post(`${API_TURNOS_LIQ}/${turnoDiaId}/cerrar`, data)
   return response.data
 }
 
 export const getTurnoGriferoActual = async () => {
-  const response = await api.get('/api/turnos/grifero/actual')
+  const response = await api.get(`${API_TURNOS_LIQ}/grifero/actual`)
   return response.data
 }
 
 export const crearTurnoGrifero = async (data) => {
-  const response = await api.post('/api/turnos/grifero', data)
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero`, data)
   return response.data
 }
 
 export const getTurnosGrifero = async (params = {}) => {
-  const response = await api.get('/api/turnos/grifero', { params })
+  const response = await api.get(`${API_TURNOS_LIQ}/grifero`, { params })
   return response.data
 }
 
 export const listarTurnosGrifero = async (params = {}) => {
-  const response = await api.get('/api/turnos/grifero', { params })
+  const response = await api.get(`${API_TURNOS_LIQ}/grifero`, { params })
   return response.data
 }
 
 export const getTurnoById = async (turnoId) => {
-  const response = await api.get(`/api/turnos/grifero/${turnoId}`)
+  const response = await api.get(`${API_TURNOS_LIQ}/grifero/${turnoId}`)
   return response.data
 }
 
@@ -142,12 +144,12 @@ export const getTurnoById = async (turnoId) => {
 // ============================================================================
 
 export const getContometrosActivos = async () => {
-  const response = await api.get('/api/turnos/contometros')
+  const response = await api.get('/api/catalogos/contometros', { params: { activo: true } })
   return response.data
 }
 
 export const getProductosActivos = async () => {
-  const response = await api.get('/api/turnos/productos')
+  const response = await api.get('/api/catalogos/productos', { params: { activo: true } })
   return response.data
 }
 
@@ -156,12 +158,20 @@ export const getProductosActivos = async () => {
 // ============================================================================
 
 export const agregarLecturaContometro = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/lecturas`, data)
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/lecturas`, data)
+  return response.data
+}
+
+/** Lectura inicial sugerida (último cuadre cerrado) y precio del producto/combustible */
+export const getPrefillLecturaContometro = async (cabeceraGriferoId, contometroId) => {
+  const response = await api.get(
+    `${API_TURNOS_LIQ}/grifero/${cabeceraGriferoId}/lecturas/prefill/${contometroId}`
+  )
   return response.data
 }
 
 export const actualizarLecturaFinal = async (lecturaId, data) => {
-  const response = await api.put(`/api/turnos/grifero/lecturas/${lecturaId}`, data)
+  const response = await api.put(`${API_TURNOS_LIQ}/grifero/lecturas/${lecturaId}`, data)
   return response.data
 }
 
@@ -170,22 +180,22 @@ export const actualizarLecturaFinal = async (lecturaId, data) => {
 // ============================================================================
 
 export const agregarVentaProducto = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/ventas-producto`, data)
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/ventas-producto`, data)
   return response.data
 }
 
 export const agregarVentaPOS = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/ventas-pos`, data)
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/ventas-pos`, data)
   return response.data
 }
 
 export const agregarVale = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/vales`, data)
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/vales`, data)
   return response.data
 }
 
 export const agregarDeposito = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/depositos`, data)
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/depositos`, data)
   return response.data
 }
 
@@ -194,7 +204,7 @@ export const agregarDeposito = async (turnoId, data) => {
 // ============================================================================
 
 export const cerrarTurnoGrifero = async (turnoId, data) => {
-  const response = await api.post(`/api/turnos/grifero/${turnoId}/cerrar`, data)
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/cerrar`, data)
   return response.data
 }
 
@@ -243,6 +253,92 @@ export const getTiposVale = async (activo = true) => {
 }
 
 // ============================================================================
+// INFRAESTRUCTURA — MANTENIMIENTO (islas, surtidores, contómetros, turnos-config)
+// ============================================================================
+
+const API_INFRA = '/api/infraestructura'
+
+export const listarIslasInfra = async (params = {}) => {
+  const response = await api.get(`${API_INFRA}/islas`, { params })
+  return response.data
+}
+
+export const crearIslaInfra = async (data) => {
+  const response = await api.post(`${API_INFRA}/islas`, data)
+  return response.data
+}
+
+export const actualizarIslaInfra = async (id, data) => {
+  const response = await api.put(`${API_INFRA}/islas/${id}`, data)
+  return response.data
+}
+
+export const listarSurtidoresInfra = async (params = {}) => {
+  const response = await api.get(`${API_INFRA}/surtidores`, { params })
+  return response.data
+}
+
+export const crearSurtidorInfra = async (data) => {
+  const response = await api.post(`${API_INFRA}/surtidores`, data)
+  return response.data
+}
+
+export const actualizarSurtidorInfra = async (id, data) => {
+  const response = await api.put(`${API_INFRA}/surtidores/${id}`, data)
+  return response.data
+}
+
+export const listarContometrosInfra = async (params = {}) => {
+  const response = await api.get(`${API_INFRA}/contometros`, { params })
+  return response.data
+}
+
+export const crearContometroInfra = async (data) => {
+  const response = await api.post(`${API_INFRA}/contometros`, data)
+  return response.data
+}
+
+export const actualizarContometroInfra = async (id, data) => {
+  const response = await api.put(`${API_INFRA}/contometros/${id}`, data)
+  return response.data
+}
+
+export const listarTurnosConfigInfra = async (params = {}) => {
+  const response = await api.get(`${API_INFRA}/turnos-config`, { params })
+  return response.data
+}
+
+export const obtenerTurnoConfigInfra = async (id) => {
+  const response = await api.get(`${API_INFRA}/turnos-config/${id}`)
+  return response.data
+}
+
+export const crearTurnoConfigInfra = async (data) => {
+  const response = await api.post(`${API_INFRA}/turnos-config`, data)
+  return response.data
+}
+
+export const actualizarTurnoConfigInfra = async (id, data) => {
+  const response = await api.put(`${API_INFRA}/turnos-config/${id}`, data)
+  return response.data
+}
+
+/** Filas de la tabla puente turno_config_isla (opcional turno_config_id en params) */
+export const listarVinculosTurnoConfigIsla = async (params = {}) => {
+  const response = await api.get(`${API_INFRA}/turnos-config-isla/vinculos`, { params })
+  return response.data
+}
+
+export const vincularIslaTurnoConfig = async (configId, islaId) => {
+  const response = await api.post(`${API_INFRA}/turnos-config/${configId}/islas/${islaId}`)
+  return response.data
+}
+
+export const desvincularIslaTurnoConfig = async (configId, islaId) => {
+  await api.delete(`${API_INFRA}/turnos-config/${configId}/islas/${islaId}`)
+}
+
+// ============================================================================
 // CUADRE DIARIO
 // ============================================================================
 
@@ -284,11 +380,74 @@ export const desactivarEmpleado = async (id) => {
 }
 
 // ============================================================================
-// ROLES
+// ROLES Y PERMISOS (admin)
 // ============================================================================
 
-export const getRoles = async () => {
-  const response = await api.get('/api/roles/')
+export const getRoles = async (activo = null) => {
+  const params = activo !== null ? { activo } : {}
+  const response = await api.get('/api/roles/', { params })
+  return response.data
+}
+
+export const crearRol = async (data) => {
+  const response = await api.post('/api/roles/', data)
+  return response.data
+}
+
+export const actualizarRol = async (id, data) => {
+  const response = await api.put(`/api/roles/${id}`, data)
+  return response.data
+}
+
+export const eliminarRol = async (id) => {
+  const response = await api.delete(`/api/roles/${id}`)
+  return response.data
+}
+
+export const getPermisos = async () => {
+  const response = await api.get('/api/roles/permisos/')
+  return response.data
+}
+
+export const getPermisosRol = async (rolId) => {
+  const response = await api.get(`/api/roles/${rolId}/permisos`)
+  return response.data
+}
+
+/** Cuerpo: array de IDs de permiso, p. ej. [1, 2, 3] */
+export const sincronizarPermisosRol = async (rolId, permisoIds) => {
+  const response = await api.put(`/api/roles/${rolId}/permisos`, permisoIds)
+  return response.data
+}
+
+// ============================================================================
+// SEGURIDAD — MENÚ POR ROL (API alineada con SGC)
+// ============================================================================
+
+export const getMenuOpciones = async (params = {}) => {
+  const response = await api.get('/api/seguridad/menus/menu-opciones', { params })
+  return response.data
+}
+
+export const getMenuOpcionesTree = async (params = {}) => {
+  const response = await api.get('/api/seguridad/menus/menu-opciones/tree', { params })
+  return response.data
+}
+
+export const getMenuOpcionesRol = async (rolId) => {
+  const response = await api.get(`/api/seguridad/menus/roles/${rolId}/menu-opciones`)
+  return response.data
+}
+
+export const asignarMenuOpcionesRol = async (rolId, menuOpcionIds) => {
+  const response = await api.post(`/api/seguridad/menus/roles/${rolId}/menu-opciones`, {
+    menu_opcion_ids: menuOpcionIds,
+  })
+  return response.data
+}
+
+export const getMenuUsuario = async (empleadoId) => {
+  const response = await api.get(`/api/seguridad/menus/menu-opciones/usuario/${empleadoId}`)
   return response.data
 }
 
