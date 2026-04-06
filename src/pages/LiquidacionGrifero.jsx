@@ -10,7 +10,8 @@ import {
   crearTurnoGrifero,
   getTurnoDiaActual,
   crearTurnoDia,
-  listarTurnosGrifero
+  listarTurnosGrifero,
+  listarTurnosConfigInfra,
 } from '../utils/api'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -26,6 +27,8 @@ function LiquidacionGrifero() {
   const [mensaje, setMensaje] = useState(null)
   const [iniciandoTurno, setIniciandoTurno] = useState(false)
   const [mostrarModal, setMostrarModal] = useState(false)
+  const [turnosConfig, setTurnosConfig] = useState([])
+  const [turnoConfigIdModal, setTurnoConfigIdModal] = useState('')
 
   useEffect(() => {
     cargarDatos()
@@ -42,9 +45,12 @@ function LiquidacionGrifero() {
         setTurnoActual(null)
       }
       
-      // Cargar todos los turnos del grifero
-      const turnosData = await listarTurnosGrifero({ empleado_id: user.id })
+      const [turnosData, cfgs] = await Promise.all([
+        listarTurnosGrifero({ empleado_id: user.id }),
+        listarTurnosConfigInfra({ activo: true }),
+      ])
       setTurnos(turnosData)
+      setTurnosConfig(Array.isArray(cfgs) ? cfgs : [])
       
     } catch (error) {
       console.error('Error al cargar datos:', error)
@@ -60,21 +66,32 @@ function LiquidacionGrifero() {
     setTimeout(() => setMensaje(null), duracion)
   }
 
+  const abrirModalNuevoTurno = () => {
+    const first = turnosConfig[0]
+    setTurnoConfigIdModal(first ? String(first.id) : '')
+    setMostrarModal(true)
+  }
+
   const handleIniciarTurno = async () => {
+    const cfgId = Number(turnoConfigIdModal)
+    if (!cfgId) {
+      mostrarMensaje('Seleccione el tipo de turno (liquidación del día)', 'error')
+      return
+    }
     try {
       setIniciandoTurno(true)
 
       const hoy = new Date().toISOString().split('T')[0]
-      // GET /actual devuelve 200 con null si no hay turno (no lanza error)
-      let turnoDia = await getTurnoDiaActual()
+      let turnoDia = await getTurnoDiaActual(cfgId)
 
       if (!turnoDia?.id) {
         try {
           turnoDia = await crearTurnoDia({
             fecha: hoy,
             supervisor_apertura_id: user.id,
+            turno_config_id: cfgId,
           })
-          mostrarMensaje('Turno del día creado exitosamente', 'success')
+          mostrarMensaje('Liquidación del día creada para el turno seleccionado', 'success')
         } catch (createError) {
           const det = createError.response?.data?.detail
           const msg =
@@ -84,17 +101,17 @@ function LiquidacionGrifero() {
                 ? JSON.stringify(det)
                 : ''
           if (msg.includes('Ya existe')) {
-            turnoDia = await getTurnoDiaActual()
+            turnoDia = await getTurnoDiaActual(cfgId)
           } else {
             throw new Error(
-              'No se pudo crear el turno del día: ' + (msg || createError.message)
+              'No se pudo crear la liquidación del día: ' + (msg || createError.message)
             )
           }
         }
       }
 
       if (!turnoDia?.id) {
-        throw new Error('No se pudo obtener o crear el turno del día')
+        throw new Error('No se pudo obtener o crear la liquidación del día para este tipo de turno')
       }
       
       // Crear turno del grifero (turno de liquidación del día = padre en API)
@@ -180,8 +197,9 @@ function LiquidacionGrifero() {
                 </button>
               )}
               <button
-                onClick={() => setMostrarModal(true)}
-                disabled={turnoActual !== null}
+                type="button"
+                onClick={abrirModalNuevoTurno}
+                disabled={turnoActual !== null || turnosConfig.length === 0}
                 className="btn btn-primary flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
@@ -259,7 +277,9 @@ function LiquidacionGrifero() {
                 Inicia tu primer turno para comenzar a registrar liquidaciones
               </p>
               <button
-                onClick={() => setMostrarModal(true)}
+                type="button"
+                onClick={abrirModalNuevoTurno}
+                disabled={turnosConfig.length === 0}
                 className="btn btn-primary inline-flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
@@ -388,6 +408,29 @@ function LiquidacionGrifero() {
               </p>
             </div>
 
+            <div className="mb-4 text-left">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Tipo de turno / liquidación del día *
+              </label>
+              <select
+                className="input w-full"
+                value={turnoConfigIdModal}
+                onChange={(e) => setTurnoConfigIdModal(e.target.value)}
+              >
+                <option value="">— Seleccione —</option>
+                {turnosConfig.map((c) => (
+                  <option key={c.id} value={String(c.id)}>
+                    {c.codigo} — {c.nombre}
+                  </option>
+                ))}
+              </select>
+              {turnosConfig.length === 0 && (
+                <p className="text-xs text-amber-700 mt-2">
+                  No hay tipos de turno activos. Configure en Mantenimiento → Turnos (configuración).
+                </p>
+              )}
+            </div>
+
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-600">Grifero:</span>
@@ -411,6 +454,7 @@ function LiquidacionGrifero() {
 
             <div className="flex gap-3">
               <button
+                type="button"
                 onClick={() => setMostrarModal(false)}
                 disabled={iniciandoTurno}
                 className="btn btn-secondary flex-1"
@@ -418,8 +462,9 @@ function LiquidacionGrifero() {
                 Cancelar
               </button>
               <button
+                type="button"
                 onClick={handleIniciarTurno}
-                disabled={iniciandoTurno}
+                disabled={iniciandoTurno || !turnoConfigIdModal}
                 className="btn btn-primary flex-1"
               >
                 {iniciandoTurno ? (

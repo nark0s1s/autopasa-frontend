@@ -99,8 +99,18 @@ export const getCurrentUser = async () => {
 
 const API_TURNOS_LIQ = '/api/turnos-liquidacion'
 
-export const getTurnoDiaActual = async () => {
-  const response = await api.get(`${API_TURNOS_LIQ}/actual`)
+/** @param {number|undefined} turno_config_id - Filtra la liquidación de hoy por tipo de turno */
+export const getTurnoDiaActual = async (turno_config_id) => {
+  const params =
+    turno_config_id != null && turno_config_id !== ''
+      ? { turno_config_id: Number(turno_config_id) }
+      : {}
+  const response = await api.get(`${API_TURNOS_LIQ}/actual`, { params })
+  return response.data
+}
+
+export const listarTurnosLiquidacion = async (params = {}) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/`, { params })
   return response.data
 }
 
