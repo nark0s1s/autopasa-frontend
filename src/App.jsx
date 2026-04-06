@@ -12,6 +12,15 @@ import Empleados from './pages/Empleados'
 import Productos from './pages/Productos'
 import Clientes from './pages/Clientes'
 import CuadreContable from './pages/CuadreContable'
+import GestionRoles from './pages/seguridad/GestionRoles'
+import PermisosRoles from './pages/seguridad/PermisosRoles'
+import MenusRoles from './pages/seguridad/MenusRoles'
+import AsignarRolEmpleados from './pages/seguridad/AsignarRolEmpleados'
+import IslasPage from './pages/mantenimiento/IslasPage'
+import SurtidoresPage from './pages/mantenimiento/SurtidoresPage'
+import ContometrosPage from './pages/mantenimiento/ContometrosPage'
+import TurnosConfigPage from './pages/mantenimiento/TurnosConfigPage'
+import TurnoConfigIslaPage from './pages/mantenimiento/TurnoConfigIslaPage'
 
 // Componente para rutas protegidas
 function PrivateRoute({ children }) {
@@ -79,15 +88,56 @@ function App() {
               </PrivateRoute>
             } 
           />
-          <Route 
-            path="/empleados" 
+          <Route path="/empleados" element={<Navigate to="/seguridad/empleados" replace />} />
+          <Route
+            path="/seguridad/empleados"
             element={
               <PrivateRoute>
                 <Layout>
                   <Empleados />
                 </Layout>
               </PrivateRoute>
-            } 
+            }
+          />
+          <Route
+            path="/seguridad/roles"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <GestionRoles />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/seguridad/permisos-roles"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <PermisosRoles />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/seguridad/menus-roles"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <MenusRoles />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/seguridad/empleados-roles"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <AsignarRolEmpleados />
+                </Layout>
+              </PrivateRoute>
+            }
           />
           <Route 
             path="/productos" 
@@ -128,6 +178,56 @@ function App() {
                 </Layout>
               </PrivateRoute>
             } 
+          />
+          <Route
+            path="/mantenimiento/islas"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <IslasPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/mantenimiento/surtidores"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <SurtidoresPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/mantenimiento/contometros"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <ContometrosPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/mantenimiento/turnos-config"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <TurnosConfigPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/mantenimiento/turno-config-isla"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <TurnoConfigIslaPage />
+                </Layout>
+              </PrivateRoute>
+            }
           />
           <Route path="/" element={<Navigate to="/liquidacion" />} />
         </Routes>
