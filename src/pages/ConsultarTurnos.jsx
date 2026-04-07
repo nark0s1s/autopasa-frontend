@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Fuel, LogOut, Plus, Save, CheckCircle, AlertCircle,
   Gauge, ShoppingCart, CreditCard, Receipt, DollarSign, X, Pencil, Trash2,
-  Percent, Search, FileText
+  Percent, Search, FileText, AlertTriangle
 } from 'lucide-react'
 import {
   getTurnosGrifero,
@@ -33,7 +33,8 @@ import {
   getTurnoById,
   getTiposVale,
   getPrefillLecturaContometro,
-  getClientes
+  getClientes,
+  eliminarTurnoGriferoCerrado
 } from '../utils/api'
 
 function ConsultarTurnos() {
@@ -59,6 +60,9 @@ function ConsultarTurnos() {
   const [showModalPOS, setShowModalPOS] = useState(false)
   const [showModalVale, setShowModalVale] = useState(false)
   const [showModalCierre, setShowModalCierre] = useState(false)
+  const [turnoEliminarCerrado, setTurnoEliminarCerrado] = useState(null)
+  const [textoConfirmarEliminarCerrado, setTextoConfirmarEliminarCerrado] = useState('')
+  const [eliminandoTurnoCerrado, setEliminandoTurnoCerrado] = useState(false)
 
   useEffect(() => {
     cargarDatos()
@@ -155,6 +159,40 @@ function ConsultarTurnos() {
     setTimeout(() => setMensaje(null), 3000)
   }
 
+  const ejecutarEliminarTurnoCerrado = async () => {
+    if (!turnoEliminarCerrado?.id) return
+    if (textoConfirmarEliminarCerrado.trim() !== 'CONFIRMAR') {
+      mostrarMensaje('Debe escribir exactamente CONFIRMAR', 'error')
+      return
+    }
+    const idEliminado = turnoEliminarCerrado.id
+    setEliminandoTurnoCerrado(true)
+    try {
+      await eliminarTurnoGriferoCerrado(idEliminado, 'CONFIRMAR')
+      mostrarMensaje('Turno cerrado eliminado correctamente')
+      setTurnoEliminarCerrado(null)
+      setTextoConfirmarEliminarCerrado('')
+      const estabaEnDetalle = turnoSeleccionado === idEliminado || turno?.id === idEliminado
+      if (estabaEnDetalle) {
+        setTurno(null)
+        setTurnoSeleccionado(null)
+        setVistaActual('lista')
+        setSearchParams({}, { replace: true })
+      }
+      setLoading(true)
+      try {
+        const turnosData = await getTurnosGrifero()
+        setTurnos(turnosData)
+      } finally {
+        setLoading(false)
+      }
+    } catch (error) {
+      console.error(error)
+      mostrarMensaje('No se pudo eliminar el turno (¿permiso turno.cerrar?)', 'error')
+    } finally {
+      setEliminandoTurnoCerrado(false)
+    }
+  }
 
   const handleLogout = () => {
     logout()
@@ -215,6 +253,63 @@ function ConsultarTurnos() {
   }
 
   const totales = calcularTotales()
+
+  const modalEliminarTurnoCerradoJsx =
+    turnoEliminarCerrado && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-[60]">
+        <div className="card p-6 max-w-lg w-full border-2 border-red-200 shadow-xl">
+          <div className="flex gap-3 mb-4">
+            <AlertTriangle className="w-10 h-10 text-red-600 shrink-0" aria-hidden />
+            <div>
+              <h3 className="text-lg font-bold text-gray-900">Eliminar turno cerrado</h3>
+              <p className="text-sm text-gray-700 mt-2">
+                Va a eliminar de forma <strong>permanente</strong> un turno que ya está{' '}
+                <strong>cerrado</strong>: <strong>{turnoEliminarCerrado.codigo}</strong>. Se borrarán todos
+                los datos de liquidación vinculados (lecturas, ventas, guías, depósitos, cierre, etc.). Esta
+                acción <strong>no se puede deshacer</strong>.
+              </p>
+              <p className="text-sm font-semibold text-red-800 mt-3">
+                Escriba exactamente <span className="font-mono bg-red-50 px-1 rounded">CONFIRMAR</span> para
+                habilitar el botón de eliminación.
+              </p>
+            </div>
+          </div>
+          <label className="block text-sm font-medium text-gray-700 mb-1">Confirmación</label>
+          <input
+            type="text"
+            className="input font-mono mb-4"
+            placeholder="CONFIRMAR"
+            value={textoConfirmarEliminarCerrado}
+            onChange={(e) => setTextoConfirmarEliminarCerrado(e.target.value)}
+            autoComplete="off"
+            disabled={eliminandoTurnoCerrado}
+          />
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="btn btn-secondary flex-1"
+              disabled={eliminandoTurnoCerrado}
+              onClick={() => {
+                setTurnoEliminarCerrado(null)
+                setTextoConfirmarEliminarCerrado('')
+              }}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn btn-danger flex-1"
+              disabled={
+                eliminandoTurnoCerrado || textoConfirmarEliminarCerrado.trim() !== 'CONFIRMAR'
+              }
+              onClick={ejecutarEliminarTurnoCerrado}
+            >
+              {eliminandoTurnoCerrado ? 'Eliminando…' : 'Eliminar definitivamente'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )
 
   if (loading) {
     return (
@@ -320,15 +415,30 @@ function ConsultarTurnos() {
                       )}
                     </div>
                     
-                    <button className="btn btn-primary w-full mt-4">
+                    <button type="button" className="btn btn-primary w-full mt-4">
                       Ver Detalles
                     </button>
+                    {t.estado_id === 2 && (
+                      <button
+                        type="button"
+                        className="btn btn-danger w-full mt-2"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setTurnoEliminarCerrado(t)
+                          setTextoConfirmarEliminarCerrado('')
+                        }}
+                      >
+                        <Trash2 className="w-4 h-4 mr-2 inline" />
+                        Eliminar turno cerrado
+                      </button>
+                    )}
                   </div>
                 )
               })}
             </div>
           )}
         </div>
+        {modalEliminarTurnoCerradoJsx}
       </div>
     )
   }
@@ -338,7 +448,7 @@ function ConsultarTurnos() {
       {/* Header */}
       <header className="border-b border-gray-200 sticky top-0 z-10" style={{ backgroundColor: '#faf8e4' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
             <div className="flex items-center gap-4">
               <button
                 onClick={volverALista}
@@ -359,13 +469,28 @@ function ConsultarTurnos() {
                 </p>
               </div>
             </div>
-            <button
-              onClick={handleLogout}
-              className="btn btn-secondary"
-            >
-              <LogOut className="w-5 h-5 mr-2" />
-              Salir
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              {turno.estado_id === 2 && (
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  onClick={() => {
+                    setTurnoEliminarCerrado(turno)
+                    setTextoConfirmarEliminarCerrado('')
+                  }}
+                >
+                  <Trash2 className="w-5 h-5 mr-2" />
+                  Eliminar turno cerrado
+                </button>
+              )}
+              <button
+                onClick={handleLogout}
+                className="btn btn-secondary"
+              >
+                <LogOut className="w-5 h-5 mr-2" />
+                Salir
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -383,6 +508,8 @@ function ConsultarTurnos() {
           {mensaje.texto}
         </div>
       )}
+
+      {modalEliminarTurnoCerradoJsx}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Resumen de Totales */}
