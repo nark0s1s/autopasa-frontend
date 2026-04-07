@@ -159,6 +159,13 @@ export const eliminarTurnoGriferoAbierto = async (turnoId) => {
   await api.delete(`${API_TURNOS_LIQ}/grifero/${turnoId}`)
 }
 
+/** Turno cerrado: body { confirmacion: 'CONFIRMAR' }; requiere permiso turno.cerrar */
+export const eliminarTurnoGriferoCerrado = async (turnoId, confirmacion) => {
+  await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/eliminar-cerrado`, {
+    confirmacion,
+  })
+}
+
 // ============================================================================
 // CONTÓMETROS Y PRODUCTOS
 // ============================================================================
