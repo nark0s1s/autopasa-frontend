@@ -99,8 +99,24 @@ export const getCurrentUser = async () => {
 
 const API_TURNOS_LIQ = '/api/turnos-liquidacion'
 
-export const getTurnoDiaActual = async () => {
-  const response = await api.get(`${API_TURNOS_LIQ}/actual`)
+/**
+ * @param {number|undefined} turno_config_id - Filtra la liquidación por tipo de turno
+ * @param {string|undefined} fecha - YYYY-MM-DD (opcional; por defecto el backend usa la fecha del servidor)
+ */
+export const getTurnoDiaActual = async (turno_config_id, fecha) => {
+  const params = {}
+  if (turno_config_id != null && turno_config_id !== '') {
+    params.turno_config_id = Number(turno_config_id)
+  }
+  if (fecha != null && fecha !== '') {
+    params.fecha = fecha
+  }
+  const response = await api.get(`${API_TURNOS_LIQ}/actual`, { params })
+  return response.data
+}
+
+export const listarTurnosLiquidacion = async (params = {}) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/`, { params })
   return response.data
 }
 
@@ -139,6 +155,10 @@ export const getTurnoById = async (turnoId) => {
   return response.data
 }
 
+export const eliminarTurnoGriferoAbierto = async (turnoId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/${turnoId}`)
+}
+
 // ============================================================================
 // CONTÓMETROS Y PRODUCTOS
 // ============================================================================
@@ -170,9 +190,19 @@ export const getPrefillLecturaContometro = async (cabeceraGriferoId, contometroI
   return response.data
 }
 
-export const actualizarLecturaFinal = async (lecturaId, data) => {
+/** Body: { lectura_inicial?, lectura_final?, tiene_anomalia?, observaciones? } (al menos una lectura) */
+export const actualizarLecturaContometro = async (lecturaId, data) => {
   const response = await api.put(`${API_TURNOS_LIQ}/grifero/lecturas/${lecturaId}`, data)
   return response.data
+}
+
+/** Compat: segundo argumento puede ser número o { lectura_final } */
+export const actualizarLecturaFinal = async (lecturaId, lecturaFinalOrObj) => {
+  const payload =
+    typeof lecturaFinalOrObj === 'object' && lecturaFinalOrObj !== null
+      ? lecturaFinalOrObj
+      : { lectura_final: lecturaFinalOrObj }
+  return actualizarLecturaContometro(lecturaId, payload)
 }
 
 // ============================================================================
@@ -189,14 +219,37 @@ export const agregarVentaPOS = async (turnoId, data) => {
   return response.data
 }
 
+export const actualizarVentaPOS = async (ventaId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/grifero/ventas-pos/${ventaId}`, data)
+  return response.data
+}
+
+export const eliminarVentaPOS = async (ventaId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/ventas-pos/${ventaId}`)
+}
+
 export const agregarVale = async (turnoId, data) => {
   const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/vales`, data)
+  return response.data
+}
+
+export const agregarDescuentoTurno = async (turnoId, data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/descuentos`, data)
   return response.data
 }
 
 export const agregarDeposito = async (turnoId, data) => {
   const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/depositos`, data)
   return response.data
+}
+
+export const actualizarDeposito = async (depositoId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/grifero/depositos/${depositoId}`, data)
+  return response.data
+}
+
+export const eliminarDeposito = async (depositoId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/depositos/${depositoId}`)
 }
 
 // ============================================================================

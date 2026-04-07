@@ -11,12 +11,13 @@ import ModalVales from '../components/cuadre/ModalVales'
 import ModalPOS from '../components/cuadre/ModalPOS'
 
 // Componente para las tarjetas de cada bloque
-function BloqueCuadre({ title, amount, onClick }) {
+function BloqueCuadre({ title, amount, onClick, hint }) {
   return (
     <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
       <div className="flex justify-between items-start mb-4">
         <h3 className="font-semibold text-gray-700">{title}</h3>
       </div>
+      {hint && <p className="text-xs text-gray-500 -mt-2 mb-3 leading-relaxed">{hint}</p>}
       <div className="text-2xl font-bold text-gray-900 mb-4">
         S/ {amount.toFixed(2)}
       </div>
@@ -554,7 +555,8 @@ export default function CuadreDiario() {
             <BloqueCuadre 
               title="Descuentos" 
               amount={valores.descuentos} 
-              onClick={() => handleOpenModal('descuentos')} 
+              onClick={() => handleOpenModal('descuentos')}
+              hint="Pulsa «Ver Detalle / Editar» para el listado del cuadre diario. Los descuentos por turno de estación están en la pantalla Consultar turnos, pestaña Descuentos."
             />
             <BloqueCuadre 
               title="Gasto Autorizado" 

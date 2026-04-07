@@ -3,22 +3,29 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Fuel, LogOut, Plus, Save, CheckCircle, AlertCircle,
-  Gauge, ShoppingCart, CreditCard, Receipt, DollarSign, X
+  Gauge, ShoppingCart, CreditCard, Receipt, DollarSign, X, Pencil, Trash2,
+  Percent, Search
 } from 'lucide-react'
 import {
   getTurnosGrifero,
   getContometros,
   getProductos,
   agregarLecturaContometro,
-  actualizarLecturaFinal,
+  actualizarLecturaContometro,
   agregarVentaProducto,
   agregarVentaPOS,
+  actualizarVentaPOS,
+  eliminarVentaPOS,
   agregarVale,
   agregarDeposito,
+  actualizarDeposito,
+  eliminarDeposito,
+  agregarDescuentoTurno,
   cerrarTurnoGrifero,
   getTurnoById,
   getTiposVale,
-  getPrefillLecturaContometro
+  getPrefillLecturaContometro,
+  getClientes
 } from '../utils/api'
 
 function ConsultarTurnos() {
@@ -43,7 +50,6 @@ function ConsultarTurnos() {
   const [showModalVenta, setShowModalVenta] = useState(false)
   const [showModalPOS, setShowModalPOS] = useState(false)
   const [showModalVale, setShowModalVale] = useState(false)
-  const [showModalDeposito, setShowModalDeposito] = useState(false)
   const [showModalCierre, setShowModalCierre] = useState(false)
 
   useEffect(() => {
@@ -147,17 +153,42 @@ function ConsultarTurnos() {
     navigate('/login')
   }
 
-  // Calcular totales
+  // Calcular totales (alineado a la fórmula del backend para efectivo esperado)
   const calcularTotales = () => {
     if (!turno) return null
 
+    const totalCombustible = parseFloat(turno.total_venta_combustible || 0)
+    const totalProductos = parseFloat(turno.total_venta_productos || 0)
+    const totalPOS = parseFloat(turno.total_ventas_pos || 0)
+    const totalCredito = parseFloat(turno.total_ventas_credito || 0)
+    const totalDescuentos = parseFloat(turno.total_descuentos || 0)
+    const totalVales = parseFloat(turno.total_vales || 0)
+    const totalGastos = parseFloat(turno.total_gastos_autorizados || 0)
+    const totalDepositos = parseFloat(turno.total_depositos_caja || 0)
+    const efectivoEsperado = parseFloat(turno.efectivo_esperado || 0)
+    const baseVentas = totalCombustible + totalProductos
+    const efectivoCalculado =
+      baseVentas -
+      totalPOS -
+      totalCredito -
+      totalDescuentos -
+      totalVales -
+      totalGastos +
+      totalDepositos
+
     return {
-      totalCombustible: parseFloat(turno.total_venta_combustible || 0),
-      totalProductos: parseFloat(turno.total_venta_productos || 0),
-      totalPOS: parseFloat(turno.total_ventas_pos || 0),
-      totalVales: parseFloat(turno.total_vales || 0),
-      totalDepositos: parseFloat(turno.total_depositos_caja || 0),
-      efectivoEsperado: parseFloat(turno.efectivo_esperado || 0)
+      totalCombustible,
+      totalProductos,
+      baseVentas,
+      totalPOS,
+      totalCredito,
+      totalDescuentos,
+      totalVales,
+      totalGastos,
+      totalDepositos,
+      efectivoEsperado,
+      efectivoCalculado,
+      diferenciaFormula: Math.abs(efectivoCalculado - efectivoEsperado),
     }
   }
 
@@ -334,44 +365,92 @@ function ConsultarTurnos() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Resumen de Totales */}
         {totales && (
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
-            <div className="card p-4">
-              <p className="text-sm text-gray-600 mb-1">Combustible</p>
-              <p className="text-2xl font-bold text-primary-600">
-                S/ {totales.totalCombustible.toFixed(2)}
-              </p>
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3 mb-4">
+              <div className="card p-3">
+                <p className="text-xs text-gray-600 mb-1">Combustible</p>
+                <p className="text-lg font-bold text-primary-600">S/ {totales.totalCombustible.toFixed(2)}</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-gray-600 mb-1">Productos</p>
+                <p className="text-lg font-bold text-green-600">S/ {totales.totalProductos.toFixed(2)}</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-gray-600 mb-1">POS</p>
+                <p className="text-lg font-bold text-orange-600">S/ {totales.totalPOS.toFixed(2)}</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-gray-600 mb-1">Crédito</p>
+                <p className="text-lg font-bold text-amber-700">S/ {totales.totalCredito.toFixed(2)}</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-gray-600 mb-1">Descuentos</p>
+                <p className="text-lg font-bold text-rose-600">S/ {totales.totalDescuentos.toFixed(2)}</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-gray-600 mb-1">Vales</p>
+                <p className="text-lg font-bold text-red-600">S/ {totales.totalVales.toFixed(2)}</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-gray-600 mb-1">Gastos</p>
+                <p className="text-lg font-bold text-gray-700">S/ {totales.totalGastos.toFixed(2)}</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-gray-600 mb-1">Depósitos</p>
+                <p className="text-lg font-bold text-purple-600">S/ {totales.totalDepositos.toFixed(2)}</p>
+              </div>
             </div>
-            <div className="card p-4">
-              <p className="text-sm text-gray-600 mb-1">Productos</p>
-              <p className="text-2xl font-bold text-green-600">
-                S/ {totales.totalProductos.toFixed(2)}
+
+            <div className="card p-5 mb-6 border-2 border-primary-200 bg-primary-50/40">
+              <h3 className="text-sm font-bold text-primary-900 uppercase tracking-wide mb-3">
+                Totalizador — efectivo esperado en caja
+              </h3>
+              <p className="text-xs text-gray-600 mb-3">
+                Combustible + productos (venta registrada) menos lo que no es efectivo en caja (POS, crédito,
+                descuentos, vales, gastos) más depósitos en caja (efectivo adicional).
               </p>
+              <div className="space-y-1.5 text-sm max-w-lg">
+                <div className="flex justify-between gap-4">
+                  <span className="text-gray-700">Venta combustible + productos</span>
+                  <span className="font-semibold tabular-nums">S/ {totales.baseVentas.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-red-700">
+                  <span>(−) Ventas POS (tarjeta)</span>
+                  <span className="font-semibold tabular-nums">S/ {totales.totalPOS.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-red-700">
+                  <span>(−) Ventas a crédito</span>
+                  <span className="font-semibold tabular-nums">S/ {totales.totalCredito.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-red-700">
+                  <span>(−) Descuentos aplicados</span>
+                  <span className="font-semibold tabular-nums">S/ {totales.totalDescuentos.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-red-700">
+                  <span>(−) Vales</span>
+                  <span className="font-semibold tabular-nums">S/ {totales.totalVales.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-red-700">
+                  <span>(−) Gastos autorizados</span>
+                  <span className="font-semibold tabular-nums">S/ {totales.totalGastos.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between gap-4 text-emerald-800">
+                  <span>(+) Depósitos en caja</span>
+                  <span className="font-semibold tabular-nums">S/ {totales.totalDepositos.toFixed(2)}</span>
+                </div>
+                <div className="border-t border-primary-200 pt-2 mt-2 flex justify-between gap-4 text-base font-bold text-primary-900">
+                  <span>= Efectivo esperado</span>
+                  <span className="tabular-nums">S/ {totales.efectivoEsperado.toFixed(2)}</span>
+                </div>
+                {totales.diferenciaFormula >= 0.02 && (
+                  <p className="text-xs text-amber-800 pt-1">
+                    Comprobación manual: S/ {totales.efectivoCalculado.toFixed(2)} (diferencia redondeo o datos
+                    desactualizados; recargue el turno).
+                  </p>
+                )}
+              </div>
             </div>
-            <div className="card p-4">
-              <p className="text-sm text-gray-600 mb-1">Ventas POS</p>
-              <p className="text-2xl font-bold text-orange-600">
-                S/ {totales.totalPOS.toFixed(2)}
-              </p>
-            </div>
-            <div className="card p-4">
-              <p className="text-sm text-gray-600 mb-1">Vales</p>
-              <p className="text-2xl font-bold text-red-600">
-                S/ {totales.totalVales.toFixed(2)}
-              </p>
-            </div>
-            <div className="card p-4">
-              <p className="text-sm text-gray-600 mb-1">Depósitos</p>
-              <p className="text-2xl font-bold text-purple-600">
-                S/ {totales.totalDepositos.toFixed(2)}
-              </p>
-            </div>
-            <div className="card p-4 bg-primary-50">
-              <p className="text-sm text-primary-700 mb-1 font-medium">Efectivo Esperado</p>
-              <p className="text-2xl font-bold text-primary-900">
-                S/ {totales.efectivoEsperado.toFixed(2)}
-              </p>
-            </div>
-          </div>
+          </>
         )}
 
         {/* Tabs */}
@@ -383,6 +462,7 @@ function ConsultarTurnos() {
                 { id: 'ventas', label: 'Ventas Productos', icon: ShoppingCart },
                 { id: 'pos', label: 'Ventas POS', icon: CreditCard },
                 { id: 'vales', label: 'Vales', icon: Receipt },
+                { id: 'descuentos', label: 'Descuentos', icon: Percent },
                 { id: 'depositos', label: 'Depósitos', icon: DollarSign },
               ].map(tab => (
                 <button
@@ -430,6 +510,13 @@ function ConsultarTurnos() {
               <TabVales
                 turno={turno}
                 tiposVale={tiposVale}
+                onReload={recargarDatosLiquidacion}
+                onMensaje={mostrarMensaje}
+              />
+            )}
+            {tabActiva === 'descuentos' && (
+              <TabDescuentos
+                turno={turno}
                 onReload={recargarDatosLiquidacion}
                 onMensaje={mostrarMensaje}
               />
@@ -518,6 +605,7 @@ function ConsultarTurnos() {
 function TabLecturas({ turno, contometros, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
   const [lecturaEdit, setLecturaEdit] = useState(null)
+  const [lecturaEditCompleta, setLecturaEditCompleta] = useState(null)
 
   const handleAgregar = async (data) => {
     try {
@@ -537,13 +625,15 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
     }
   }
 
-  const handleActualizar = async (lecturaId, lecturaFinal) => {
+  const handleActualizar = async (lecturaId, payload) => {
     try {
-      await actualizarLecturaFinal(lecturaId, { lectura_final: lecturaFinal })
+      await actualizarLecturaContometro(lecturaId, payload)
       onMensaje('Lectura actualizada correctamente')
       onReload()
+      return true
     } catch (error) {
       onMensaje('Error al actualizar lectura', 'error')
+      return false
     }
   }
 
@@ -581,14 +671,26 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
                     Total: {gal.toFixed(3)} gal × S/ {lectura.precio_venta} = S/ {monto.toFixed(2)}
                   </p>
                 </div>
-                {turno.estado_id === 1 && pendienteFinal && (
-                  <button
-                    type="button"
-                    onClick={() => setLecturaEdit(lectura)}
-                    className="btn btn-primary btn-sm"
-                  >
-                    Registrar Final
-                  </button>
+                {turno.estado_id === 1 && (
+                  <div className="flex flex-col gap-2 items-end">
+                    <button
+                      type="button"
+                      onClick={() => setLecturaEditCompleta(lectura)}
+                      className="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                    >
+                      <Pencil className="w-4 h-4" />
+                      Editar lectura
+                    </button>
+                    {pendienteFinal && (
+                      <button
+                        type="button"
+                        onClick={() => setLecturaEdit(lectura)}
+                        className="btn btn-primary btn-sm"
+                      >
+                        Registrar Final
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             </div>
@@ -609,9 +711,23 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
         <ModalLecturaFinal
           lectura={lecturaEdit}
           onClose={() => setLecturaEdit(null)}
-          onSubmit={(lecturaFinal) => {
-            handleActualizar(lecturaEdit.id, lecturaFinal)
-            setLecturaEdit(null)
+          onSubmit={async (lecturaFinal) => {
+            const ok = await handleActualizar(lecturaEdit.id, { lectura_final: lecturaFinal })
+            if (ok) setLecturaEdit(null)
+            return ok
+          }}
+        />
+      )}
+
+      {lecturaEditCompleta && (
+        <ModalLecturaEditar
+          lectura={lecturaEditCompleta}
+          contometros={contometros}
+          onClose={() => setLecturaEditCompleta(null)}
+          onSubmit={async (payload) => {
+            const ok = await handleActualizar(lecturaEditCompleta.id, payload)
+            if (ok) setLecturaEditCompleta(null)
+            return ok
           }}
         />
       )}
@@ -682,23 +798,52 @@ function TabVentas({ turno, productos, onReload, onMensaje }) {
 
 function TabPOS({ turno, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
+  const [ventaPosEdicion, setVentaPosEdicion] = useState(null)
+  const [posEliminar, setPosEliminar] = useState(null)
 
-  const handleAgregar = async (data) => {
+  const buildPayload = (data) => ({
+    monto: parseFloat(data.monto),
+    numero_operacion: data.numero_operacion,
+    tipo_tarjeta: data.tipo_tarjeta,
+    numero_lote: data.numero_lote || null,
+    terminal_id: data.terminal_id || null,
+    autorizacion: data.autorizacion || null,
+  })
+
+  const handleGuardarPOS = async (data) => {
+    const editando = Boolean(ventaPosEdicion?.id)
     try {
-      await agregarVentaPOS(turno.id, {
-        monto: data.monto,
-        numero_operacion: data.numero_operacion,
-        tipo_tarjeta: data.tipo_tarjeta,
-        numero_lote: data.numero_lote || null,
-        terminal_id: data.terminal_id || null,
-        autorizacion: data.autorizacion || null
-      })
-      onMensaje('Venta POS agregada correctamente')
+      const payload = buildPayload(data)
+      if (editando) {
+        await actualizarVentaPOS(ventaPosEdicion.id, payload)
+        onMensaje('Venta POS actualizada correctamente')
+      } else {
+        await agregarVentaPOS(turno.id, payload)
+        onMensaje('Venta POS agregada correctamente')
+      }
       setShowModal(false)
+      setVentaPosEdicion(null)
       onReload()
     } catch (error) {
-      onMensaje('Error al agregar venta POS', 'error')
+      onMensaje(editando ? 'Error al actualizar venta POS' : 'Error al agregar venta POS', 'error')
     }
+  }
+
+  const handleConfirmarEliminarPOS = async () => {
+    if (!posEliminar?.id) return
+    try {
+      await eliminarVentaPOS(posEliminar.id)
+      onMensaje('Venta POS eliminada correctamente')
+      setPosEliminar(null)
+      onReload()
+    } catch (error) {
+      onMensaje('Error al eliminar venta POS', 'error')
+    }
+  }
+
+  const abrirNueva = () => {
+    setVentaPosEdicion(null)
+    setShowModal(true)
   }
 
   return (
@@ -706,7 +851,7 @@ function TabPOS({ turno, onReload, onMensaje }) {
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Ventas con Tarjeta (POS)</h3>
         {turno.estado_id === 1 && (
-          <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
+          <button type="button" onClick={abrirNueva} className="btn btn-primary">
             <Plus className="w-5 h-5 mr-2" />
             Nueva Venta POS
           </button>
@@ -716,13 +861,39 @@ function TabPOS({ turno, onReload, onMensaje }) {
       <div className="space-y-3">
         {turno.ventas_pos?.map(venta => (
           <div key={venta.id} className="card p-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-start gap-3">
               <div>
                 <p className="font-medium">S/ {venta.monto}</p>
                 <p className="text-sm text-gray-600">
                   {venta.tipo_tarjeta} • Op: {venta.numero_operacion}
                 </p>
+                {venta.numero_lote && (
+                  <p className="text-xs text-gray-500">Lote: {venta.numero_lote}</p>
+                )}
               </div>
+              {turno.estado_id === 1 && (
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setVentaPosEdicion(venta)
+                      setShowModal(true)
+                    }}
+                    className="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                    title="Editar"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPosEliminar(venta)}
+                    className="btn btn-danger btn-sm inline-flex items-center gap-1"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -730,9 +901,38 @@ function TabPOS({ turno, onReload, onMensaje }) {
 
       {showModal && (
         <ModalPOS
-          onClose={() => setShowModal(false)}
-          onSubmit={handleAgregar}
+          key={ventaPosEdicion?.id ?? 'nueva'}
+          ventaInicial={ventaPosEdicion}
+          onClose={() => {
+            setShowModal(false)
+            setVentaPosEdicion(null)
+          }}
+          onSubmit={handleGuardarPOS}
         />
+      )}
+
+      {posEliminar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="card p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Eliminar venta POS</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              ¿Eliminar la operación <strong>{posEliminar.numero_operacion}</strong> por{' '}
+              <strong>S/ {posEliminar.monto}</strong>? Se actualizarán los totales del turno.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary flex-1"
+                onClick={() => setPosEliminar(null)}
+              >
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-danger flex-1" onClick={handleConfirmarEliminarPOS}>
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
@@ -801,22 +1001,51 @@ function TabVales({ turno, tiposVale, onReload, onMensaje }) {
 
 function TabDepositos({ turno, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
+  const [depositoEdicion, setDepositoEdicion] = useState(null)
+  const [depositoEliminar, setDepositoEliminar] = useState(null)
   const depositos = turno.depositos_caja ?? turno.depositos ?? []
 
-  const handleAgregar = async (data) => {
+  const buildPayload = (data) => ({
+    monto: parseFloat(data.monto),
+    recibido_por: data.recibido_por?.trim() ? data.recibido_por.trim() : null,
+    numero_comprobante: data.numero_comprobante?.trim() ? data.numero_comprobante.trim() : null,
+    observaciones: data.observaciones?.trim() ? data.observaciones.trim() : null,
+  })
+
+  const handleGuardarDeposito = async (data) => {
+    const editando = Boolean(depositoEdicion?.id)
     try {
-      await agregarDeposito(turno.id, {
-        monto: data.monto,
-        recibido_por: data.recibido_por || null,
-        numero_comprobante: data.numero_comprobante || null,
-        observaciones: data.observaciones || null
-      })
-      onMensaje('Depósito agregado correctamente')
+      const payload = buildPayload(data)
+      if (editando) {
+        await actualizarDeposito(depositoEdicion.id, payload)
+        onMensaje('Depósito actualizado correctamente')
+      } else {
+        await agregarDeposito(turno.id, payload)
+        onMensaje('Depósito agregado correctamente')
+      }
       setShowModal(false)
+      setDepositoEdicion(null)
       onReload()
     } catch (error) {
-      onMensaje('Error al agregar depósito', 'error')
+      onMensaje(editando ? 'Error al actualizar depósito' : 'Error al agregar depósito', 'error')
     }
+  }
+
+  const handleConfirmarEliminarDeposito = async () => {
+    if (!depositoEliminar?.id) return
+    try {
+      await eliminarDeposito(depositoEliminar.id)
+      onMensaje('Depósito eliminado correctamente')
+      setDepositoEliminar(null)
+      onReload()
+    } catch (error) {
+      onMensaje('Error al eliminar depósito', 'error')
+    }
+  }
+
+  const abrirNuevo = () => {
+    setDepositoEdicion(null)
+    setShowModal(true)
   }
 
   return (
@@ -824,7 +1053,7 @@ function TabDepositos({ turno, onReload, onMensaje }) {
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Depósitos en Caja</h3>
         {turno.estado_id === 1 && (
-          <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
+          <button type="button" onClick={abrirNuevo} className="btn btn-primary">
             <Plus className="w-5 h-5 mr-2" />
             Nuevo Depósito
           </button>
@@ -834,9 +1063,12 @@ function TabDepositos({ turno, onReload, onMensaje }) {
       <div className="space-y-3">
         {depositos.map(deposito => (
           <div key={deposito.id} className="card p-4">
-            <div className="flex justify-between items-center">
+            <div className="flex justify-between items-start gap-3">
               <div>
                 <p className="font-medium">S/ {deposito.monto}</p>
+                {deposito.numero_comprobante && (
+                  <p className="text-sm text-gray-600">Comprobante: {deposito.numero_comprobante}</p>
+                )}
                 {deposito.observaciones && (
                   <p className="text-sm text-gray-600">{deposito.observaciones}</p>
                 )}
@@ -844,6 +1076,29 @@ function TabDepositos({ turno, onReload, onMensaje }) {
                   <p className="text-xs text-gray-500">Recibido por: {deposito.recibido_por}</p>
                 )}
               </div>
+              {turno.estado_id === 1 && (
+                <div className="flex gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDepositoEdicion(deposito)
+                      setShowModal(true)
+                    }}
+                    className="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                    title="Editar"
+                  >
+                    <Pencil className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDepositoEliminar(deposito)}
+                    className="btn btn-danger btn-sm inline-flex items-center gap-1"
+                    title="Eliminar"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -851,10 +1106,305 @@ function TabDepositos({ turno, onReload, onMensaje }) {
 
       {showModal && (
         <ModalDeposito
+          key={depositoEdicion?.id ?? 'nuevo'}
+          depositoInicial={depositoEdicion}
+          onClose={() => {
+            setShowModal(false)
+            setDepositoEdicion(null)
+          }}
+          onSubmit={handleGuardarDeposito}
+        />
+      )}
+
+      {depositoEliminar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="card p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Eliminar depósito</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              ¿Eliminar el depósito por <strong>S/ {depositoEliminar.monto}</strong>
+              {depositoEliminar.numero_comprobante
+                ? <> (comprobante {depositoEliminar.numero_comprobante})</>
+                : null}
+              ? Se actualizarán los totales del turno.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary flex-1"
+                onClick={() => setDepositoEliminar(null)}
+              >
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-danger flex-1" onClick={handleConfirmarEliminarDeposito}>
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TabDescuentos({ turno, onReload, onMensaje }) {
+  const [showModal, setShowModal] = useState(false)
+  const [clientesPorId, setClientesPorId] = useState({})
+  const descuentos = turno.descuentos_aplicados ?? []
+
+  useEffect(() => {
+    let cancelled = false
+    getClientes(true)
+      .then((list) => {
+        if (cancelled || !list) return
+        const m = {}
+        list.forEach((cl) => {
+          m[cl.id] = cl
+        })
+        setClientesPorId(m)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const nombreCliente = (id) => {
+    if (id == null) return '—'
+    const cl = clientesPorId[id]
+    return cl ? cl.razon_social : `Cliente #${id}`
+  }
+
+  const handleAgregar = async (payload) => {
+    try {
+      await agregarDescuentoTurno(turno.id, payload)
+      onMensaje('Descuento aplicado registrado correctamente')
+      setShowModal(false)
+      onReload()
+    } catch (error) {
+      onMensaje('Error al registrar descuento', 'error')
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold">Descuentos aplicados</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Se guardan en el turno de grifero y reducen el efectivo esperado según monto de descuento.
+          </p>
+        </div>
+        {turno.estado_id === 1 && (
+          <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
+            <Plus className="w-5 h-5 mr-2" />
+            Nuevo descuento
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        {descuentos.map((d) => {
+          const mv = parseFloat(d.monto_venta || 0)
+          const pct = parseFloat(d.porcentaje_descuento || 0)
+          const montoDesc = (mv * pct) / 100
+          return (
+            <div key={d.id} className="card p-4">
+              <p className="font-medium">{nombreCliente(d.cliente_id)}</p>
+              <p className="text-sm text-gray-600">
+                Venta S/ {mv.toFixed(2)} · {pct}% → Descuento{' '}
+                <span className="font-semibold text-red-600">S/ {montoDesc.toFixed(2)}</span>
+              </p>
+              {d.motivo && <p className="text-xs text-gray-500 mt-1">{d.motivo}</p>}
+            </div>
+          )
+        })}
+        {descuentos.length === 0 && (
+          <p className="text-sm text-gray-500 text-center py-8">No hay descuentos en este turno.</p>
+        )}
+      </div>
+
+      {showModal && (
+        <ModalDescuentoTurno
           onClose={() => setShowModal(false)}
           onSubmit={handleAgregar}
         />
       )}
+    </div>
+  )
+}
+
+function ModalDescuentoTurno({ onClose, onSubmit }) {
+  const [clientesDisponibles, setClientesDisponibles] = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [busqueda, setBusqueda] = useState('')
+  const [mostrandoResultados, setMostrandoResultados] = useState(false)
+  const [clienteSel, setClienteSel] = useState(null)
+  const [montoVenta, setMontoVenta] = useState('')
+  const [porcentaje, setPorcentaje] = useState('')
+  const [motivo, setMotivo] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    setCargando(true)
+    getClientes(true)
+      .then((data) => {
+        if (!cancelled) setClientesDisponibles(data || [])
+      })
+      .catch(() => {
+        if (!cancelled) setClientesDisponibles([])
+      })
+      .finally(() => {
+        if (!cancelled) setCargando(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const resultados = (() => {
+    if (busqueda.trim() === '') return clientesDisponibles.slice(0, 60)
+    const q = busqueda.toLowerCase()
+    return clientesDisponibles
+      .filter(
+        (c) =>
+          c.razon_social?.toLowerCase().includes(q) ||
+          String(c.numero_documento || '').toLowerCase().includes(q)
+      )
+      .slice(0, 60)
+  })()
+
+  const seleccionarCliente = (c) => {
+    setClienteSel(c)
+    setBusqueda(c.razon_social || '')
+    setMostrandoResultados(false)
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    if (!clienteSel) return
+    const mv = parseFloat(montoVenta)
+    const pct = parseFloat(porcentaje)
+    if (Number.isNaN(mv) || mv <= 0 || Number.isNaN(pct) || pct < 0) return
+    onSubmit({
+      cliente_id: clienteSel.id,
+      monto_venta: mv,
+      porcentaje_descuento: pct,
+      motivo: motivo.trim() || null,
+    })
+  }
+
+  const previewDesc =
+    montoVenta && porcentaje
+      ? ((parseFloat(montoVenta) * parseFloat(porcentaje)) / 100 || 0).toFixed(2)
+      : null
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Nuevo descuento aplicado</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="relative">
+            <label className="block text-sm font-medium mb-2">Cliente</label>
+            <div className="relative">
+              <input
+                type="text"
+                className="input pr-9"
+                placeholder="Buscar por razón social o documento…"
+                value={busqueda}
+                onChange={(e) => {
+                  setBusqueda(e.target.value)
+                  if (!e.target.value) setClienteSel(null)
+                }}
+                onFocus={() => setMostrandoResultados(true)}
+                onBlur={() => setTimeout(() => setMostrandoResultados(false), 200)}
+                disabled={cargando}
+                autoFocus
+              />
+              <Search className="w-4 h-4 text-gray-400 absolute right-3 top-3 pointer-events-none" />
+            </div>
+            {mostrandoResultados && resultados.length > 0 && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                {resultados.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                    onMouseDown={(ev) => ev.preventDefault()}
+                    onClick={() => seleccionarCliente(c)}
+                  >
+                    <span className="font-medium">{c.razon_social}</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      {c.tipo_documento} {c.numero_documento}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {cargando && <p className="text-xs text-gray-500 mt-1">Cargando clientes…</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Monto venta (S/)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              className="input"
+              value={montoVenta}
+              onChange={(e) => setMontoVenta(e.target.value)}
+              required
+              disabled={!clienteSel}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Porcentaje de descuento (%)</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              max="100"
+              className="input"
+              value={porcentaje}
+              onChange={(e) => setPorcentaje(e.target.value)}
+              required
+              disabled={!clienteSel}
+            />
+          </div>
+
+          {previewDesc != null && !Number.isNaN(parseFloat(previewDesc)) && (
+            <p className="text-sm text-red-700">
+              Monto descuento estimado: <strong>S/ {previewDesc}</strong>
+            </p>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Motivo (opcional)</label>
+            <input
+              type="text"
+              className="input"
+              value={motivo}
+              onChange={(e) => setMotivo(e.target.value)}
+              disabled={!clienteSel}
+            />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn-primary flex-1" disabled={!clienteSel}>
+              Guardar
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
@@ -928,6 +1478,22 @@ function ModalLectura({ cabeceraGriferoId, contometros, onClose, onSubmit }) {
     formData.lectura_inicial !== '' &&
     formData.lectura_final !== ''
 
+  const iniNum = parseFloat(formData.lectura_inicial)
+  const finNum = parseFloat(formData.lectura_final)
+  const precioNum = parseFloat(formData.precio_venta)
+  const resumenValido =
+    !Number.isNaN(iniNum) &&
+    !Number.isNaN(finNum) &&
+    !Number.isNaN(precioNum)
+  const diferenciaGal = resumenValido ? finNum - iniNum : null
+  const totalSoles =
+    resumenValido && diferenciaGal !== null ? diferenciaGal * precioNum : null
+  const diferenciaGalFmt =
+    diferenciaGal !== null ? Number(diferenciaGal.toFixed(2)) : null
+  const totalSolesFmt = totalSoles !== null ? Number(totalSoles.toFixed(2)) : null
+
+  const lecturasEditables = Boolean(formData.contometro_id) && !prefillLoading
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card p-6 max-w-md w-full">
@@ -955,35 +1521,24 @@ function ModalLectura({ cabeceraGriferoId, contometros, onClose, onSubmit }) {
               ))}
             </select>
             <p className="text-xs text-gray-500 mt-1">
-              La lectura inicial propuesta es la <strong>lectura final del último turno cerrado</strong>
-              para este contómetro; si no hay historial, se usa <strong>0</strong>.
+              Primero elija el contómetro. La lectura inicial sugerida es la{' '}
+              <strong>lectura final del último turno cerrado</strong> para ese equipo; si no hay historial,{' '}
+              <strong>0</strong>.
             </p>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium mb-2">Lectura Inicial (galones)</label>
-            <input
-              type="number"
-              step="0.01"
-              className="input"
-              value={formData.lectura_inicial}
-              onChange={e =>
-                setFormData({
-                  ...formData,
-                  lectura_inicial: e.target.value,
-                })
-              }
-              required
-              disabled={prefillLoading && !!formData.contometro_id}
-            />
-          </div>
+          {!formData.contometro_id && (
+            <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              Seleccione el tipo de contómetro para habilitar las lecturas inicial y final.
+            </p>
+          )}
 
           <div>
-            <label className="block text-sm font-medium mb-2">Lectura Final (galones)</label>
+            <label className="block text-sm font-medium mb-2">Lectura final (galones)</label>
             <input
               type="number"
               step="0.01"
-              className="input"
+              className="input disabled:opacity-60"
               value={formData.lectura_final}
               onChange={e =>
                 setFormData({
@@ -992,11 +1547,31 @@ function ModalLectura({ cabeceraGriferoId, contometros, onClose, onSubmit }) {
                 })
               }
               required
-              disabled={prefillLoading && !!formData.contometro_id}
+              disabled={!lecturasEditables}
+              placeholder={lecturasEditables ? '' : 'Seleccione contómetro…'}
             />
             <p className="text-xs text-gray-500 mt-1">
-              Puede igualar la inicial y registrar el final después con &quot;Registrar Final&quot;.
+              Puede igualar la inicial y completar el final después con &quot;Registrar Final&quot;.
             </p>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Lectura inicial (galones)</label>
+            <input
+              type="number"
+              step="0.01"
+              className="input disabled:opacity-60"
+              value={formData.lectura_inicial}
+              onChange={e =>
+                setFormData({
+                  ...formData,
+                  lectura_inicial: e.target.value,
+                })
+              }
+              required
+              disabled={!lecturasEditables}
+              placeholder={lecturasEditables ? '' : 'Seleccione contómetro…'}
+            />
           </div>
 
           <div>
@@ -1006,17 +1581,35 @@ function ModalLectura({ cabeceraGriferoId, contometros, onClose, onSubmit }) {
               readOnly
               className="input bg-gray-50 text-gray-800 cursor-not-allowed"
               value={
-                formData.precio_venta !== ''
-                  ? `S/ ${formData.precio_venta}${productoNombre ? ` · ${productoNombre}` : ''}`
-                  : prefillLoading
-                    ? 'Cargando…'
-                    : '—'
+                !formData.contometro_id
+                  ? 'Seleccione contómetro…'
+                  : formData.precio_venta !== ''
+                    ? `S/ ${Number(formData.precio_venta).toFixed(2)}${productoNombre ? ` · ${productoNombre}` : ''}`
+                    : prefillLoading
+                      ? 'Cargando…'
+                      : '—'
               }
             />
             <p className="text-xs text-gray-500 mt-1">
               Tomado del producto/combustible en mantenimiento; el servidor valida el mismo valor al guardar.
             </p>
           </div>
+
+          {resumenValido && diferenciaGalFmt !== null && totalSolesFmt !== null && (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+              <p className="text-sm font-semibold text-slate-800">Resumen</p>
+              <p className="text-sm text-slate-700">
+                Diferencia (lectura final − inicial):{' '}
+                <strong>{diferenciaGalFmt.toFixed(2)} gal</strong>
+              </p>
+              <p className="text-sm text-slate-700">
+                × Precio combustible: <strong>S/ {precioNum.toFixed(2)}</strong>
+              </p>
+              <p className="text-base font-bold text-primary-800 pt-2 border-t border-slate-200">
+                Total venta combustible: S/ {totalSolesFmt.toFixed(2)}
+              </p>
+            </div>
+          )}
 
           <label className="flex items-center gap-2 text-sm">
             <input
@@ -1059,55 +1652,195 @@ function ModalLectura({ cabeceraGriferoId, contometros, onClose, onSubmit }) {
   )
 }
 
+function ModalLecturaEditar({ lectura, contometros, onClose, onSubmit }) {
+  const contometro = contometros.find((c) => c.id === lectura.contometro_id)
+  const [lecturaInicial, setLecturaInicial] = useState(String(lectura.lectura_inicial ?? ''))
+  const [lecturaFinal, setLecturaFinal] = useState(String(lectura.lectura_final ?? ''))
+  const [tieneAnomalia, setTieneAnomalia] = useState(Boolean(lectura.tiene_anomalia))
+  const [observaciones, setObservaciones] = useState(lectura.observaciones ?? '')
+
+  const precio = parseFloat(lectura.precio_venta)
+  const iniNum = parseFloat(lecturaInicial)
+  const finNum = parseFloat(lecturaFinal)
+  const resumenValido =
+    !Number.isNaN(iniNum) && !Number.isNaN(finNum) && !Number.isNaN(precio)
+  const diferenciaGal = resumenValido ? finNum - iniNum : null
+  const totalSoles =
+    resumenValido && diferenciaGal !== null ? diferenciaGal * precio : null
+  const guardarValido =
+    resumenValido && finNum >= iniNum && lecturaInicial !== '' && lecturaFinal !== ''
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!guardarValido) return
+    const ok = await onSubmit({
+      lectura_inicial: iniNum,
+      lectura_final: finNum,
+      tiene_anomalia: tieneAnomalia,
+      observaciones: observaciones.trim() ? observaciones.trim() : null,
+    })
+    if (ok) onClose()
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">Editar lectura de contómetro</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <p className="text-sm text-gray-600 mb-4">
+          <span className="font-medium text-gray-900">{contometro?.codigo || 'Contómetro'}</span>
+          {' · '}
+          Precio vigente al registrar: <strong>S/ {parseFloat(lectura.precio_venta).toFixed(2)}</strong>
+        </p>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">Lectura final (galones)</label>
+            <input
+              type="number"
+              step="0.01"
+              className="input"
+              value={lecturaFinal}
+              onChange={(e) => setLecturaFinal(e.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium mb-2">Lectura inicial (galones)</label>
+            <input
+              type="number"
+              step="0.01"
+              className="input"
+              value={lecturaInicial}
+              onChange={(e) => setLecturaInicial(e.target.value)}
+              required
+            />
+          </div>
+
+          {resumenValido && diferenciaGal !== null && totalSoles !== null && (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+              <p className="text-sm font-semibold text-slate-800">Resumen</p>
+              <p className="text-sm text-slate-700">
+                Diferencia (final − inicial): <strong>{diferenciaGal.toFixed(2)} gal</strong>
+              </p>
+              <p className="text-sm text-slate-700">
+                × Precio: <strong>S/ {precio.toFixed(2)}</strong>
+              </p>
+              <p className="text-base font-bold text-primary-800 pt-2 border-t border-slate-200">
+                Total venta combustible: S/ {totalSoles.toFixed(2)}
+              </p>
+              {finNum < iniNum && (
+                <p className="text-sm text-red-600">La lectura final no puede ser menor que la inicial.</p>
+              )}
+            </div>
+          )}
+
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={tieneAnomalia}
+              onChange={(e) => setTieneAnomalia(e.target.checked)}
+            />
+            Hay anomalía en el contómetro
+          </label>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Observaciones</label>
+            <textarea
+              className="input min-h-[72px]"
+              value={observaciones}
+              onChange={(e) => setObservaciones(e.target.value)}
+              rows={2}
+            />
+          </div>
+
+          <div className="flex gap-2">
+            <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn-primary flex-1" disabled={!guardarValido}>
+              Guardar cambios
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function ModalLecturaFinal({ lectura, onClose, onSubmit }) {
   const [lecturaFinal, setLecturaFinal] = useState('')
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault()
-    onSubmit(parseFloat(lecturaFinal))
+    const v = parseFloat(lecturaFinal)
+    const ok = await onSubmit(v)
+    if (ok) onClose()
   }
 
-  const diferencia = lecturaFinal ? parseFloat(lecturaFinal) - parseFloat(lectura.lectura_inicial) : 0
+  const fin = parseFloat(lecturaFinal)
+  const ini = parseFloat(lectura.lectura_inicial)
+  const precio = parseFloat(lectura.precio_venta)
+  const muestraResumen =
+    lecturaFinal !== '' && !Number.isNaN(fin) && !Number.isNaN(ini) && !Number.isNaN(precio)
+  const diferenciaGal = muestraResumen ? fin - ini : null
+  const totalSoles =
+    muestraResumen && diferenciaGal !== null ? diferenciaGal * precio : null
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-lg font-semibold">Registrar Lectura Final</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
-        </div>
-        
-        <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-          <p className="text-sm text-gray-600">Lectura Inicial</p>
-          <p className="text-xl font-bold">{lectura.lectura_inicial} gal</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium mb-2">Lectura Final (galones)</label>
+            <label className="block text-sm font-medium mb-2">Lectura final (galones)</label>
             <input
               type="number"
               step="0.01"
               className="input"
               value={lecturaFinal}
-              onChange={e => setLecturaFinal(e.target.value)}
+              onChange={(e) => setLecturaFinal(e.target.value)}
               required
               autoFocus
             />
           </div>
-          
-          {lecturaFinal && (
-            <div className="p-3 bg-primary-50 rounded-lg">
-              <p className="text-sm text-primary-700">Total Vendido</p>
-              <p className="text-2xl font-bold text-primary-900">{diferencia.toFixed(2)} gal</p>
-              <p className="text-sm text-primary-700 mt-1">
-                Total: S/ {(diferencia * parseFloat(lectura.precio_venta)).toFixed(2)}
+
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <p className="text-sm text-gray-600">Lectura inicial (referencia)</p>
+            <p className="text-xl font-bold">
+              {(() => {
+                const x = parseFloat(lectura.lectura_inicial)
+                return `${Number.isNaN(x) ? lectura.lectura_inicial : x.toFixed(2)} gal`
+              })()}
+            </p>
+          </div>
+
+          {muestraResumen && diferenciaGal !== null && totalSoles !== null && (
+            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg space-y-2">
+              <p className="text-sm font-semibold text-slate-800">Resumen</p>
+              <p className="text-sm text-slate-700">
+                Diferencia (final − inicial): <strong>{diferenciaGal.toFixed(2)} gal</strong>
+              </p>
+              <p className="text-sm text-slate-700">
+                × Precio combustible: <strong>S/ {precio.toFixed(2)}</strong>
+              </p>
+              <p className="text-base font-bold text-primary-800 pt-2 border-t border-slate-200">
+                Total venta combustible: S/ {totalSoles.toFixed(2)}
               </p>
             </div>
           )}
-          
+
           <div className="flex gap-2">
             <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
               Cancelar
@@ -1215,26 +1948,50 @@ function ModalVenta({ productos, onClose, onSubmit }) {
   )
 }
 
-function ModalPOS({ onClose, onSubmit }) {
+function ModalPOS({ onClose, onSubmit, ventaInicial = null }) {
   const [formData, setFormData] = useState({
     monto: '',
     numero_operacion: '',
     tipo_tarjeta: 'credito',
     numero_lote: '',
     terminal_id: '',
-    autorizacion: ''
+    autorizacion: '',
   })
+
+  useEffect(() => {
+    if (ventaInicial) {
+      setFormData({
+        monto: ventaInicial.monto != null ? String(ventaInicial.monto) : '',
+        numero_operacion: ventaInicial.numero_operacion ?? '',
+        tipo_tarjeta: ventaInicial.tipo_tarjeta ?? 'credito',
+        numero_lote: ventaInicial.numero_lote ?? '',
+        terminal_id: ventaInicial.terminal_id ?? '',
+        autorizacion: ventaInicial.autorizacion ?? '',
+      })
+    } else {
+      setFormData({
+        monto: '',
+        numero_operacion: '',
+        tipo_tarjeta: 'credito',
+        numero_lote: '',
+        terminal_id: '',
+        autorizacion: '',
+      })
+    }
+  }, [ventaInicial])
 
   const handleSubmit = (e) => {
     e.preventDefault()
     onSubmit(formData)
   }
 
+  const titulo = ventaInicial ? 'Editar venta POS' : 'Nueva venta POS'
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Nueva Venta POS</h3>
+          <h3 className="text-lg font-semibold">{titulo}</h3>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
@@ -1313,7 +2070,7 @@ function ModalPOS({ onClose, onSubmit }) {
               Cancelar
             </button>
             <button type="submit" className="btn btn-primary flex-1">
-              Guardar
+              {ventaInicial ? 'Guardar cambios' : 'Guardar'}
             </button>
           </div>
         </form>
@@ -1440,7 +2197,7 @@ function ModalVale({ tiposVale = [], onClose, onSubmit }) {
   )
 }
 
-function ModalDeposito({ onClose, onSubmit }) {
+function ModalDeposito({ onClose, onSubmit, depositoInicial = null }) {
   const [formData, setFormData] = useState({
     monto: '',
     observaciones: '',
@@ -1448,16 +2205,36 @@ function ModalDeposito({ onClose, onSubmit }) {
     recibido_por: ''
   })
 
+  useEffect(() => {
+    if (depositoInicial) {
+      setFormData({
+        monto: depositoInicial.monto != null ? String(depositoInicial.monto) : '',
+        observaciones: depositoInicial.observaciones ?? '',
+        numero_comprobante: depositoInicial.numero_comprobante ?? '',
+        recibido_por: depositoInicial.recibido_por ?? '',
+      })
+    } else {
+      setFormData({
+        monto: '',
+        observaciones: '',
+        numero_comprobante: '',
+        recibido_por: '',
+      })
+    }
+  }, [depositoInicial])
+
   const handleSubmit = (e) => {
     e.preventDefault()
     onSubmit(formData)
   }
 
+  const titulo = depositoInicial ? 'Editar depósito' : 'Nuevo depósito'
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Nuevo Depósito</h3>
+          <h3 className="text-lg font-semibold">{titulo}</h3>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
@@ -1512,7 +2289,7 @@ function ModalDeposito({ onClose, onSubmit }) {
               Cancelar
             </button>
             <button type="submit" className="btn btn-primary flex-1">
-              Guardar
+              {depositoInicial ? 'Guardar cambios' : 'Guardar'}
             </button>
           </div>
         </form>
@@ -1572,11 +2349,23 @@ function ModalCierre({ turno, totales, onClose, onSuccess }) {
             <span className="font-semibold">S/ {totales.totalPOS.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm text-red-600">
+            <span>(-) Ventas a crédito:</span>
+            <span className="font-semibold">S/ {totales.totalCredito.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-red-600">
+            <span>(-) Descuentos aplicados:</span>
+            <span className="font-semibold">S/ {totales.totalDescuentos.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-red-600">
             <span>(-) Vales:</span>
             <span className="font-semibold">S/ {totales.totalVales.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm text-red-600">
-            <span>(-) Depósitos:</span>
+            <span>(-) Gastos autorizados:</span>
+            <span className="font-semibold">S/ {totales.totalGastos.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-emerald-800">
+            <span>(+) Depósitos en caja:</span>
             <span className="font-semibold">S/ {totales.totalDepositos.toFixed(2)}</span>
           </div>
           <div className="border-t pt-2 flex justify-between text-lg font-bold text-primary-600">
