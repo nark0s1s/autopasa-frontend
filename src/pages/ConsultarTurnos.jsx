@@ -34,7 +34,8 @@ import {
   getTiposVale,
   getPrefillLecturaContometro,
   getClientes,
-  eliminarTurnoGriferoCerrado
+  eliminarTurnoGriferoCerrado,
+  downloadTurnoGriferoReportePdf
 } from '../utils/api'
 
 function ConsultarTurnos() {
@@ -488,7 +489,32 @@ function ConsultarTurnos() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              <button
+                type="button"
+                className="btn btn-secondary inline-flex items-center gap-2"
+                onClick={async () => {
+                  try {
+                    await downloadTurnoGriferoReportePdf(turno.id)
+                  } catch (e) {
+                    const d = e.response?.data
+                    let msg = 'No se pudo generar el PDF'
+                    if (d instanceof Blob) {
+                      try {
+                        const t = await d.text()
+                        const j = JSON.parse(t)
+                        msg = j.detail || msg
+                      } catch {
+                        /* ignore */
+                      }
+                    } else if (typeof d?.detail === 'string') msg = d.detail
+                    mostrarMensaje(msg, 'error')
+                  }
+                }}
+              >
+                <FileText className="w-5 h-5" />
+                Descargar PDF
+              </button>
               {turno.estado_id === 2 && (
                 <button
                   type="button"

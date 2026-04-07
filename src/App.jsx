@@ -4,7 +4,7 @@ import Layout from './components/Layout'
 import Login from './pages/Login'
 import LiquidacionGrifero from './pages/LiquidacionGrifero'
 import DetalleTurno from './pages/DetalleTurno'
-import GestionTurnoDia from './pages/GestionTurnoDia'
+import ConsolidacionLiquidacionPage from './pages/ConsolidacionLiquidacionPage'
 import ConsultarTurnos from './pages/ConsultarTurnos'
 import CuadreDiario from './pages/CuadreDiario'
 import ProximamentePage from './pages/ProximamentePage'
@@ -34,16 +34,17 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route 
-            path="/turno-dia" 
+          <Route
+            path="/turno-consolidacion-liquidacion"
             element={
               <PrivateRoute>
                 <Layout>
-                  <GestionTurnoDia />
+                  <ConsolidacionLiquidacionPage />
                 </Layout>
               </PrivateRoute>
-            } 
+            }
           />
+          <Route path="/turno-dia" element={<Navigate to="/turno-consolidacion-liquidacion" replace />} />
           <Route 
             path="/liquidacion" 
             element={
