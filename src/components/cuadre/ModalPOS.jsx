@@ -67,7 +67,7 @@ export default function ModalPOS({ isOpen, onClose, onSave, listaInicial = [] })
   }
 
   const agregarTransaccion = () => {
-    if (!nuevo.terminalId || !nuevo.numeroOperacion || !nuevo.monto) return
+    if (!nuevo.terminalId || !nuevo.monto) return
     
     // Encontrar nombre del terminal para mostrar
     const terminalObj = terminales.find(t => t.id.toString() === nuevo.terminalId) // Usamos ID
@@ -145,13 +145,13 @@ export default function ModalPOS({ isOpen, onClose, onSave, listaInicial = [] })
               />
             </div>
 
-            {/* N° Operación */}
+            {/* N° Operación (opcional) */}
             <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">N° Oper.</label>
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">N° Oper. (opc.)</label>
               <input 
                 type="text" 
                 className="w-full h-10 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm"
-                placeholder="0000"
+                placeholder="Opcional"
                 value={nuevo.numeroOperacion}
                 onChange={e => handleInputChange('numeroOperacion', e.target.value)}
               />

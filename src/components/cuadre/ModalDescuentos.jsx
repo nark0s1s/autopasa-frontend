@@ -32,8 +32,7 @@ export default function ModalDescuentos({ isOpen, onClose, onSave, listaInicial 
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
 
   const [nuevo, setNuevo] = useState({
-    montoVenta: '',
-    porcentaje: '',
+    numeroDocumentoReferencia: '',
     montoDescuento: '',
   })
 
@@ -43,7 +42,7 @@ export default function ModalDescuentos({ isOpen, onClose, onSave, listaInicial 
     setBusqueda('')
     setClienteSeleccionado(null)
     setMostrandoResultados(false)
-    setNuevo({ montoVenta: '', porcentaje: '', montoDescuento: '' })
+    setNuevo({ numeroDocumentoReferencia: '', montoDescuento: '' })
 
     let cancelled = false
     const fetchClientes = async () => {
@@ -86,75 +85,25 @@ export default function ModalDescuentos({ isOpen, onClose, onSave, listaInicial 
     setBusqueda('')
   }
 
-  const handleMontoVentaChange = (value) => {
-    setNuevo((prev) => {
-      const venta = parseFloat(value)
-      const next = { ...prev, montoVenta: value }
-      const pct = parseFloat(prev.porcentaje)
-      if (!Number.isNaN(venta) && venta > 0 && !Number.isNaN(pct)) {
-        next.montoDescuento = ((venta * pct) / 100).toFixed(2)
-      }
-      return next
-    })
-  }
-
-  const onChangePorcentaje = (value) => {
-    setNuevo((prev) => {
-      const venta = parseFloat(prev.montoVenta)
-      const next = { ...prev, porcentaje: value }
-      const pct = parseFloat(value)
-      if (!Number.isNaN(venta) && venta > 0 && !Number.isNaN(pct)) {
-        next.montoDescuento = ((venta * pct) / 100).toFixed(2)
-      }
-      return next
-    })
-  }
-
-  const onChangeMontoDescuento = (value) => {
-    setNuevo((prev) => {
-      const venta = parseFloat(prev.montoVenta)
-      const next = { ...prev, montoDescuento: value }
-      const desc = parseFloat(value)
-      if (!Number.isNaN(venta) && venta > 0 && !Number.isNaN(desc)) {
-        next.porcentaje = ((desc / venta) * 100).toFixed(2)
-      }
-      return next
-    })
-  }
-
   const agregarDescuento = () => {
-    if (!clienteSeleccionado) return
-    const venta = parseFloat(nuevo.montoVenta)
-    if (Number.isNaN(venta) || venta <= 0) return
+    const desc = parseFloat(nuevo.montoDescuento)
+    if (Number.isNaN(desc) || desc <= 0) return
 
-    let pct = parseFloat(nuevo.porcentaje)
-    let desc = parseFloat(nuevo.montoDescuento)
-    if (Number.isNaN(desc) || desc <= 0) {
-      if (!Number.isNaN(pct) && pct > 0) {
-        desc = (venta * pct) / 100
-      } else {
-        return
-      }
-    }
-    if (Number.isNaN(pct) || pct <= 0) {
-      pct = (desc / venta) * 100
-    }
+    const ref = (nuevo.numeroDocumentoReferencia || '').trim()
 
     setListaDescuentos([
       ...listaDescuentos,
       {
         id: Date.now(),
-        clienteId: clienteSeleccionado.id,
-        nombre: clienteSeleccionado.razon_social,
-        documento: clienteSeleccionado.numero_documento,
-        montoVenta: String(venta),
-        porcentaje: String(parseFloat(pct.toFixed(2))),
-        porcentajeDescuento: String(parseFloat(pct.toFixed(2))),
+        clienteId: clienteSeleccionado?.id ?? null,
+        nombre: clienteSeleccionado?.razon_social ?? null,
+        documento: clienteSeleccionado?.numero_documento ?? null,
         montoDescuento: String(parseFloat(desc.toFixed(2))),
+        numeroDocumentoReferencia: ref,
       },
     ])
     limpiarCliente()
-    setNuevo({ montoVenta: '', porcentaje: '', montoDescuento: '' })
+    setNuevo({ numeroDocumentoReferencia: '', montoDescuento: '' })
   }
 
   const eliminarDescuento = (id) => {
@@ -172,17 +121,33 @@ export default function ModalDescuentos({ isOpen, onClose, onSave, listaInicial 
   )
 
   return (
-    <ModalWrapper isOpen={isOpen} onClose={onClose} title="Descuentos aplicados">
+    <ModalWrapper isOpen={isOpen} onClose={onClose} title="Descuentos — cuadre diario">
       <div className="space-y-6">
         <p className="text-sm text-gray-500 -mt-1">
-          Los ítems de esta lista se persisten al pulsar <strong>Guardar cuadre</strong> en la pantalla principal
-          (detalle de descuentos aplicados del día).
+          Solo el <strong>monto de descuento</strong> es obligatorio. Cliente y documento de referencia son opcionales.
+          Los ítems se guardan al pulsar <strong>Guardar cuadre</strong> en la pantalla principal.
         </p>
 
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">
+              N° documento de referencia{' '}
+              <span className="font-normal text-gray-500 normal-case">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              className="w-full h-10 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-sm px-3"
+              placeholder="Ej. factura, nota de crédito…"
+              value={nuevo.numeroDocumentoReferencia}
+              onChange={(e) =>
+                setNuevo((p) => ({ ...p, numeroDocumentoReferencia: e.target.value }))
+              }
+            />
+          </div>
+
           <div className="relative">
             <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">
-              Cliente
+              Cliente <span className="font-normal text-gray-500 normal-case">(opcional)</span>
               {cargandoClientes && (
                 <span className="text-gray-400 font-normal normal-case ml-2">cargando…</span>
               )}
@@ -224,45 +189,18 @@ export default function ModalDescuentos({ isOpen, onClose, onSave, listaInicial 
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-end">
-            <div className="sm:col-span-4">
-              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">Monto venta (S/)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="w-full h-10 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-center font-semibold"
-                placeholder="0.00"
-                value={nuevo.montoVenta}
-                onChange={(e) => handleMontoVentaChange(e.target.value)}
-                disabled={!clienteSeleccionado}
-              />
-            </div>
-            <div className="sm:col-span-3">
-              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase text-center">% desc.</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                className="w-full h-10 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-center"
-                placeholder="%"
-                value={nuevo.porcentaje}
-                onChange={(e) => onChangePorcentaje(e.target.value)}
-                disabled={!clienteSeleccionado}
-              />
-            </div>
-            <div className="sm:col-span-4">
-              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase text-center">
-                Monto desc. (S/)
+            <div className="sm:col-span-11">
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">
+                Monto descuento (S/) <span className="text-red-600">*</span>
               </label>
               <input
                 type="number"
                 step="0.01"
-                min="0"
+                min="0.01"
                 className="w-full h-10 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500 text-center font-bold text-red-600"
                 placeholder="0.00"
                 value={nuevo.montoDescuento}
-                onChange={(e) => onChangeMontoDescuento(e.target.value)}
-                disabled={!clienteSeleccionado}
+                onChange={(e) => setNuevo((p) => ({ ...p, montoDescuento: e.target.value }))}
               />
             </div>
             <div className="sm:col-span-1 flex justify-end sm:justify-center">
@@ -283,10 +221,9 @@ export default function ModalDescuentos({ isOpen, onClose, onSave, listaInicial 
             <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-3 py-2 text-center text-xs font-medium text-gray-500 uppercase w-12">N°</th>
+                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Doc. referencia</th>
                 <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Venta</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">%</th>
-                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Desc.</th>
+                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Desc. (S/)</th>
                 <th className="px-3 py-2 w-10" />
               </tr>
             </thead>
@@ -294,15 +231,19 @@ export default function ModalDescuentos({ isOpen, onClose, onSave, listaInicial 
               {listaDescuentos.map((item, index) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition-colors">
                   <td className="px-3 py-2 text-center text-sm text-gray-500 font-medium">{index + 1}</td>
+                  <td
+                    className="px-3 py-2 text-xs text-gray-600 max-w-[160px] truncate"
+                    title={item.numeroDocumentoReferencia}
+                  >
+                    {item.numeroDocumentoReferencia || '—'}
+                  </td>
                   <td className="px-3 py-2">
-                    <div className="text-sm font-medium text-gray-900">{item.nombre}</div>
-                    <div className="text-xs text-gray-400">{item.documento}</div>
-                  </td>
-                  <td className="px-3 py-2 text-right text-sm text-gray-700">
-                    S/ {parseFloat(item.montoVenta || 0).toFixed(2)}
-                  </td>
-                  <td className="px-3 py-2 text-right text-sm text-gray-600">
-                    {parseFloat(item.porcentaje || item.porcentajeDescuento || 0).toFixed(2)}%
+                    <div className="text-sm font-medium text-gray-900">
+                      {item.nombre || '—'}
+                    </div>
+                    {item.documento ? (
+                      <div className="text-xs text-gray-400">{item.documento}</div>
+                    ) : null}
                   </td>
                   <td className="px-3 py-2 text-right text-sm font-bold text-red-600">
                     S/ {parseFloat(item.montoDescuento || 0).toFixed(2)}
@@ -320,7 +261,7 @@ export default function ModalDescuentos({ isOpen, onClose, onSave, listaInicial 
               ))}
               {listaDescuentos.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-10 text-center text-sm text-gray-500">
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-gray-500">
                     No hay descuentos registrados
                   </td>
                 </tr>

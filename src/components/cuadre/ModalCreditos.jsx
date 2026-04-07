@@ -19,7 +19,15 @@ function ModalWrapper({ isOpen, onClose, title, children }) {
   )
 }
 
-export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = [], fecha }) {
+export default function ModalCreditos({
+  isOpen,
+  onClose,
+  onSave,
+  listaInicial = [],
+  fecha,
+  title = 'Detalle de créditos',
+  emptyHint = 'No hay líneas agregadas',
+}) {
   const [listaCreditos, setListaCreditos] = useState(listaInicial)
 
   // Lista completa para autocomplete
@@ -113,7 +121,7 @@ export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = 
   }
 
   return (
-    <ModalWrapper isOpen={isOpen} onClose={onClose} title="Detalle de Créditos">
+    <ModalWrapper isOpen={isOpen} onClose={onClose} title={title}>
       <div className="space-y-6">
         {/* Formulario */}
         <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 relative">
@@ -211,7 +219,7 @@ export default function ModalCreditos({ isOpen, onClose, onSave, listaInicial = 
               {listaCreditos.length === 0 && (
                 <tr>
                   <td colSpan="3" className="px-4 py-8 text-center text-sm text-gray-500">
-                    No hay créditos agregados
+                    {emptyHint}
                   </td>
                 </tr>
               )}

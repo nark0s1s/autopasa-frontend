@@ -4,7 +4,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Fuel, LogOut, Plus, Save, CheckCircle, AlertCircle,
   Gauge, ShoppingCart, CreditCard, Receipt, DollarSign, X, Pencil, Trash2,
-  Percent, Search
+  Percent, Search, FileText
 } from 'lucide-react'
 import {
   getTurnosGrifero,
@@ -21,6 +21,14 @@ import {
   actualizarDeposito,
   eliminarDeposito,
   agregarDescuentoTurno,
+  agregarVentaGuiaCreditoTurno,
+  agregarVentaGuiaRemisionTurno,
+  marcarGuiaCreditoPagadoTurno,
+  marcarGuiaRemisionPagadoTurno,
+  actualizarVentaGuiaCreditoTurno,
+  eliminarVentaGuiaCreditoTurno,
+  actualizarVentaGuiaRemisionTurno,
+  eliminarVentaGuiaRemisionTurno,
   cerrarTurnoGrifero,
   getTurnoById,
   getTiposVale,
@@ -160,7 +168,19 @@ function ConsultarTurnos() {
     const totalCombustible = parseFloat(turno.total_venta_combustible || 0)
     const totalProductos = parseFloat(turno.total_venta_productos || 0)
     const totalPOS = parseFloat(turno.total_ventas_pos || 0)
-    const totalCredito = parseFloat(turno.total_ventas_credito || 0)
+    const lineasGuiaCredito = turno.ventas_guia_credito ?? turno.ventas_credito ?? []
+    const lineasGuiaRemision = turno.ventas_guia_remision ?? []
+    const totalGuiaCredito = lineasGuiaCredito.reduce(
+      (s, v) => s + parseFloat(v.monto || 0),
+      0
+    )
+    const totalGuiaRemision = lineasGuiaRemision.reduce(
+      (s, v) => s + parseFloat(v.monto || 0),
+      0
+    )
+    const totalCredito =
+      parseFloat(turno.total_ventas_credito || 0) ||
+      totalGuiaCredito + totalGuiaRemision
     const totalDescuentos = parseFloat(turno.total_descuentos || 0)
     const totalVales = parseFloat(turno.total_vales || 0)
     const totalGastos = parseFloat(turno.total_gastos_autorizados || 0)
@@ -173,7 +193,7 @@ function ConsultarTurnos() {
       totalCredito -
       totalDescuentos -
       totalVales -
-      totalGastos +
+      totalGastos -
       totalDepositos
 
     return {
@@ -182,6 +202,8 @@ function ConsultarTurnos() {
       baseVentas,
       totalPOS,
       totalCredito,
+      totalGuiaCredito,
+      totalGuiaRemision,
       totalDescuentos,
       totalVales,
       totalGastos,
@@ -366,7 +388,7 @@ function ConsultarTurnos() {
         {/* Resumen de Totales */}
         {totales && (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3 mb-4">
               <div className="card p-3">
                 <p className="text-xs text-gray-600 mb-1">Combustible</p>
                 <p className="text-lg font-bold text-primary-600">S/ {totales.totalCombustible.toFixed(2)}</p>
@@ -380,8 +402,12 @@ function ConsultarTurnos() {
                 <p className="text-lg font-bold text-orange-600">S/ {totales.totalPOS.toFixed(2)}</p>
               </div>
               <div className="card p-3">
-                <p className="text-xs text-gray-600 mb-1">Crédito</p>
-                <p className="text-lg font-bold text-amber-700">S/ {totales.totalCredito.toFixed(2)}</p>
+                <p className="text-xs text-gray-600 mb-1">Guía crédito</p>
+                <p className="text-lg font-bold text-amber-700">S/ {totales.totalGuiaCredito.toFixed(2)}</p>
+              </div>
+              <div className="card p-3">
+                <p className="text-xs text-gray-600 mb-1">Guía remisión</p>
+                <p className="text-lg font-bold text-yellow-800">S/ {totales.totalGuiaRemision.toFixed(2)}</p>
               </div>
               <div className="card p-3">
                 <p className="text-xs text-gray-600 mb-1">Descuentos</p>
@@ -406,8 +432,8 @@ function ConsultarTurnos() {
                 Totalizador — efectivo esperado en caja
               </h3>
               <p className="text-xs text-gray-600 mb-3">
-                Combustible + productos (venta registrada) menos lo que no es efectivo en caja (POS, crédito,
-                descuentos, vales, gastos) más depósitos en caja (efectivo adicional).
+                Combustible + productos (venta registrada) menos lo que no queda como efectivo en caja (POS,
+                guías crédito/remisión, descuentos, vales, gastos, depósitos en caja).
               </p>
               <div className="space-y-1.5 text-sm max-w-lg">
                 <div className="flex justify-between gap-4">
@@ -419,7 +445,7 @@ function ConsultarTurnos() {
                   <span className="font-semibold tabular-nums">S/ {totales.totalPOS.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-red-700">
-                  <span>(−) Ventas a crédito</span>
+                  <span>(−) Guías crédito + remisión</span>
                   <span className="font-semibold tabular-nums">S/ {totales.totalCredito.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between gap-4 text-red-700">
@@ -434,8 +460,8 @@ function ConsultarTurnos() {
                   <span>(−) Gastos autorizados</span>
                   <span className="font-semibold tabular-nums">S/ {totales.totalGastos.toFixed(2)}</span>
                 </div>
-                <div className="flex justify-between gap-4 text-emerald-800">
-                  <span>(+) Depósitos en caja</span>
+                <div className="flex justify-between gap-4 text-red-700">
+                  <span>(−) Depósitos en caja</span>
                   <span className="font-semibold tabular-nums">S/ {totales.totalDepositos.toFixed(2)}</span>
                 </div>
                 <div className="border-t border-primary-200 pt-2 mt-2 flex justify-between gap-4 text-base font-bold text-primary-900">
@@ -461,6 +487,8 @@ function ConsultarTurnos() {
                 { id: 'lecturas', label: 'Lecturas Contómetro', icon: Gauge },
                 { id: 'ventas', label: 'Ventas Productos', icon: ShoppingCart },
                 { id: 'pos', label: 'Ventas POS', icon: CreditCard },
+                { id: 'guia_credito', label: 'Guía crédito', icon: FileText },
+                { id: 'guia_remision', label: 'Guía remisión', icon: FileText },
                 { id: 'vales', label: 'Vales', icon: Receipt },
                 { id: 'descuentos', label: 'Descuentos', icon: Percent },
                 { id: 'depositos', label: 'Depósitos', icon: DollarSign },
@@ -502,6 +530,22 @@ function ConsultarTurnos() {
             {tabActiva === 'pos' && (
               <TabPOS
                 turno={turno}
+                onReload={recargarDatosLiquidacion}
+                onMensaje={mostrarMensaje}
+              />
+            )}
+            {tabActiva === 'guia_credito' && (
+              <TabVentasGuia
+                turno={turno}
+                tipo="credito"
+                onReload={recargarDatosLiquidacion}
+                onMensaje={mostrarMensaje}
+              />
+            )}
+            {tabActiva === 'guia_remision' && (
+              <TabVentasGuia
+                turno={turno}
+                tipo="remision"
                 onReload={recargarDatosLiquidacion}
                 onMensaje={mostrarMensaje}
               />
@@ -803,7 +847,7 @@ function TabPOS({ turno, onReload, onMensaje }) {
 
   const buildPayload = (data) => ({
     monto: parseFloat(data.monto),
-    numero_operacion: data.numero_operacion,
+    numero_operacion: String(data.numero_operacion ?? '').trim() || 'S/N',
     tipo_tarjeta: data.tipo_tarjeta,
     numero_lote: data.numero_lote || null,
     terminal_id: data.terminal_id || null,
@@ -1051,7 +1095,12 @@ function TabDepositos({ turno, onReload, onMensaje }) {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold">Depósitos en Caja</h3>
+        <div>
+          <h3 className="text-lg font-semibold">Depósitos en Caja</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Se restan del efectivo esperado del turno.
+          </p>
+        </div>
         {turno.estado_id === 1 && (
           <button type="button" onClick={abrirNuevo} className="btn btn-primary">
             <Plus className="w-5 h-5 mr-2" />
@@ -1146,6 +1195,397 @@ function TabDepositos({ turno, onReload, onMensaje }) {
   )
 }
 
+function ModalLineaGuiaTurno({ title, lineaInicial, onClose, onSubmit }) {
+  const [clientesDisponibles, setClientesDisponibles] = useState([])
+  const [cargando, setCargando] = useState(true)
+  const [busqueda, setBusqueda] = useState('')
+  const [mostrandoResultados, setMostrandoResultados] = useState(false)
+  const [clienteSel, setClienteSel] = useState(null)
+  const [numeroDocumento, setNumeroDocumento] = useState('')
+  const [monto, setMonto] = useState('')
+  const [observaciones, setObservaciones] = useState('')
+
+  useEffect(() => {
+    let cancelled = false
+    setCargando(true)
+    getClientes(true)
+      .then((data) => {
+        if (!cancelled) setClientesDisponibles(data || [])
+      })
+      .catch(() => {
+        if (!cancelled) setClientesDisponibles([])
+      })
+      .finally(() => {
+        if (!cancelled) setCargando(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!lineaInicial) {
+      setBusqueda('')
+      setClienteSel(null)
+      setNumeroDocumento('')
+      setMonto('')
+      setObservaciones('')
+      return
+    }
+    const cid = lineaInicial.cliente_id
+    const cl = clientesDisponibles.find((c) => c.id === cid)
+    if (cl) {
+      setClienteSel(cl)
+      setBusqueda(cl.razon_social || '')
+    } else {
+      setClienteSel(null)
+      setBusqueda(cid ? `Cliente #${cid}` : '')
+    }
+    setNumeroDocumento(lineaInicial.numero_documento ?? '')
+    setMonto(lineaInicial.monto != null ? String(lineaInicial.monto) : '')
+    setObservaciones(lineaInicial.observaciones ?? '')
+  }, [lineaInicial, clientesDisponibles])
+
+  const resultados = (() => {
+    if (busqueda.trim() === '') return clientesDisponibles.slice(0, 60)
+    const q = busqueda.toLowerCase()
+    return clientesDisponibles
+      .filter(
+        (c) =>
+          c.razon_social?.toLowerCase().includes(q) ||
+          String(c.numero_documento || '').toLowerCase().includes(q)
+      )
+      .slice(0, 60)
+  })()
+
+  const seleccionarCliente = (c) => {
+    setClienteSel(c)
+    setBusqueda(c.razon_social || '')
+    setMostrandoResultados(false)
+  }
+
+  const handleSubmit = (e) => {
+    e.preventDefault()
+    const m = parseFloat(monto)
+    if (Number.isNaN(m) || m <= 0) return
+    onSubmit({
+      cliente_id: clienteSel?.id ?? null,
+      monto: m,
+      numero_documento: numeroDocumento.trim() || null,
+      fecha_vencimiento: null,
+      pagado: false,
+      observaciones: observaciones.trim() || null,
+    })
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div className="card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="text-lg font-semibold">{title}</h3>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0 ml-2">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="relative">
+            <label className="block text-sm font-medium mb-2">
+              Cliente <span className="text-gray-500 font-normal">(opcional)</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                className="input pr-9"
+                placeholder="Buscar por razón social o documento…"
+                value={busqueda}
+                onChange={(e) => {
+                  setBusqueda(e.target.value)
+                  if (!e.target.value) setClienteSel(null)
+                }}
+                onFocus={() => setMostrandoResultados(true)}
+                onBlur={() => setTimeout(() => setMostrandoResultados(false), 200)}
+                disabled={cargando}
+              />
+              <Search className="w-4 h-4 text-gray-400 absolute right-3 top-3 pointer-events-none" />
+            </div>
+            {mostrandoResultados && resultados.length > 0 && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-40 overflow-y-auto">
+                {resultados.map((c) => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    className="w-full text-left px-3 py-2 hover:bg-gray-50 text-sm"
+                    onMouseDown={(ev) => ev.preventDefault()}
+                    onClick={() => seleccionarCliente(c)}
+                  >
+                    <span className="font-medium">{c.razon_social}</span>
+                    <span className="text-xs text-gray-500 ml-2">
+                      {c.tipo_documento} {c.numero_documento}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+            {cargando && <p className="text-xs text-gray-500 mt-1">Cargando clientes…</p>}
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Monto (S/) <span className="text-red-600">*</span>
+            </label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              className="input"
+              value={monto}
+              onChange={(e) => setMonto(e.target.value)}
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">N° documento (opcional)</label>
+            <input
+              type="text"
+              className="input"
+              value={numeroDocumento}
+              onChange={(e) => setNumeroDocumento(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">Observaciones (opcional)</label>
+            <textarea className="input min-h-[72px]" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button type="button" className="btn btn-secondary flex-1" onClick={onClose}>
+              Cancelar
+            </button>
+            <button type="submit" className="btn btn-primary flex-1">
+              {lineaInicial ? 'Actualizar' : 'Guardar'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
+  const esCredito = tipo === 'credito'
+  const [showModal, setShowModal] = useState(false)
+  const [lineaEdicion, setLineaEdicion] = useState(null)
+  const [lineaEliminar, setLineaEliminar] = useState(null)
+  const [clientesPorId, setClientesPorId] = useState({})
+
+  const lineas = esCredito
+    ? (turno.ventas_guia_credito ?? turno.ventas_credito ?? [])
+    : (turno.ventas_guia_remision ?? [])
+
+  const titulo = esCredito ? 'Guía de crédito' : 'Guía de remisión'
+  const tituloModal = esCredito ? 'Nueva venta con guía de crédito' : 'Nueva venta con guía de remisión'
+
+  useEffect(() => {
+    let cancelled = false
+    getClientes(true)
+      .then((list) => {
+        if (cancelled || !list) return
+        const m = {}
+        list.forEach((cl) => {
+          m[cl.id] = cl
+        })
+        setClientesPorId(m)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const nombreCliente = (id) => {
+    if (id == null) return '—'
+    const cl = clientesPorId[id]
+    return cl ? cl.razon_social : `Cliente #${id}`
+  }
+
+  const buildUpdateBody = (payload) => ({
+    cliente_id: payload.cliente_id,
+    monto: payload.monto,
+    numero_documento: payload.numero_documento,
+    fecha_vencimiento: payload.fecha_vencimiento,
+    observaciones: payload.observaciones,
+  })
+
+  const handleGuardarModal = async (payload) => {
+    try {
+      if (lineaEdicion) {
+        const body = buildUpdateBody(payload)
+        if (esCredito) await actualizarVentaGuiaCreditoTurno(lineaEdicion.id, body)
+        else await actualizarVentaGuiaRemisionTurno(lineaEdicion.id, body)
+        onMensaje(`${titulo}: registro actualizado`)
+      } else {
+        if (esCredito) await agregarVentaGuiaCreditoTurno(turno.id, payload)
+        else await agregarVentaGuiaRemisionTurno(turno.id, payload)
+        onMensaje(`${titulo}: registro agregado`)
+      }
+      setShowModal(false)
+      setLineaEdicion(null)
+      onReload()
+    } catch (error) {
+      console.error(error)
+      onMensaje(lineaEdicion ? 'Error al actualizar la línea' : 'Error al registrar la línea', 'error')
+    }
+  }
+
+  const handleConfirmarEliminar = async () => {
+    if (!lineaEliminar?.id) return
+    try {
+      if (esCredito) await eliminarVentaGuiaCreditoTurno(lineaEliminar.id)
+      else await eliminarVentaGuiaRemisionTurno(lineaEliminar.id)
+      onMensaje('Registro eliminado')
+      setLineaEliminar(null)
+      onReload()
+    } catch (error) {
+      console.error(error)
+      onMensaje('Error al eliminar', 'error')
+    }
+  }
+
+  const abrirNuevaLinea = () => {
+    setLineaEdicion(null)
+    setShowModal(true)
+  }
+
+  const handleMarcarPagado = async (linea) => {
+    try {
+      if (esCredito) await marcarGuiaCreditoPagadoTurno(linea.id)
+      else await marcarGuiaRemisionPagadoTurno(linea.id)
+      onMensaje('Marcado como pagado')
+      onReload()
+    } catch (error) {
+      console.error(error)
+      onMensaje('Error al actualizar', 'error')
+    }
+  }
+
+  const pagadoFlag = (linea) => Boolean(linea.pagado)
+
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <div>
+          <h3 className="text-lg font-semibold">{titulo}</h3>
+          <p className="text-sm text-gray-600 mt-1">
+            Ventas registradas con {esCredito ? 'guía de crédito' : 'guía de remisión'} en este turno.
+          </p>
+        </div>
+        {turno.estado_id === 1 && (
+          <button type="button" onClick={abrirNuevaLinea} className="btn btn-primary">
+            <Plus className="w-5 h-5 mr-2" />
+            Agregar
+          </button>
+        )}
+      </div>
+
+      {lineas.length === 0 ? (
+        <p className="text-sm text-gray-500 text-center py-8">No hay registros en esta categoría.</p>
+      ) : (
+        <div className="space-y-3">
+          {lineas.map((linea) => (
+            <div key={linea.id} className="card p-4">
+              <div className="flex justify-between items-start gap-3">
+                <div>
+                  <p className="font-medium">{nombreCliente(linea.cliente_id)}</p>
+                  <p className="text-sm text-gray-700 mt-1">S/ {parseFloat(linea.monto || 0).toFixed(2)}</p>
+                  {linea.numero_documento ? (
+                    <p className="text-xs text-gray-500">Doc. {linea.numero_documento}</p>
+                  ) : null}
+                  <span
+                    className={`inline-block mt-2 px-2 py-1 text-xs rounded ${
+                      pagadoFlag(linea) ? 'bg-green-100 text-green-800' : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {pagadoFlag(linea) ? 'Pagado' : 'Pendiente'}
+                  </span>
+                </div>
+                {turno.estado_id === 1 && (
+                  <div className="flex flex-wrap gap-2 justify-end shrink-0">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                      title="Editar"
+                      onClick={() => {
+                        setLineaEdicion(linea)
+                        setShowModal(true)
+                      }}
+                    >
+                      <Pencil className="w-4 h-4" />
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-danger btn-sm inline-flex items-center gap-1"
+                      title="Eliminar"
+                      onClick={() => setLineaEliminar(linea)}
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                    {!pagadoFlag(linea) && (
+                      <button
+                        type="button"
+                        className="btn btn-secondary btn-sm shrink-0"
+                        onClick={() => handleMarcarPagado(linea)}
+                      >
+                        Marcar pagado
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showModal && (
+        <ModalLineaGuiaTurno
+          key={lineaEdicion?.id ?? 'nueva'}
+          title={lineaEdicion ? `Editar — ${titulo}` : tituloModal}
+          lineaInicial={lineaEdicion}
+          onClose={() => {
+            setShowModal(false)
+            setLineaEdicion(null)
+          }}
+          onSubmit={handleGuardarModal}
+        />
+      )}
+
+      {lineaEliminar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="card p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Eliminar línea</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              ¿Eliminar el registro por <strong>S/ {parseFloat(lineaEliminar.monto || 0).toFixed(2)}</strong>
+              {lineaEliminar.numero_documento ? <> (doc. {lineaEliminar.numero_documento})</> : null}? Se
+              actualizarán los totales del turno.
+            </p>
+            <div className="flex gap-2">
+              <button type="button" className="btn btn-secondary flex-1" onClick={() => setLineaEliminar(null)}>
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-danger flex-1" onClick={handleConfirmarEliminar}>
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function TabDescuentos({ turno, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
   const [clientesPorId, setClientesPorId] = useState({})
@@ -1207,14 +1647,26 @@ function TabDescuentos({ turno, onReload, onMensaje }) {
           const mv = parseFloat(d.monto_venta || 0)
           const pct = parseFloat(d.porcentaje_descuento || 0)
           const montoDesc = (mv * pct) / 100
+          const esSoloMontoRegistrado = pct >= 99.99 && pct <= 100.01
           return (
             <div key={d.id} className="card p-4">
               <p className="font-medium">{nombreCliente(d.cliente_id)}</p>
-              <p className="text-sm text-gray-600">
-                Venta S/ {mv.toFixed(2)} · {pct}% → Descuento{' '}
-                <span className="font-semibold text-red-600">S/ {montoDesc.toFixed(2)}</span>
-              </p>
-              {d.motivo && <p className="text-xs text-gray-500 mt-1">{d.motivo}</p>}
+              {d.motivo ? (
+                <p className="text-sm text-gray-600 mt-0.5">
+                  <span className="text-gray-500">Doc. ref.:</span> {d.motivo}
+                </p>
+              ) : null}
+              {esSoloMontoRegistrado ? (
+                <p className="text-sm text-gray-700 mt-1">
+                  Descuento{' '}
+                  <span className="font-semibold text-red-600">S/ {montoDesc.toFixed(2)}</span>
+                </p>
+              ) : (
+                <p className="text-sm text-gray-600 mt-1">
+                  Venta S/ {mv.toFixed(2)} · {pct}% → Descuento{' '}
+                  <span className="font-semibold text-red-600">S/ {montoDesc.toFixed(2)}</span>
+                </p>
+              )}
             </div>
           )
         })}
@@ -1239,9 +1691,8 @@ function ModalDescuentoTurno({ onClose, onSubmit }) {
   const [busqueda, setBusqueda] = useState('')
   const [mostrandoResultados, setMostrandoResultados] = useState(false)
   const [clienteSel, setClienteSel] = useState(null)
-  const [montoVenta, setMontoVenta] = useState('')
-  const [porcentaje, setPorcentaje] = useState('')
-  const [motivo, setMotivo] = useState('')
+  const [numeroDocumentoReferencia, setNumeroDocumentoReferencia] = useState('')
+  const [montoDescuento, setMontoDescuento] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -1281,36 +1732,51 @@ function ModalDescuentoTurno({ onClose, onSubmit }) {
 
   const handleSubmit = (e) => {
     e.preventDefault()
-    if (!clienteSel) return
-    const mv = parseFloat(montoVenta)
-    const pct = parseFloat(porcentaje)
-    if (Number.isNaN(mv) || mv <= 0 || Number.isNaN(pct) || pct < 0) return
+    const md = parseFloat(montoDescuento)
+    if (Number.isNaN(md) || md <= 0) return
+    const ref = (numeroDocumentoReferencia || '').trim()
+    // La tabla del turno exige monto_venta y %; guardamos el monto ingresado como venta al 100 % para que el descuento calculado coincida con el monto.
     onSubmit({
-      cliente_id: clienteSel.id,
-      monto_venta: mv,
-      porcentaje_descuento: pct,
-      motivo: motivo.trim() || null,
+      cliente_id: clienteSel?.id ?? null,
+      monto_venta: md,
+      porcentaje_descuento: 100,
+      motivo: ref || null,
     })
   }
-
-  const previewDesc =
-    montoVenta && porcentaje
-      ? ((parseFloat(montoVenta) * parseFloat(porcentaje)) / 100 || 0).toFixed(2)
-      : null
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Nuevo descuento aplicado</h3>
-          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
+          <div>
+            <h3 className="text-lg font-semibold">Nuevo descuento (turno grifero)</h3>
+            <p className="text-xs text-gray-500 mt-1">
+              Solo el monto de descuento es obligatorio. Cliente y documento de referencia son opcionales.
+            </p>
+          </div>
+          <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0 ml-2">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              N° documento de referencia <span className="text-gray-500 font-normal">(opcional)</span>
+            </label>
+            <input
+              type="text"
+              className="input"
+              placeholder="Ej. factura, nota de crédito…"
+              value={numeroDocumentoReferencia}
+              onChange={(e) => setNumeroDocumentoReferencia(e.target.value)}
+            />
+          </div>
+
           <div className="relative">
-            <label className="block text-sm font-medium mb-2">Cliente</label>
+            <label className="block text-sm font-medium mb-2">
+              Cliente <span className="text-gray-500 font-normal">(opcional)</span>
+            </label>
             <div className="relative">
               <input
                 type="text"
@@ -1324,7 +1790,6 @@ function ModalDescuentoTurno({ onClose, onSubmit }) {
                 onFocus={() => setMostrandoResultados(true)}
                 onBlur={() => setTimeout(() => setMostrandoResultados(false), 200)}
                 disabled={cargando}
-                autoFocus
               />
               <Search className="w-4 h-4 text-gray-400 absolute right-3 top-3 pointer-events-none" />
             </div>
@@ -1350,48 +1815,18 @@ function ModalDescuentoTurno({ onClose, onSubmit }) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Monto venta (S/)</label>
+            <label className="block text-sm font-medium mb-2">
+              Monto descuento (S/) <span className="text-red-600">*</span>
+            </label>
             <input
               type="number"
               step="0.01"
-              min="0"
-              className="input"
-              value={montoVenta}
-              onChange={(e) => setMontoVenta(e.target.value)}
+              min="0.01"
+              className="input font-semibold text-red-700"
+              value={montoDescuento}
+              onChange={(e) => setMontoDescuento(e.target.value)}
               required
-              disabled={!clienteSel}
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Porcentaje de descuento (%)</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              max="100"
-              className="input"
-              value={porcentaje}
-              onChange={(e) => setPorcentaje(e.target.value)}
-              required
-              disabled={!clienteSel}
-            />
-          </div>
-
-          {previewDesc != null && !Number.isNaN(parseFloat(previewDesc)) && (
-            <p className="text-sm text-red-700">
-              Monto descuento estimado: <strong>S/ {previewDesc}</strong>
-            </p>
-          )}
-
-          <div>
-            <label className="block text-sm font-medium mb-2">Motivo (opcional)</label>
-            <input
-              type="text"
-              className="input"
-              value={motivo}
-              onChange={(e) => setMotivo(e.target.value)}
-              disabled={!clienteSel}
+              autoFocus
             />
           </div>
 
@@ -1399,7 +1834,7 @@ function ModalDescuentoTurno({ onClose, onSubmit }) {
             <button type="button" onClick={onClose} className="btn btn-secondary flex-1">
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary flex-1" disabled={!clienteSel}>
+            <button type="submit" className="btn btn-primary flex-1">
               Guardar
             </button>
           </div>
@@ -2012,13 +2447,13 @@ function ModalPOS({ onClose, onSubmit, ventaInicial = null }) {
           </div>
           
           <div>
-            <label className="block text-sm font-medium mb-2">Número de Operación</label>
+            <label className="block text-sm font-medium mb-2">Número de operación (opcional)</label>
             <input
               type="text"
               className="input"
               value={formData.numero_operacion}
               onChange={e => setFormData({...formData, numero_operacion: e.target.value})}
-              required
+              placeholder="Si no aplica, se guarda como S/N"
             />
           </div>
           
@@ -2364,8 +2799,8 @@ function ModalCierre({ turno, totales, onClose, onSuccess }) {
             <span>(-) Gastos autorizados:</span>
             <span className="font-semibold">S/ {totales.totalGastos.toFixed(2)}</span>
           </div>
-          <div className="flex justify-between text-sm text-emerald-800">
-            <span>(+) Depósitos en caja:</span>
+          <div className="flex justify-between text-sm text-red-600">
+            <span>(-) Depósitos en caja:</span>
             <span className="font-semibold">S/ {totales.totalDepositos.toFixed(2)}</span>
           </div>
           <div className="border-t pt-2 flex justify-between text-lg font-bold text-primary-600">

@@ -58,7 +58,8 @@ export default function CuadreDiario() {
     depositos: 0,
     contometros: 0,
     productos: 0,
-    creditos: 0,
+    guiaCredito: 0,
+    guiaRemision: 0,
     descuentos: 0,
     gastos: 0,
     vales: 0,
@@ -88,7 +89,8 @@ export default function CuadreDiario() {
 
   // --- ESTADOS ESPECÍFICOS DE LOS MODALES ---
   // Almacenamos la info detallada aquí para enviarla al backend luego
-  const [detallesCreditos, setDetallesCreditos] = useState([])
+  const [detallesGuiasCredito, setDetallesGuiasCredito] = useState([])
+  const [detallesGuiasRemision, setDetallesGuiasRemision] = useState([])
   const [detallesDescuentos, setDetallesDescuentos] = useState([])
   const [detallesDepositos, setDetallesDepositos] = useState([])
   const [detallesProductos, setDetallesProductos] = useState([])
@@ -97,15 +99,21 @@ export default function CuadreDiario() {
   const [detallesVales, setDetallesVales] = useState([])
   const [detallesPOS, setDetallesPOS] = useState([])
 
-  const handleSaveCreditos = (lista) => {
-    setDetallesCreditos(lista)
-    const total = lista.reduce((acc, curr) => acc + parseFloat(curr.monto), 0)
-    setValores(prev => ({ ...prev, creditos: total }))
+  const handleSaveGuiasCredito = (lista) => {
+    setDetallesGuiasCredito(lista)
+    const total = lista.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0)
+    setValores(prev => ({ ...prev, guiaCredito: total }))
+  }
+
+  const handleSaveGuiasRemision = (lista) => {
+    setDetallesGuiasRemision(lista)
+    const total = lista.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0)
+    setValores(prev => ({ ...prev, guiaRemision: total }))
   }
 
   const handleSaveDescuentos = (lista) => {
     setDetallesDescuentos(lista)
-    const total = lista.reduce((acc, curr) => acc + parseFloat(curr.montoDescuento), 0)
+    const total = lista.reduce((acc, curr) => acc + parseFloat(curr.montoDescuento || 0), 0)
     setValores(prev => ({ ...prev, descuentos: total }))
   }
 
@@ -152,7 +160,8 @@ export default function CuadreDiario() {
     const tieneDetalles = 
       detallesDepositos.length > 0 ||
       detallesProductos.length > 0 ||
-      detallesCreditos.length > 0 ||
+      detallesGuiasCredito.length > 0 ||
+      detallesGuiasRemision.length > 0 ||
       detallesDescuentos.length > 0 ||
       detallesGastos.length > 0 ||
       detallesContometros.length > 0 ||
@@ -181,25 +190,53 @@ export default function CuadreDiario() {
             nombre_producto: p.productoNombre,
             monto_total: parseFloat(p.monto)
           })),
-          creditos: detallesCreditos.map(c => ({
-            cliente_id: parseInt(c.clienteId),
+          guia_credito: detallesGuiasCredito.map((c) => ({
+            cliente_id: parseInt(c.clienteId, 10),
             monto: parseFloat(c.monto),
-            numero_documento: c.documento || c.numeroDocumento || null,
+            numero_documento: c.numeroDocumento || c.documento || null,
             fecha_vencimiento: c.fechaVencimiento || new Date().toISOString().split('T')[0],
-            observaciones: c.observaciones || null
+            observaciones: c.observaciones || null,
+          })),
+          guia_remision: detallesGuiasRemision.map((c) => ({
+            cliente_id: parseInt(c.clienteId, 10),
+            monto: parseFloat(c.monto),
+            numero_documento: c.numeroDocumento || c.documento || null,
+            fecha_vencimiento: c.fechaVencimiento || new Date().toISOString().split('T')[0],
+            observaciones: c.observaciones || null,
           })),
           descuentos: detallesDescuentos.map(d => {
-            const montoVenta = parseFloat(d.montoVenta) || 0
-            const porcentaje = parseFloat(d.porcentaje || d.porcentajeDescuento) || 0
-            const montoDescuento = parseFloat(d.montoDescuento) || (montoVenta * porcentaje / 100)
-            const montoFinal = montoVenta - montoDescuento
-            
+            const montoVentaRaw = d.montoVenta
+            const montoVenta =
+              montoVentaRaw != null && montoVentaRaw !== ''
+                ? parseFloat(montoVentaRaw)
+                : null
+            const porcentajeLegacy = parseFloat(d.porcentaje || d.porcentajeDescuento) || 0
+            let montoDescuento = parseFloat(d.montoDescuento)
+            if (Number.isNaN(montoDescuento) || montoDescuento <= 0) {
+              const mv = montoVenta != null && !Number.isNaN(montoVenta) ? montoVenta : 0
+              montoDescuento = (mv * porcentajeLegacy) / 100
+            }
+            let montoFinal = null
+            if (montoVenta != null && !Number.isNaN(montoVenta)) {
+              montoFinal = montoVenta - montoDescuento
+            }
+            const ref = (d.numeroDocumentoReferencia || '').trim()
+            const cid = d.clienteId
+            const cliente_id =
+              cid != null && cid !== '' && !Number.isNaN(Number(cid))
+                ? parseInt(String(cid), 10)
+                : null
             return {
-              cliente_id: parseInt(d.clienteId),
-              monto_venta: montoVenta,
-              porcentaje_descuento: porcentaje,
-              monto_descuento: parseFloat(montoDescuento.toFixed(2)),
-              monto_final: parseFloat(montoFinal.toFixed(2))
+              cliente_id,
+              monto_venta:
+                montoVenta != null && !Number.isNaN(montoVenta) ? montoVenta : null,
+              porcentaje_descuento: 0,
+              monto_descuento: parseFloat(Number(montoDescuento).toFixed(2)),
+              monto_final:
+                montoFinal != null && !Number.isNaN(montoFinal)
+                  ? parseFloat(montoFinal.toFixed(2))
+                  : null,
+              numero_documento_referencia: ref || null
             }
           }),
           gastos: detallesGastos.map(g => ({
@@ -238,14 +275,27 @@ export default function CuadreDiario() {
             const ingresoProductos = detallesProductos.reduce((acc, curr) => 
               acc + (parseFloat(curr.cantidad || 0) * parseFloat(curr.precioUnit || 0)), 0)
             
-            const egresoCreditos = detallesCreditos.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0)
+            const egresoGuiaCredito = detallesGuiasCredito.reduce(
+              (acc, curr) => acc + parseFloat(curr.monto || 0),
+              0
+            )
+            const egresoGuiaRemision = detallesGuiasRemision.reduce(
+              (acc, curr) => acc + parseFloat(curr.monto || 0),
+              0
+            )
             const egresoDescuentos = detallesDescuentos.reduce((acc, curr) => acc + parseFloat(curr.montoDescuento || 0), 0)
             const egresoGastos = detallesGastos.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0)
             const egresoVales = detallesVales.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0)
             const egresoPOS = detallesPOS.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0)
 
             const montoIngresos = ingresoContometros + ingresoProductos + ingresoDepositos
-            const montoEgresos = egresoGastos + egresoVales + egresoCreditos + egresoPOS + egresoDescuentos
+            const montoEgresos =
+              egresoGastos +
+              egresoVales +
+              egresoGuiaCredito +
+              egresoGuiaRemision +
+              egresoPOS +
+              egresoDescuentos
             const montoFinal = montoIngresos - montoEgresos
 
             return {
@@ -307,32 +357,51 @@ export default function CuadreDiario() {
         })) || []
         setDetallesProductos(productos)
 
-        // 3. Créditos
-        const creditos = data.detalles?.creditos?.map(c => ({
+        const mapGuiaLinea = (c) => ({
           id: c.id,
           clienteId: c.cliente_id,
           nombre: c.nombre_cliente || 'Cliente',
           monto: c.monto,
           numeroDocumento: c.numero_documento,
           fechaVencimiento: c.fecha_vencimiento,
-          observaciones: c.observaciones
-        })) || []
-        setDetallesCreditos(creditos)
+          observaciones: c.observaciones,
+        })
 
-        // 4. Descuentos
-        const descuentos = data.detalles?.descuentos?.map(d => ({
-          id: d.id,
-          clienteId: d.cliente_id,
-          nombre: d.nombre_cliente || 'Cliente',
-          montoVenta: d.monto_venta,
-          porcentajeDescuento: d.porcentaje_descuento,
-          porcentaje: d.porcentaje_descuento,
-          montoDescuento: (parseFloat(d.monto_venta) * parseFloat(d.porcentaje_descuento) / 100).toFixed(2),
-          motivo: d.motivo
-        })) || []
+        // 3. Guía crédito / 4. Guía remisión (API); compat: detalles.creditos antiguo → solo guía crédito
+        const guiasCredito =
+          (data.detalles?.guia_credito?.length
+            ? data.detalles.guia_credito
+            : data.detalles?.creditos) || []
+        const guiasRemision = data.detalles?.guia_remision || []
+
+        setDetallesGuiasCredito(guiasCredito.map(mapGuiaLinea))
+        setDetallesGuiasRemision(guiasRemision.map(mapGuiaLinea))
+
+        // 5. Descuentos
+        const descuentos = data.detalles?.descuentos?.map(d => {
+          const mv =
+            d.monto_venta != null && d.monto_venta !== ''
+              ? parseFloat(d.monto_venta)
+              : null
+          const pct = parseFloat(d.porcentaje_descuento) || 0
+          let md = parseFloat(d.monto_descuento)
+          if (Number.isNaN(md) || d.monto_descuento == null) {
+            const base = mv != null && !Number.isNaN(mv) ? mv : 0
+            md = (base * pct) / 100
+          }
+          return {
+            id: d.id,
+            clienteId: d.cliente_id ?? null,
+            nombre: d.nombre_cliente ?? null,
+            montoVenta:
+              d.monto_venta != null && d.monto_venta !== '' ? d.monto_venta : null,
+            montoDescuento: md.toFixed(2),
+            numeroDocumentoReferencia: d.numero_documento_referencia || ''
+          }
+        }) || []
         setDetallesDescuentos(descuentos)
 
-        // 5. Gastos
+        // 6. Gastos
         const gastos = data.detalles?.gastos?.map(g => ({
           id: g.id,
           monto: g.monto,
@@ -344,7 +413,7 @@ export default function CuadreDiario() {
         })) || []
         setDetallesGastos(gastos)
 
-        // 6. Contómetros
+        // 7. Contómetros
         const contometros = data.detalles?.contometros?.map(c => ({
           id: c.id,
           contometroId: c.contometro_id,
@@ -357,7 +426,7 @@ export default function CuadreDiario() {
         })) || []
         setDetallesContometros(contometros)
 
-        // 7. Vales
+        // 8. Vales
         const vales = data.detalles?.vales?.map(v => ({
           id: v.id,
           tipoId: v.tipo_vale_id,
@@ -368,7 +437,7 @@ export default function CuadreDiario() {
         })) || []
         setDetallesVales(vales)
 
-        // 8. POS
+        // 9. POS
         const pos = data.detalles?.pos?.map(p => ({
           id: p.id,
           monto: p.monto,
@@ -383,13 +452,14 @@ export default function CuadreDiario() {
         // Actualizar Totales (Valores)
         setValores({
           depositos: depositos.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0),
-          contometros: contometros.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0), 
+          contometros: contometros.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0),
           productos: productos.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0),
-          creditos: creditos.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0),
+          guiaCredito: guiasCredito.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0),
+          guiaRemision: guiasRemision.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0),
           descuentos: descuentos.reduce((acc, curr) => acc + parseFloat(curr.montoDescuento || 0), 0),
           gastos: gastos.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0),
           vales: vales.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0),
-          pos: pos.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0)
+          pos: pos.reduce((acc, curr) => acc + parseFloat(curr.monto || 0), 0),
         })
 
       } 
@@ -407,16 +477,18 @@ export default function CuadreDiario() {
         depositos: 0,
         contometros: 0,
         productos: 0,
-        creditos: 0,
+        guiaCredito: 0,
+        guiaRemision: 0,
         descuentos: 0,
         gastos: 0,
         vales: 0,
-        pos: 0
+        pos: 0,
       })
       setDetallesDepositos([])
       setDetallesContometros([])
       setDetallesProductos([])
-      setDetallesCreditos([])
+      setDetallesGuiasCredito([])
+      setDetallesGuiasRemision([])
       setDetallesDescuentos([])
       setDetallesGastos([])
       setDetallesVales([])
@@ -434,7 +506,13 @@ export default function CuadreDiario() {
 
   // Cálculos globales
   const totalIngresos = valores.depositos + valores.contometros + valores.productos
-  const totalEgresos = valores.creditos + valores.descuentos + valores.gastos + valores.vales + valores.pos
+  const totalEgresos =
+    valores.guiaCredito +
+    valores.guiaRemision +
+    valores.descuentos +
+    valores.gastos +
+    valores.vales +
+    valores.pos
   const saldoFinal = totalIngresos - totalEgresos
 
   const handleOpenModal = (tipo) => {
@@ -547,10 +625,15 @@ export default function CuadreDiario() {
             Egresos
           </h2>
           <div className="space-y-4">
-            <BloqueCuadre 
-              title="Créditos" 
-              amount={valores.creditos} 
-              onClick={() => handleOpenModal('creditos')} 
+            <BloqueCuadre
+              title="Guía crédito"
+              amount={valores.guiaCredito}
+              onClick={() => handleOpenModal('guia_credito')}
+            />
+            <BloqueCuadre
+              title="Guía remisión"
+              amount={valores.guiaRemision}
+              onClick={() => handleOpenModal('guia_remision')}
             />
             <BloqueCuadre 
               title="Descuentos" 
@@ -574,9 +657,19 @@ export default function CuadreDiario() {
               onClick={() => handleOpenModal('pos')} 
             />
           </div>
-          <div className="bg-red-50 p-4 rounded-lg flex justify-between items-center border border-red-100 mt-4">
-            <span className="font-medium text-red-800">Total Egresos</span>
-            <span className="font-bold text-xl text-red-800">S/ {totalEgresos.toFixed(2)}</span>
+          <div className="bg-red-50 p-4 rounded-lg border border-red-100 mt-4 space-y-2">
+            <div className="flex justify-between items-center text-xs text-red-800/90">
+              <span>Rubro guía crédito</span>
+              <span className="tabular-nums font-medium">S/ {valores.guiaCredito.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center text-xs text-red-800/90">
+              <span>Rubro guía remisión</span>
+              <span className="tabular-nums font-medium">S/ {valores.guiaRemision.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between items-center pt-2 border-t border-red-200">
+              <span className="font-medium text-red-800">Total egresos</span>
+              <span className="font-bold text-xl text-red-800 tabular-nums">S/ {totalEgresos.toFixed(2)}</span>
+            </div>
           </div>
         </div>
 
@@ -591,22 +684,59 @@ export default function CuadreDiario() {
             <div className={`text-5xl font-bold mb-4 ${saldoFinal >= 0 ? 'text-gray-900' : 'text-red-600'}`}>
               S/ {saldoFinal.toFixed(2)}
             </div>
-            <div className="flex justify-center gap-2 text-sm text-gray-500">
-              <span>Ingresos: +{totalIngresos.toFixed(2)}</span>
-              <span>•</span>
-              <span>Egresos: -{totalEgresos.toFixed(2)}</span>
+            <div className="text-xs text-gray-500 space-y-1 text-left max-w-xs mx-auto">
+              <div className="flex justify-between gap-4">
+                <span>Ingresos</span>
+                <span className="tabular-nums">+{totalIngresos.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between gap-4 text-red-600/90">
+                <span>Guía crédito</span>
+                <span className="tabular-nums">−{valores.guiaCredito.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between gap-4 text-red-600/90">
+                <span>Guía remisión</span>
+                <span className="tabular-nums">−{valores.guiaRemision.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between gap-4 text-red-600/90">
+                <span>Otros egresos</span>
+                <span className="tabular-nums">
+                  −
+                  {(
+                    valores.descuentos +
+                    valores.gastos +
+                    valores.vales +
+                    valores.pos
+                  ).toFixed(2)}
+                </span>
+              </div>
+              <div className="flex justify-between gap-4 pt-1 border-t border-gray-200 font-medium text-gray-700">
+                <span>Total egresos</span>
+                <span className="tabular-nums">−{totalEgresos.toFixed(2)}</span>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Renderizado Condicional de Modales Específicos */}
-      <ModalCreditos 
-        isOpen={modalAbierto === 'creditos'}
+      <ModalCreditos
+        isOpen={modalAbierto === 'guia_credito'}
         onClose={handleCloseModal}
-        onSave={handleSaveCreditos}
-        listaInicial={detallesCreditos}
+        onSave={handleSaveGuiasCredito}
+        listaInicial={detallesGuiasCredito}
         fecha={fecha}
+        title="Ventas — guía crédito"
+        emptyHint="No hay líneas de guía crédito"
+      />
+
+      <ModalCreditos
+        isOpen={modalAbierto === 'guia_remision'}
+        onClose={handleCloseModal}
+        onSave={handleSaveGuiasRemision}
+        listaInicial={detallesGuiasRemision}
+        fecha={fecha}
+        title="Ventas — guía remisión"
+        emptyHint="No hay líneas de guía remisión"
       />
 
       <ModalDescuentos 
@@ -660,7 +790,7 @@ export default function CuadreDiario() {
 
       {/* Modales Genéricos (para los que faltan) */}
       <Modal 
-        isOpen={modalAbierto !== null && modalAbierto !== 'creditos' && modalAbierto !== 'descuentos' && modalAbierto !== 'depositos' && modalAbierto !== 'productos' && modalAbierto !== 'gastos' && modalAbierto !== 'contometros' && modalAbierto !== 'vales' && modalAbierto !== 'pos'}
+        isOpen={modalAbierto !== null && modalAbierto !== 'guia_credito' && modalAbierto !== 'guia_remision' && modalAbierto !== 'descuentos' && modalAbierto !== 'depositos' && modalAbierto !== 'productos' && modalAbierto !== 'gastos' && modalAbierto !== 'contometros' && modalAbierto !== 'vales' && modalAbierto !== 'pos'}
         onClose={handleCloseModal}
         title={`Detalle de ${modalAbierto ? modalAbierto.charAt(0).toUpperCase() + modalAbierto.slice(1) : ''}`}
       >
