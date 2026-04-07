@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import {
   getTurnosGrifero,
-  getContometros,
+  getContometrosParaTurnoGrifero,
   getProductos,
   agregarLecturaContometro,
   actualizarLecturaContometro,
@@ -68,15 +68,29 @@ function ConsultarTurnos() {
     cargarDatos()
   }, [])
 
+  const mostrarMensaje = (texto, tipo = 'success') => {
+    setMensaje({ texto, tipo })
+    setTimeout(() => setMensaje(null), 3000)
+  }
+
+  const cargarContometrosDelTurno = async (cabeceraGriferoId) => {
+    try {
+      const data = await getContometrosParaTurnoGrifero(cabeceraGriferoId)
+      setContometros(Array.isArray(data) ? data : [])
+    } catch (error) {
+      console.error('Error al cargar contómetros del turno:', error)
+      setContometros([])
+      mostrarMensaje('No se pudieron cargar los contómetros del turno', 'error')
+    }
+  }
+
   const cargarListaYCatalogos = async () => {
     const turnosData = await getTurnosGrifero()
     setTurnos(turnosData)
-    const [contometrosData, productosData, tiposValeData] = await Promise.all([
-      getContometros(),
+    const [productosData, tiposValeData] = await Promise.all([
       getProductos(),
       getTiposVale()
     ])
-    setContometros(contometrosData)
     setProductos(productosData.filter(p =>
       Number(p.categoria_id) !== 1 &&
       String(p.categoria || '').toLowerCase() !== 'combustible'
@@ -97,6 +111,7 @@ function ConsultarTurnos() {
           setTurno(turnoData)
           setTurnoSeleccionado(nid)
           setVistaActual('detalle')
+          await cargarContometrosDelTurno(nid)
         }
       }
     } catch (error) {
@@ -115,6 +130,7 @@ function ConsultarTurnos() {
       setTurnoSeleccionado(turnoId)
       setVistaActual('detalle')
       setSearchParams({ turno: String(turnoId) }, { replace: true })
+      await cargarContometrosDelTurno(turnoId)
     } catch (error) {
       console.error('Error al cargar turno:', error)
       mostrarMensaje('Error al cargar turno', 'error')
@@ -127,6 +143,7 @@ function ConsultarTurnos() {
     setVistaActual('lista')
     setTurno(null)
     setTurnoSeleccionado(null)
+    setContometros([])
     setSearchParams({}, { replace: true })
     try {
       setLoading(true)
@@ -147,16 +164,12 @@ function ConsultarTurnos() {
       if (idDetalle) {
         const turnoData = await getTurnoById(idDetalle)
         setTurno(turnoData)
+        await cargarContometrosDelTurno(idDetalle)
       }
     } catch (error) {
       console.error('Error al recargar:', error)
       mostrarMensaje('Error al recargar datos', 'error')
     }
-  }
-
-  const mostrarMensaje = (texto, tipo = 'success') => {
-    setMensaje({ texto, tipo })
-    setTimeout(() => setMensaje(null), 3000)
   }
 
   const ejecutarEliminarTurnoCerrado = async () => {
@@ -367,6 +380,12 @@ function ConsultarTurnos() {
           <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Turnos del Día</h2>
             <p className="text-gray-600">Selecciona un turno para ver sus detalles y liquidación</p>
+            {user?.rol?.nombre === 'grifero' && (
+              <p className="text-sm text-amber-800 mt-2">
+                Solo se muestran tus turnos de grifero. Los perfiles de administración ven todos los
+                turnos.
+              </p>
+            )}
           </div>
 
           {turnos.length === 0 ? (
@@ -778,6 +797,11 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
   const [lecturaEdit, setLecturaEdit] = useState(null)
   const [lecturaEditCompleta, setLecturaEditCompleta] = useState(null)
 
+  const idsConLectura = new Set(
+    (turno.lecturas_contometro || []).map((l) => l.contometro_id)
+  )
+  const contometrosParaNuevaLectura = contometros.filter((c) => !idsConLectura.has(c.id))
+
   const handleAgregar = async (data) => {
     try {
       await agregarLecturaContometro(turno.id, {
@@ -823,6 +847,7 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
       <div className="space-y-3">
         {turno.lecturas_contometro?.map(lectura => {
           const contometro = contometros.find(c => c.id === lectura.contometro_id)
+          const codigoContometro = contometro?.codigo || `#${lectura.contometro_id}`
           const gal = parseFloat(lectura.lectura_final) - parseFloat(lectura.lectura_inicial)
           const monto = gal * parseFloat(lectura.precio_venta)
           const pendienteFinal =
@@ -831,7 +856,7 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
             <div key={lectura.id} className="card p-4">
               <div className="flex justify-between items-start">
                 <div className="flex-1">
-                  <p className="font-medium">{contometro?.codigo}</p>
+                  <p className="font-medium">{codigoContometro}</p>
                   <p className="text-sm text-gray-600">
                     Lectura Inicial: {lectura.lectura_inicial} gal
                   </p>
@@ -872,7 +897,7 @@ function TabLecturas({ turno, contometros, onReload, onMensaje }) {
       {showModal && (
         <ModalLectura
           cabeceraGriferoId={turno.id}
-          contometros={contometros}
+          contometros={contometrosParaNuevaLectura}
           onClose={() => setShowModal(false)}
           onSubmit={handleAgregar}
         />
@@ -2255,7 +2280,9 @@ function ModalLecturaEditar({ lectura, contometros, onClose, onSubmit }) {
         </div>
 
         <p className="text-sm text-gray-600 mb-4">
-          <span className="font-medium text-gray-900">{contometro?.codigo || 'Contómetro'}</span>
+          <span className="font-medium text-gray-900">
+            {contometro?.codigo || `Contómetro #${lectura.contometro_id}`}
+          </span>
           {' · '}
           Precio vigente al registrar: <strong>S/ {parseFloat(lectura.precio_venta).toFixed(2)}</strong>
         </p>
