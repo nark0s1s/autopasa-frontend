@@ -155,6 +155,14 @@ export const getTurnoById = async (turnoId) => {
   return response.data
 }
 
+/** Contómetros de las islas del turno_config de la liquidación (no el catálogo completo). */
+export const getContometrosParaTurnoGrifero = async (cabeceraGriferoId) => {
+  const response = await api.get(
+    `${API_TURNOS_LIQ}/grifero/${cabeceraGriferoId}/contometros-disponibles`
+  )
+  return response.data
+}
+
 export const eliminarTurnoGriferoAbierto = async (turnoId) => {
   await api.delete(`${API_TURNOS_LIQ}/grifero/${turnoId}`)
 }

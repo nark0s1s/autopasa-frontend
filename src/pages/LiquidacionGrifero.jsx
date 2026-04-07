@@ -53,8 +53,10 @@ function LiquidacionGrifero() {
         setTurnoActual(null)
       }
       
+      const esAdminOSupervisor =
+        user?.rol?.nombre === 'admin' || user?.rol?.nombre === 'supervisor'
       const [turnosData, cfgs] = await Promise.all([
-        listarTurnosGrifero({ empleado_id: user.id }),
+        listarTurnosGrifero(esAdminOSupervisor ? {} : { empleado_id: user.id }),
         listarTurnosConfigInfra({ activo: true }),
       ])
       setTurnos(turnosData)
