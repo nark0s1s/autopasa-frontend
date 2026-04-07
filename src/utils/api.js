@@ -155,6 +155,60 @@ export const getTurnoById = async (turnoId) => {
   return response.data
 }
 
+/** Turnos de grifero cerrados sin consolidar (filtro por fecha de liquidación). */
+export const getGriferosCerradosParaConsolidar = async (params = {}) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/grifero/cerrados-para-consolidar`, { params })
+  return response.data
+}
+
+export const listarConsolidacionesLiquidacion = async (limit = 100) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/consolidaciones`, { params: { limit } })
+  return response.data
+}
+
+export const obtenerConsolidacionLiquidacion = async (id) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/consolidaciones/${id}`)
+  return response.data
+}
+
+export const crearConsolidacionLiquidacion = async (payload) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/consolidaciones`, payload)
+  return response.data
+}
+
+/** Descarga PDF de liquidación del turno grifero (rubros / sumarización). */
+export const downloadTurnoGriferoReportePdf = async (cabeceraId) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/grifero/${cabeceraId}/reporte.pdf`, {
+    responseType: 'blob',
+  })
+  const blob = new Blob([response.data], { type: 'application/pdf' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `turno-grifero-${cabeceraId}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+/** Descarga PDF de consolidación (totales por rubros + detalle por turno). */
+export const downloadConsolidacionReportePdf = async (consolidacionId, codigo) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/reporte.pdf`, {
+    responseType: 'blob',
+  })
+  const blob = new Blob([response.data], { type: 'application/pdf' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const safe = String(codigo || consolidacionId).replace(/[^\w.-]+/g, '_')
+  a.download = `consolidacion-${safe}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.URL.revokeObjectURL(url)
+}
+
 /** Contómetros de las islas del turno_config de la liquidación (no el catálogo completo). */
 export const getContometrosParaTurnoGrifero = async (cabeceraGriferoId) => {
   const response = await api.get(

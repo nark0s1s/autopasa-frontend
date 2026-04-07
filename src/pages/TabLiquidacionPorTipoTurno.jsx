@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import {
-  Calendar, Plus, CheckCircle, AlertCircle, Clock, 
-  DollarSign, Users, TrendingUp, Lock, Unlock
+  Calendar, Plus, CheckCircle, AlertCircle, Clock,
+  Lock, Unlock,
 } from 'lucide-react'
 import {
   listarTurnosLiquidacion,
   listarTurnosConfigInfra,
   crearTurnoDia,
-  cerrarTurnoDia
+  cerrarTurnoDia,
 } from '../utils/api'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -20,9 +20,10 @@ function safeFormatDate(value, fmt, opts) {
   return format(d, fmt, opts)
 }
 
-function GestionTurnoDia() {
+/** Pestaña: liquidaciones del día por tipo de turno (apertura/cierre del marco operativo). */
+export default function TabLiquidacionPorTipoTurno() {
   const { user } = useAuth()
-  
+
   const [turnosHoy, setTurnosHoy] = useState([])
   const [configsTurno, setConfigsTurno] = useState([])
   const [loading, setLoading] = useState(true)
@@ -128,51 +129,23 @@ function GestionTurnoDia() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center py-16">
         <div className="text-center">
           <div className="w-16 h-16 border-4 border-primary-200 border-t-primary-600 rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-gray-600">Cargando...</p>
+          <p className="text-gray-600">Cargando liquidaciones…</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="border-b border-gray-200 bg-white sticky top-0 z-10 shadow-sm">
-        <div className="px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Gestión de Turno Día</h1>
-              <p className="text-sm text-gray-600 mt-1">
-                <Users className="w-4 h-4 inline mr-1" />
-                {user?.nombres} {user?.apellidos} - Supervisor
-              </p>
-            </div>
-            {configsSinLiquidacionHoy.length > 0 && (
-              <button
-                type="button"
-                onClick={() => {
-                  const first = configsSinLiquidacionHoy[0]
-                  setTurnoConfigIdAbrir(first ? String(first.id) : '')
-                  setMostrarModalAbrir(true)
-                }}
-                className="btn btn-primary flex items-center gap-2"
-              >
-                <Plus className="w-5 h-5" />
-                Abrir liquidación de turno
-              </button>
-            )}
-          </div>
-        </div>
-      </header>
-
-      {/* Mensaje */}
+    <div className="relative">
       {mensaje && (
-        <div className={`fixed top-20 right-4 z-50 ${
-          mensaje.tipo === 'success' ? 'bg-green-500' : 'bg-red-500'
-        } text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-slide-in`}>
+        <div
+          className={`fixed top-20 right-4 z-50 ${
+            mensaje.tipo === 'success' ? 'bg-green-500' : 'bg-red-500'
+          } text-white px-6 py-3 rounded-lg shadow-lg flex items-center gap-2`}
+        >
           {mensaje.tipo === 'success' ? (
             <CheckCircle className="w-5 h-5" />
           ) : (
@@ -182,10 +155,32 @@ function GestionTurnoDia() {
         </div>
       )}
 
-      <div className="p-6 max-w-4xl mx-auto space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div>
+          <h2 className="text-lg font-bold text-gray-900">Liquidaciones del día (por tipo de turno)</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Marco operativo diario: abrir/cerrar según configuración en mantenimiento.
+          </p>
+        </div>
+        {configsSinLiquidacionHoy.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              const first = configsSinLiquidacionHoy[0]
+              setTurnoConfigIdAbrir(first ? String(first.id) : '')
+              setMostrarModalAbrir(true)
+            }}
+            className="btn btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-5 h-5" />
+            Abrir liquidación de turno
+          </button>
+        )}
+      </div>
+
+      <div className="max-w-4xl mx-auto space-y-6">
         <p className="text-sm text-gray-600">
-          Cada fila es una liquidación del día según el tipo de turno (Turno 1 mañana, GLP tarde, etc.).
-          Puede haber varias el mismo día si tiene configuradas varias en mantenimiento.
+          Cada tarjeta es una liquidación del día según el tipo de turno. Puede haber varias el mismo día.
         </p>
 
         {turnosHoy.length > 0 ? (
@@ -205,9 +200,9 @@ function GestionTurnoDia() {
                     )}
                   </div>
                   <div>
-                    <h2 className="text-xl font-bold text-gray-900 mb-1">
+                    <h3 className="text-xl font-bold text-gray-900 mb-1">
                       {nombreTipoTurno(turnoDia.turno_config_id)}
-                    </h2>
+                    </h3>
                     <p className="text-sm text-gray-500 font-mono">{turnoDia.codigo}</p>
                     <p className="text-gray-600 text-sm mt-1">
                       {safeFormatDate(turnoDia.fecha, "EEEE, d 'de' MMMM 'de' yyyy", { locale: es })}
@@ -242,7 +237,7 @@ function GestionTurnoDia() {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Clock className="w-5 h-5 text-gray-600" />
-                    <h3 className="font-semibold text-gray-900">Apertura</h3>
+                    <h4 className="font-semibold text-gray-900">Apertura</h4>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
@@ -264,7 +259,7 @@ function GestionTurnoDia() {
                   <div className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-center gap-2 mb-3">
                       <Lock className="w-5 h-5 text-gray-600" />
-                      <h3 className="font-semibold text-gray-900">Cierre</h3>
+                      <h4 className="font-semibold text-gray-900">Cierre</h4>
                     </div>
                     <div className="space-y-2">
                       <div className="flex justify-between">
@@ -315,13 +310,13 @@ function GestionTurnoDia() {
                         : 'bg-yellow-50 border border-yellow-200'
                   }`}
                 >
-                  <h3 className="text-center text-xl font-bold mb-4">
+                  <h4 className="text-center text-xl font-bold mb-4">
                     {parseFloat(turnoDia.diferencia) === 0
                       ? '✅ Turno Cuadrado'
                       : parseFloat(turnoDia.diferencia) < 0
                         ? '❌ Turno con Faltante'
                         : '⚠️ Turno con Sobrante'}
-                  </h3>
+                  </h4>
                   <div className="grid grid-cols-3 gap-4">
                     <div className="text-center">
                       <p className="text-sm text-gray-600 mb-1">Efectivo Sistema</p>
@@ -365,10 +360,9 @@ function GestionTurnoDia() {
             <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <Calendar className="w-10 h-10 text-gray-400" />
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Sin liquidaciones hoy</h2>
+            <h3 className="text-2xl font-bold text-gray-900 mb-2">Sin liquidaciones hoy</h3>
             <p className="text-gray-600 mb-6">
-              Abra una liquidación por cada tipo de turno que deba operar hoy (según su configuración en
-              mantenimiento).
+              Abra una liquidación por cada tipo de turno que deba operar hoy.
             </p>
             {configsSinLiquidacionHoy.length > 0 ? (
               <button
@@ -385,15 +379,13 @@ function GestionTurnoDia() {
               </button>
             ) : (
               <p className="text-sm text-amber-700">
-                No hay tipos de turno activos o ya tiene liquidación para todos. Revise en Mantenimiento →
-                Turnos (configuración).
+                No hay tipos de turno activos o ya tiene liquidación para todos.
               </p>
             )}
           </div>
         )}
       </div>
 
-      {/* Modal Abrir Turno */}
       {mostrarModalAbrir && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="card p-8 max-w-md w-full m-4">
@@ -401,12 +393,8 @@ function GestionTurnoDia() {
               <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Unlock className="w-8 h-8 text-green-600" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                Abrir liquidación de turno
-              </h3>
-              <p className="text-gray-600">
-                Elija el tipo de turno (debe estar configurado en mantenimiento).
-              </p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Abrir liquidación de turno</h3>
+              <p className="text-gray-600">Elija el tipo de turno (configuración en mantenimiento).</p>
             </div>
 
             <div className="mb-4 text-left">
@@ -434,9 +422,7 @@ function GestionTurnoDia() {
               </div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-gray-600">Hora:</span>
-                <span className="text-sm font-medium text-gray-900">
-                  {format(new Date(), 'HH:mm')}
-                </span>
+                <span className="text-sm font-medium text-gray-900">{format(new Date(), 'HH:mm')}</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-sm text-gray-600">Supervisor:</span>
@@ -461,12 +447,12 @@ function GestionTurnoDia() {
               >
                 {procesando ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 inline-block" />
                     Abriendo...
                   </>
                 ) : (
                   <>
-                    <CheckCircle className="w-5 h-5 mr-2" />
+                    <CheckCircle className="w-5 h-5 mr-2 inline" />
                     Confirmar
                   </>
                 )}
@@ -476,7 +462,6 @@ function GestionTurnoDia() {
         </div>
       )}
 
-      {/* Modal Cerrar Turno */}
       {mostrarModalCerrar && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 overflow-y-auto">
           <div className="card p-8 max-w-md w-full m-4">
@@ -484,12 +469,8 @@ function GestionTurnoDia() {
               <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Lock className="w-8 h-8 text-red-600" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-2">
-                Cerrar Turno del Día
-              </h3>
-              <p className="text-gray-600">
-                Ingresa el efectivo real contado en caja
-              </p>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">Cerrar liquidación del día</h3>
+              <p className="text-gray-600">Ingrese el efectivo real contado en caja</p>
             </div>
 
             <div className="bg-primary-50 rounded-lg p-4 mb-4">
@@ -515,13 +496,11 @@ function GestionTurnoDia() {
             </div>
 
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Observaciones
-              </label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Observaciones</label>
               <textarea
                 value={observaciones}
                 onChange={(e) => setObservaciones(e.target.value)}
-                placeholder="Ingresa observaciones del cierre (opcional)"
+                placeholder="Observaciones del cierre (opcional)"
                 rows="3"
                 className="input w-full"
               />
@@ -547,13 +526,13 @@ function GestionTurnoDia() {
               >
                 {procesando ? (
                   <>
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin mr-2 inline-block" />
                     Cerrando...
                   </>
                 ) : (
                   <>
-                    <Lock className="w-5 h-5 mr-2" />
-                    Cerrar Turno
+                    <Lock className="w-5 h-5 mr-2 inline" />
+                    Cerrar
                   </>
                 )}
               </button>
@@ -564,5 +543,3 @@ function GestionTurnoDia() {
     </div>
   )
 }
-
-export default GestionTurnoDia
