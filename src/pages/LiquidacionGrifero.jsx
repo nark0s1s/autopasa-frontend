@@ -3,7 +3,7 @@ import { useAuth } from '../contexts/AuthContext'
 import { useNavigate } from 'react-router-dom'
 import {
   Fuel, Plus, CheckCircle, AlertCircle, Clock, User,
-  Calendar, DollarSign, TrendingUp, TrendingDown, Eye
+  Calendar, DollarSign, TrendingUp, TrendingDown, Eye, Trash2
 } from 'lucide-react'
 import {
   getTurnoGriferoActual,
@@ -12,6 +12,7 @@ import {
   crearTurnoDia,
   listarTurnosGrifero,
   listarTurnosConfigInfra,
+  eliminarTurnoGriferoAbierto,
 } from '../utils/api'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -29,6 +30,13 @@ function LiquidacionGrifero() {
   const [mostrarModal, setMostrarModal] = useState(false)
   const [turnosConfig, setTurnosConfig] = useState([])
   const [turnoConfigIdModal, setTurnoConfigIdModal] = useState('')
+  const [fechaTurnoModal, setFechaTurnoModal] = useState(() => {
+    const now = new Date()
+    const offset = now.getTimezoneOffset() * 60000
+    return new Date(now.getTime() - offset).toISOString().split('T')[0]
+  })
+  const [turnoAEliminar, setTurnoAEliminar] = useState(null)
+  const [eliminandoTurno, setEliminandoTurno] = useState(false)
 
   useEffect(() => {
     cargarDatos()
@@ -69,6 +77,9 @@ function LiquidacionGrifero() {
   const abrirModalNuevoTurno = () => {
     const first = turnosConfig[0]
     setTurnoConfigIdModal(first ? String(first.id) : '')
+    const now = new Date()
+    const offset = now.getTimezoneOffset() * 60000
+    setFechaTurnoModal(new Date(now.getTime() - offset).toISOString().split('T')[0])
     setMostrarModal(true)
   }
 
@@ -78,16 +89,20 @@ function LiquidacionGrifero() {
       mostrarMensaje('Seleccione el tipo de turno (liquidación del día)', 'error')
       return
     }
+    if (!fechaTurnoModal) {
+      mostrarMensaje('Seleccione la fecha del turno', 'error')
+      return
+    }
     try {
       setIniciandoTurno(true)
 
-      const hoy = new Date().toISOString().split('T')[0]
-      let turnoDia = await getTurnoDiaActual(cfgId)
+      const fechaLiquidacion = fechaTurnoModal
+      let turnoDia = await getTurnoDiaActual(cfgId, fechaLiquidacion)
 
       if (!turnoDia?.id) {
         try {
           turnoDia = await crearTurnoDia({
-            fecha: hoy,
+            fecha: fechaLiquidacion,
             supervisor_apertura_id: user.id,
             turno_config_id: cfgId,
           })
@@ -101,7 +116,7 @@ function LiquidacionGrifero() {
                 ? JSON.stringify(det)
                 : ''
           if (msg.includes('Ya existe')) {
-            turnoDia = await getTurnoDiaActual(cfgId)
+            turnoDia = await getTurnoDiaActual(cfgId, fechaLiquidacion)
           } else {
             throw new Error(
               'No se pudo crear la liquidación del día: ' + (msg || createError.message)
@@ -136,6 +151,32 @@ function LiquidacionGrifero() {
       mostrarMensaje('Error al iniciar turno: ' + (error.message || error.response?.data?.detail || 'Error desconocido'), 'error')
     } finally {
       setIniciandoTurno(false)
+    }
+  }
+
+  const handleConfirmarEliminarTurno = async () => {
+    if (!turnoAEliminar?.id) return
+    const idEliminado = turnoAEliminar.id
+    try {
+      setEliminandoTurno(true)
+      await eliminarTurnoGriferoAbierto(idEliminado)
+      mostrarMensaje('Turno eliminado correctamente')
+      setTurnoAEliminar(null)
+      if (turnoActual?.id === idEliminado) {
+        setTurnoActual(null)
+      }
+      await cargarDatos()
+    } catch (error) {
+      const det = error.response?.data?.detail
+      const msg =
+        typeof det === 'string'
+          ? det
+          : Array.isArray(det)
+            ? det.map((e) => e.msg).join(' ')
+            : error.message
+      mostrarMensaje(msg || 'No se pudo eliminar el turno', 'error')
+    } finally {
+      setEliminandoTurno(false)
     }
   }
 
@@ -375,13 +416,27 @@ function LiquidacionGrifero() {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button
-                          onClick={() => navigate(`/consultar-turnos?turno=${turno.id}`)}
-                          className="text-primary-600 hover:text-primary-900 inline-flex items-center gap-1"
-                        >
-                          <Eye className="w-4 h-4" />
-                          Ver Detalle
-                        </button>
+                        <div className="flex items-center justify-end gap-3 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => navigate(`/consultar-turnos?turno=${turno.id}`)}
+                            className="text-primary-600 hover:text-primary-900 inline-flex items-center gap-1"
+                          >
+                            <Eye className="w-4 h-4" />
+                            Ver Detalle
+                          </button>
+                          {turno.estado_id === 1 && (
+                            <button
+                              type="button"
+                              onClick={() => setTurnoAEliminar(turno)}
+                              className="text-red-600 hover:text-red-800 inline-flex items-center gap-1"
+                              title="Eliminar turno abierto"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                              Eliminar
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -391,6 +446,46 @@ function LiquidacionGrifero() {
           )}
         </div>
       </div>
+
+      {turnoAEliminar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Eliminar turno abierto</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              ¿Eliminar el turno <strong>{turnoAEliminar.codigo}</strong>? Se borrarán las lecturas, ventas y demás
+              registros asociados. Esta acción no se puede deshacer.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary flex-1"
+                disabled={eliminandoTurno}
+                onClick={() => setTurnoAEliminar(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger flex-1 inline-flex items-center justify-center gap-2"
+                disabled={eliminandoTurno}
+                onClick={handleConfirmarEliminarTurno}
+              >
+                {eliminandoTurno ? (
+                  <>
+                    <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Eliminando…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    Eliminar
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal Iniciar Turno */}
       {mostrarModal && (
@@ -408,27 +503,44 @@ function LiquidacionGrifero() {
               </p>
             </div>
 
-            <div className="mb-4 text-left">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Tipo de turno / liquidación del día *
-              </label>
-              <select
-                className="input w-full"
-                value={turnoConfigIdModal}
-                onChange={(e) => setTurnoConfigIdModal(e.target.value)}
-              >
-                <option value="">— Seleccione —</option>
-                {turnosConfig.map((c) => (
-                  <option key={c.id} value={String(c.id)}>
-                    {c.codigo} — {c.nombre}
-                  </option>
-                ))}
-              </select>
-              {turnosConfig.length === 0 && (
-                <p className="text-xs text-amber-700 mt-2">
-                  No hay tipos de turno activos. Configure en Mantenimiento → Turnos (configuración).
+            <div className="mb-4 text-left space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Fecha del turno *
+                </label>
+                <input
+                  type="date"
+                  className="input w-full"
+                  value={fechaTurnoModal}
+                  onChange={(e) => setFechaTurnoModal(e.target.value)}
+                  max="2099-12-31"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Por defecto es hoy; puede elegir otra fecha para liquidaciones o turnos atrasados.
                 </p>
-              )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Tipo de turno / liquidación del día *
+                </label>
+                <select
+                  className="input w-full"
+                  value={turnoConfigIdModal}
+                  onChange={(e) => setTurnoConfigIdModal(e.target.value)}
+                >
+                  <option value="">— Seleccione —</option>
+                  {turnosConfig.map((c) => (
+                    <option key={c.id} value={String(c.id)}>
+                      {c.codigo} — {c.nombre}
+                    </option>
+                  ))}
+                </select>
+                {turnosConfig.length === 0 && (
+                  <p className="text-xs text-amber-700 mt-2">
+                    No hay tipos de turno activos. Configure en Mantenimiento → Turnos (configuración).
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
@@ -439,13 +551,15 @@ function LiquidacionGrifero() {
                 </span>
               </div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Fecha:</span>
+                <span className="text-sm text-gray-600">Fecha del turno:</span>
                 <span className="text-sm font-medium text-gray-900">
-                  {format(new Date(), "d 'de' MMMM yyyy", { locale: es })}
+                  {fechaTurnoModal
+                    ? format(new Date(`${fechaTurnoModal}T12:00:00`), "d 'de' MMMM yyyy", { locale: es })
+                    : '—'}
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Hora:</span>
+                <span className="text-sm text-gray-600">Hora de apertura:</span>
                 <span className="text-sm font-medium text-gray-900">
                   {format(new Date(), 'HH:mm')}
                 </span>
