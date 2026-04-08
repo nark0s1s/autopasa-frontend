@@ -37,7 +37,7 @@ const handleIniciarTurno = async () => {
     try {
       turnoDia = await crearTurnoDia({
         fecha: hoy,
-        supervisor_apertura_id: user.id
+        turno_config_id: selectedConfigId,
       })
     } catch (createError) {
       // Manejar errores...
@@ -46,8 +46,9 @@ const handleIniciarTurno = async () => {
   
   // 3. Crear turno del grifero
   const nuevoTurno = await crearTurnoGrifero({
-    turno_dia_id: turnoDia.id,
-    empleado_id: user.id
+    turno_liquidacion_id: turnoDia.id,
+    fecha_turno: hoy,
+    observaciones_apertura: 'Turno iniciado desde el sistema',
   })
 }
 ```

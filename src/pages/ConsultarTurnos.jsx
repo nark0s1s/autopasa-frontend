@@ -74,6 +74,20 @@ function ConsultarTurnos() {
     setTimeout(() => setMensaje(null), 3000)
   }
 
+  const formatearFechaTurno = (valor) => {
+    if (!valor) return '—'
+    const s = typeof valor === 'string' ? valor.slice(0, 10) : String(valor).slice(0, 10)
+    try {
+      return new Date(`${s}T12:00:00`).toLocaleDateString('es-PE', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    } catch {
+      return '—'
+    }
+  }
+
   const cargarContometrosDelTurno = async (cabeceraGriferoId) => {
     try {
       const data = await getContometrosParaTurnoGrifero(cabeceraGriferoId)
@@ -429,9 +443,16 @@ function ConsultarTurnos() {
                     </p>
                     
                     <div className="space-y-1 text-sm text-gray-600">
-                      <p>Inicio: {new Date(t.fecha_hora_inicio).toLocaleString('es-PE')}</p>
+                      <p className="font-medium text-gray-800">
+                        Fecha del turno: {formatearFechaTurno(t.fecha_turno)}
+                      </p>
+                      <p className="text-xs text-gray-500">
+                        Registro — Inicio: {new Date(t.fecha_hora_inicio).toLocaleString('es-PE')}
+                      </p>
                       {t.fecha_hora_fin && (
-                        <p>Fin: {new Date(t.fecha_hora_fin).toLocaleString('es-PE')}</p>
+                        <p className="text-xs text-gray-500">
+                          Registro — Fin: {new Date(t.fecha_hora_fin).toLocaleString('es-PE')}
+                        </p>
                       )}
                     </div>
                     
@@ -486,6 +507,10 @@ function ConsultarTurnos() {
                 <h1 className="text-xl font-bold text-gray-900">Liquidación de Turno</h1>
                 <p className="text-sm text-gray-600">
                   {turno.empleado?.nombres} {turno.empleado?.apellidos} • {turno.codigo}
+                </p>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Fecha del turno: {formatearFechaTurno(turno.fecha_turno)} · Registro inicio:{' '}
+                  {new Date(turno.fecha_hora_inicio).toLocaleString('es-PE')}
                 </p>
               </div>
             </div>

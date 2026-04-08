@@ -87,7 +87,6 @@ export default function TabLiquidacionPorTipoTurno() {
       const hoy = hoyISO()
       await crearTurnoDia({
         fecha: hoy,
-        supervisor_apertura_id: user.id,
         turno_config_id: cfgId,
       })
       await cargarDatos()
@@ -237,17 +236,11 @@ export default function TabLiquidacionPorTipoTurno() {
                 <div className="bg-gray-50 rounded-lg p-4">
                   <div className="flex items-center gap-2 mb-3">
                     <Clock className="w-5 h-5 text-gray-600" />
-                    <h4 className="font-semibold text-gray-900">Apertura</h4>
+                    <h4 className="font-semibold text-gray-900">Registro</h4>
                   </div>
                   <div className="space-y-2">
                     <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Supervisor:</span>
-                      <span className="text-sm font-medium text-gray-900">
-                        {turnoDia.supervisor_apertura?.nombres} {turnoDia.supervisor_apertura?.apellidos}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Hora:</span>
+                      <span className="text-sm text-gray-600">Hora de registro:</span>
                       <span className="text-sm font-medium text-gray-900">
                         {safeFormatDate(turnoDia.hora_apertura, 'HH:mm:ss')}
                       </span>
