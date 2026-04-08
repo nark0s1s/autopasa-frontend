@@ -105,7 +105,6 @@ function LiquidacionGrifero() {
         try {
           turnoDia = await crearTurnoDia({
             fecha: fechaLiquidacion,
-            supervisor_apertura_id: user.id,
             turno_config_id: cfgId,
           })
           mostrarMensaje('Liquidación del día creada para el turno seleccionado', 'success')
@@ -135,8 +134,8 @@ function LiquidacionGrifero() {
       console.log('Creando turno de grifero con turno_liquidacion_id:', turnoDia.id)
       const nuevoTurno = await crearTurnoGrifero({
         turno_liquidacion_id: turnoDia.id,
-        empleado_id: user.id,
-        observaciones_apertura: 'Turno iniciado desde el sistema'
+        fecha_turno: fechaLiquidacion,
+        observaciones_apertura: 'Turno iniciado desde el sistema',
       })
       
       console.log('Turno de grifero creado:', nuevoTurno)
@@ -202,6 +201,12 @@ function LiquidacionGrifero() {
 
   const formatearFecha = (fecha) => {
     return format(new Date(fecha), "d 'de' MMMM yyyy, HH:mm", { locale: es })
+  }
+
+  const formatearSoloFecha = (valor) => {
+    if (!valor) return '—'
+    const s = typeof valor === 'string' ? valor.slice(0, 10) : String(valor).slice(0, 10)
+    return format(new Date(`${s}T12:00:00`), "d 'de' MMMM yyyy", { locale: es })
   }
 
   if (loading) {
@@ -283,8 +288,11 @@ function LiquidacionGrifero() {
                 <h3 className="text-xl font-bold text-gray-900 mb-1">
                   Turno en Progreso
                 </h3>
-                <p className="text-gray-600">
-                  Inicio: {formatearFecha(turnoActual.fecha_hora_inicio)}
+                <p className="text-gray-800 font-medium">
+                  Fecha del turno: {formatearSoloFecha(turnoActual.fecha_turno)}
+                </p>
+                <p className="text-gray-600 text-sm">
+                  Registro en sistema — Inicio: {formatearFecha(turnoActual.fecha_hora_inicio)}
                 </p>
               </div>
               <button
@@ -335,19 +343,16 @@ function LiquidacionGrifero() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Código
+                      Cód. turno-config
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Fecha del turno
+                    </th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Grifero
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Estado
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Fecha Inicio
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Fecha Fin
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Duración
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Efectivo
@@ -363,24 +368,21 @@ function LiquidacionGrifero() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {turnos.map((turno) => (
                     <tr key={turno.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm font-medium text-gray-900">
-                          {turno.codigo}
+                      <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
+                        <span className="font-mono font-medium">
+                          {turno.turno_config_codigo?.trim() || '—'}
                         </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
+                        {formatearSoloFecha(turno.fecha_turno)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-800 whitespace-nowrap">
+                        {turno.empleado_nombre?.trim() || '—'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(turno.estado_id)}`}>
                           {getEstadoTexto(turno.estado_id)}
                         </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {formatearFecha(turno.fecha_hora_inicio)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {turno.fecha_hora_fin ? formatearFecha(turno.fecha_hora_fin) : '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                        {turno.duracion_minutos ? `${turno.duracion_minutos} min` : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm">
@@ -508,7 +510,7 @@ function LiquidacionGrifero() {
             <div className="mb-4 text-left space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Fecha del turno *
+                  Fecha operativa del turno *
                 </label>
                 <input
                   type="date"
@@ -518,7 +520,8 @@ function LiquidacionGrifero() {
                   max="2099-12-31"
                 />
                 <p className="text-xs text-gray-500 mt-1">
-                  Por defecto es hoy; puede elegir otra fecha para liquidaciones o turnos atrasados.
+                  Fecha del día que se está liquidando (puede ser pasada). La hora de apertura/cierre en
+                  sistema será la de hoy al registrar.
                 </p>
               </div>
               <div>
@@ -553,7 +556,7 @@ function LiquidacionGrifero() {
                 </span>
               </div>
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm text-gray-600">Fecha del turno:</span>
+                <span className="text-sm text-gray-600">Fecha operativa:</span>
                 <span className="text-sm font-medium text-gray-900">
                   {fechaTurnoModal
                     ? format(new Date(`${fechaTurnoModal}T12:00:00`), "d 'de' MMMM yyyy", { locale: es })
@@ -561,7 +564,7 @@ function LiquidacionGrifero() {
                 </span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Hora de apertura:</span>
+                <span className="text-sm text-gray-600">Registro — hora de apertura:</span>
                 <span className="text-sm font-medium text-gray-900">
                   {format(new Date(), 'HH:mm')}
                 </span>

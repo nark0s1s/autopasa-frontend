@@ -298,6 +298,7 @@ export default function ConsolidacionLiquidacionPage() {
                       </th>
                       <th className="p-3">Turno grifero</th>
                       <th className="p-3">Liquidación / tipo</th>
+                      <th className="p-3">Fecha turno</th>
                       <th className="p-3">Grifero</th>
                       <th className="p-3 text-right">Efect. esperado</th>
                       <th className="p-3 text-right">Efect. entregado</th>
@@ -306,13 +307,13 @@ export default function ConsolidacionLiquidacionPage() {
                   <tbody>
                     {loadingCerrados ? (
                       <tr>
-                        <td colSpan={6} className="p-8 text-center text-gray-500">
+                        <td colSpan={7} className="p-8 text-center text-gray-500">
                           Cargando…
                         </td>
                       </tr>
                     ) : cerrados.length === 0 ? (
                       <tr>
-                        <td colSpan={6} className="p-8 text-center text-gray-500">
+                        <td colSpan={7} className="p-8 text-center text-gray-500">
                           No hay turnos cerrados pendientes de consolidar en este rango.
                         </td>
                       </tr>
@@ -333,10 +334,16 @@ export default function ConsolidacionLiquidacionPage() {
                               {row.turno_config_codigo} — {row.turno_config_nombre}
                             </div>
                             <div className="text-xs text-gray-400">
+                              Fecha liq.:{' '}
                               {row.liquidacion_fecha
                                 ? format(new Date(row.liquidacion_fecha + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })
                                 : '—'}
                             </div>
+                          </td>
+                          <td className="p-3 text-sm tabular-nums">
+                            {row.fecha_turno
+                              ? format(new Date(row.fecha_turno + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })
+                              : '—'}
                           </td>
                           <td className="p-3">{row.empleado_nombre}</td>
                           <td className="p-3 text-right tabular-nums">
@@ -530,6 +537,12 @@ export default function ConsolidacionLiquidacionPage() {
                     <span className="text-xs text-gray-500">{t.turno_config_etiqueta}</span>
                   </div>
                   <div className="text-xs text-gray-600">{t.empleado_nombre}</div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    Fecha del turno:{' '}
+                    {t.fecha_turno
+                      ? format(new Date(t.fecha_turno + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })
+                      : '—'}
+                  </div>
                   <div className="flex gap-4 mt-1 text-xs">
                     <span>Esp. S/ {Number(t.efectivo_esperado || 0).toFixed(2)}</span>
                     <span>Ent. S/ {Number(t.efectivo_entregado || 0).toFixed(2)}</span>
