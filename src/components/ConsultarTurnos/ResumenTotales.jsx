@@ -16,6 +16,14 @@ export function ResumenTotales({ totales }) {
           <p className="text-lg font-bold text-orange-600">S/ {totales.totalPOS.toFixed(2)}</p>
         </div>
         <div className="card p-3">
+          <p className="text-xs text-gray-600 mb-1">Venta GNV</p>
+          <p className="text-lg font-bold text-teal-700">S/ {totales.totalVentaGnv.toFixed(2)}</p>
+        </div>
+        <div className="card p-3">
+          <p className="text-xs text-gray-600 mb-1">Financiación GNV</p>
+          <p className="text-lg font-bold text-cyan-800">S/ {totales.totalFinanciacionGnv.toFixed(2)}</p>
+        </div>
+        <div className="card p-3">
           <p className="text-xs text-gray-600 mb-1">Guía crédito</p>
           <p className="text-lg font-bold text-amber-700">S/ {totales.totalGuiaCredito.toFixed(2)}</p>
         </div>
@@ -46,13 +54,21 @@ export function ResumenTotales({ totales }) {
           Totalizador — efectivo esperado en caja
         </h3>
         <p className="text-xs text-gray-600 mb-3">
-          Combustible + productos (venta registrada) menos lo que no queda como efectivo en caja (POS, guías
+          Combustible + productos + venta GNV + financiación GNV, menos lo que no queda en caja (POS, guías
           crédito/remisión, descuentos, vales, gastos, depósitos en caja).
         </p>
         <div className="space-y-1.5 text-sm max-w-lg">
           <div className="flex justify-between gap-4">
             <span className="text-gray-700">Venta combustible + productos</span>
             <span className="font-semibold tabular-nums">S/ {totales.baseVentas.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between gap-4 text-teal-800">
+            <span>(+) Venta GNV</span>
+            <span className="font-semibold tabular-nums">S/ {totales.totalVentaGnv.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between gap-4 text-cyan-800">
+            <span>(+) Financiación GNV</span>
+            <span className="font-semibold tabular-nums">S/ {totales.totalFinanciacionGnv.toFixed(2)}</span>
           </div>
           <div className="flex justify-between gap-4 text-red-700">
             <span>(−) Ventas POS (tarjeta)</span>

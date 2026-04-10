@@ -297,6 +297,34 @@ export const eliminarVentaPOS = async (ventaId) => {
   await api.delete(`${API_TURNOS_LIQ}/grifero/ventas-pos/${ventaId}`)
 }
 
+export const agregarVentaGnv = async (turnoId, data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/ventas-gnv`, data)
+  return response.data
+}
+
+export const actualizarVentaGnv = async (rowId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/grifero/ventas-gnv/${rowId}`, data)
+  return response.data
+}
+
+export const eliminarVentaGnv = async (rowId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/ventas-gnv/${rowId}`)
+}
+
+export const agregarFinanciacionGnv = async (turnoId, data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/financiaciones-gnv`, data)
+  return response.data
+}
+
+export const actualizarFinanciacionGnv = async (rowId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/grifero/financiaciones-gnv/${rowId}`, data)
+  return response.data
+}
+
+export const eliminarFinanciacionGnv = async (rowId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/financiaciones-gnv/${rowId}`)
+}
+
 export const agregarVentaGuiaCreditoTurno = async (turnoId, data) => {
   const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/ventas-guia-credito`, data)
   return response.data
