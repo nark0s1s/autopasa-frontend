@@ -10,6 +10,7 @@ import {
   Receipt,
   DollarSign,
   Percent,
+  Flame,
 } from 'lucide-react'
 import { downloadTurnoGriferoReportePdf } from '../../utils/api'
 import { formatearFechaTurno } from '../../utils/formatearFechaTurno'
@@ -20,6 +21,7 @@ import { ModalCierre } from './Modals/ModalCierre'
 import { TabLecturas } from './Tabs/TabLecturas'
 import { TabVentas } from './Tabs/TabVentas'
 import { TabPOS } from './Tabs/TabPOS'
+import { TabGNV } from './Tabs/TabGNV'
 import { TabVentasGuia } from './Tabs/TabVentasGuia'
 import { TabVales } from './Tabs/TabVales'
 import { TabDescuentos } from './Tabs/TabDescuentos'
@@ -29,6 +31,7 @@ const TAB_CONFIG = [
   { id: 'lecturas', label: 'Lecturas Contómetro', icon: Gauge },
   { id: 'ventas', label: 'Ventas Productos', icon: ShoppingCart },
   { id: 'pos', label: 'Ventas POS', icon: CreditCard },
+  { id: 'gnv', label: 'GNV', icon: Flame },
   { id: 'guia_credito', label: 'Guía crédito', icon: FileText },
   { id: 'guia_remision', label: 'Guía remisión', icon: FileText },
   { id: 'vales', label: 'Vales', icon: Receipt },
@@ -191,6 +194,9 @@ export function TurnoDetalle({
             )}
             {tabActiva === 'pos' && (
               <TabPOS turno={turno} onReload={onReload} onMensaje={onMensaje} />
+            )}
+            {tabActiva === 'gnv' && (
+              <TabGNV turno={turno} onReload={onReload} onMensaje={onMensaje} />
             )}
             {tabActiva === 'guia_credito' && (
               <TabVentasGuia turno={turno} tipo="credito" onReload={onReload} onMensaje={onMensaje} />

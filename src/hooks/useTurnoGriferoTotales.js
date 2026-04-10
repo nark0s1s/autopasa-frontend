@@ -27,10 +27,20 @@ export function useTurnoGriferoTotales(turno) {
     const totalVales = parseFloat(turno.total_vales || 0)
     const totalGastos = parseFloat(turno.total_gastos_autorizados || 0)
     const totalDepositos = parseFloat(turno.total_depositos_caja || 0)
+    const ventasGnv = turno.ventas_gnv ?? []
+    const finsGnv = turno.financiaciones_gnv ?? []
+    const totalVentaGnv = ventasGnv.reduce((s, r) => s + parseFloat(r.venta_total_soles || 0), 0)
+    const totalFinanciacionGnv = finsGnv.reduce((s, r) => s + parseFloat(r.monto_soles || 0), 0)
+    const totalVentaGnvCab =
+      parseFloat(turno.total_venta_gnv || 0) || totalVentaGnv
+    const totalFinanciacionGnvCab =
+      parseFloat(turno.total_financiacion_gnv || 0) || totalFinanciacionGnv
     const efectivoEsperado = parseFloat(turno.efectivo_esperado || 0)
     const baseVentas = totalCombustible + totalProductos
     const efectivoCalculado =
-      baseVentas -
+      baseVentas +
+      totalVentaGnvCab +
+      totalFinanciacionGnvCab -
       totalPOS -
       totalCredito -
       totalDescuentos -
@@ -50,6 +60,8 @@ export function useTurnoGriferoTotales(turno) {
       totalVales,
       totalGastos,
       totalDepositos,
+      totalVentaGnv: totalVentaGnvCab,
+      totalFinanciacionGnv: totalFinanciacionGnvCab,
       efectivoEsperado,
       efectivoCalculado,
       diferenciaFormula: Math.abs(efectivoCalculado - efectivoEsperado),
