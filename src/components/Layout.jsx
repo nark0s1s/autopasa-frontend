@@ -60,7 +60,7 @@ function pathIsActive(pathname, path) {
   return pathname === path
 }
 
-function MenuBranch({ nodes, depth, sidebarOpen, location }) {
+function MenuBranch({ nodes, depth, sidebarOpen, location, navigate }) {
   if (!nodes?.length) return null
   return (
     <>
@@ -87,6 +87,7 @@ function MenuBranch({ nodes, depth, sidebarOpen, location }) {
                   depth={depth + 1}
                   sidebarOpen={sidebarOpen}
                   location={location}
+                  navigate={navigate}
                 />
               </div>
             </div>
@@ -99,6 +100,12 @@ function MenuBranch({ nodes, depth, sidebarOpen, location }) {
             <Link
               key={node.id}
               to={path}
+              onClick={(e) => {
+                if (isActive && navigate) {
+                  e.preventDefault()
+                  navigate(path, { replace: true, state: { __menuReselect: Date.now() } })
+                }
+              }}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                 isActive ? 'bg-primary-50 text-primary-600' : 'text-gray-700 hover:bg-gray-100'
               }`}
@@ -204,6 +211,7 @@ function Layout({ children }) {
               depth={0}
               sidebarOpen={sidebarOpen}
               location={location}
+              navigate={navigate}
             />
           )}
         </nav>
