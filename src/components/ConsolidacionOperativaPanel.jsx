@@ -47,9 +47,24 @@ const TAB_CONFIG = [
   { id: 'cobranzas', label: 'Cobranzas', icon: Wallet, readOnly: false },
 ]
 
-function fmt2(n) {
+/** Montos en soles (efectivo): separador de miles, 2 decimales (es-PE). */
+function fmtMonto(n) {
   const x = Number(n)
-  return Number.isFinite(x) ? x.toFixed(2) : '0.00'
+  if (!Number.isFinite(x)) return '0.00'
+  return new Intl.NumberFormat('es-PE', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(x)
+}
+
+/** Cantidades (unidades, galones en tablas auxiliares), no soles. */
+function fmtCantidad(n) {
+  const x = Number(n)
+  if (!Number.isFinite(x)) return '0'
+  return new Intl.NumberFormat('es-PE', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 3,
+  }).format(x)
 }
 
 function toYMD(d) {
@@ -257,7 +272,7 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
           </div>
           <div className="rounded-lg bg-teal-50 border border-teal-100 px-3 py-2">
             <p className="text-xs text-teal-900 font-medium">Monto cobrado (factura − retención)</p>
-            <p className="text-lg font-bold text-teal-800">S/ {fmt2(neto)}</p>
+            <p className="text-lg font-bold text-teal-800">S/ {fmtMonto(neto)}</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Concepto (opcional)</label>
@@ -542,7 +557,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         >
                           <div>
                             <p className="text-xs text-gray-500">{r.empleado_nombre ? r.empleado_nombre : '—'}</p>
-                            <p className="font-semibold text-teal-900">S/ {fmt2(r.monto)}</p>
+                            <p className="font-semibold text-teal-900">S/ {fmtMonto(r.monto)}</p>
                             {r.concepto && <p className="text-xs text-gray-700">{r.concepto}</p>}
                           </div>
                           <button
@@ -567,7 +582,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
           <div className="flex justify-between items-center mb-4">
             <p className="text-sm text-gray-600">
               Total:{' '}
-              <strong className="text-gray-900">S/ {fmt2(totales.sumVs)}</strong>
+              <strong className="text-gray-900">S/ {fmtMonto(totales.sumVs)}</strong>
             </p>
             {pendiente && (
               <button
@@ -592,7 +607,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         ? format(new Date(String(r.fecha_venta).slice(0, 10) + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })
                         : '—'}
                     </p>
-                    <p className="font-semibold">S/ {fmt2(r.monto)}</p>
+                    <p className="font-semibold">S/ {fmtMonto(r.monto)}</p>
                     {r.empleado_nombre && <p className="text-xs text-gray-600">Registró: {r.empleado_nombre}</p>}
                     {r.concepto && <p className="text-sm text-gray-700">{r.concepto}</p>}
                     {r.observaciones && <p className="text-xs text-gray-500">{r.observaciones}</p>}
@@ -679,9 +694,9 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                           {r.cliente_razon_social ? ` · ${r.cliente_razon_social}` : ''}
                           {r.empleado_nombre ? ` · ${r.empleado_nombre}` : ''}
                         </p>
-                        <p className="font-semibold text-cyan-900">Neto S/ {fmt2(neto)}</p>
+                        <p className="font-semibold text-cyan-900">Neto S/ {fmtMonto(neto)}</p>
                         <p className="text-xs text-gray-600">
-                          Fact. S/ {fmt2(r.monto_factura)} · Ret. S/ {fmt2(r.monto_retencion)}
+                          Fact. S/ {fmtMonto(r.monto_factura)} · Ret. S/ {fmtMonto(r.monto_retencion)}
                         </p>
                       </div>
                       <button type="button" className="btn btn-primary btn-sm shrink-0" onClick={() => vincularCobranzaDisp(r.id)}>
@@ -701,10 +716,10 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
             <div className="text-sm text-gray-600 space-y-0.5">
               <p>
                 Σ Monto cobrado (neto):{' '}
-                <strong className="text-gray-900">S/ {fmt2(totales.sumNeto)}</strong>
+                <strong className="text-gray-900">S/ {fmtMonto(totales.sumNeto)}</strong>
               </p>
               <p className="text-xs text-gray-500">
-                Facturas S/ {fmt2(totales.sumFactura)} · Retenciones S/ {fmt2(totales.sumRet)}
+                Facturas S/ {fmtMonto(totales.sumFactura)} · Retenciones S/ {fmtMonto(totales.sumRet)}
               </p>
             </div>
             {pendiente && (
@@ -755,12 +770,12 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                       {r.empleado_nombre && <p className="text-xs text-gray-600">Registró: {r.empleado_nombre}</p>}
                       <p>
                         <span className="text-gray-600">Monto factura:</span>{' '}
-                        <span className="font-semibold">S/ {fmt2(r.monto_factura)}</span>
+                        <span className="font-semibold">S/ {fmtMonto(r.monto_factura)}</span>
                         <span className="text-gray-500 mx-2">·</span>
                         <span className="text-gray-600">Retención:</span>{' '}
-                        <span className="font-medium">S/ {fmt2(r.monto_retencion)}</span>
+                        <span className="font-medium">S/ {fmtMonto(r.monto_retencion)}</span>
                       </p>
-                      <p className="text-teal-800 font-semibold">Monto cobrado: S/ {fmt2(neto)}</p>
+                      <p className="text-teal-800 font-semibold">Monto cobrado: S/ {fmtMonto(neto)}</p>
                       {r.concepto && <p className="text-gray-700">{r.concepto}</p>}
                       {r.observaciones && <p className="text-xs text-gray-500">{r.observaciones}</p>}
                     </div>
@@ -867,34 +882,34 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <div className="bg-white rounded-lg p-3 border border-amber-100">
                   <p className="text-xs text-gray-600">Combustible</p>
-                  <p className="text-lg font-bold text-amber-900">S/ {fmt2(totales.sumCombustibleSoles)}</p>
+                  <p className="text-lg font-bold text-amber-900">S/ {fmtMonto(totales.sumCombustibleSoles)}</p>
                   <p className="text-[10px] text-gray-500 mt-1 leading-tight">
                     Σ galones {Number(totales.sumCombustibleGalones || 0).toFixed(3)}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-orange-100">
                   <p className="text-xs text-gray-600">GNV (sin financiación)</p>
-                  <p className="text-lg font-bold text-orange-900">S/ {fmt2(totales.sumGnvCuadre)}</p>
+                  <p className="text-lg font-bold text-orange-900">S/ {fmtMonto(totales.sumGnvCuadre)}</p>
                   <p className="text-[10px] text-gray-500 mt-1 leading-tight">
-                    Financiación (no en cuadre): S/ {fmt2(totales.sumFinanciacionGnv)}
+                    Financiación (no en cuadre): S/ {fmtMonto(totales.sumFinanciacionGnv)}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-violet-100">
                   <p className="text-xs text-gray-600">Venta productos</p>
-                  <p className="text-lg font-bold text-violet-900">S/ {fmt2(totales.sumProductosSoles)}</p>
+                  <p className="text-lg font-bold text-violet-900">S/ {fmtMonto(totales.sumProductosSoles)}</p>
                   <p className="text-[10px] text-gray-500 mt-1 leading-tight">
-                    Σ cantidad {fmt2(totales.sumProductosCantidad)} u.
+                    Σ cantidad {fmtCantidad(totales.sumProductosCantidad)} u.
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-teal-100">
                   <p className="text-xs text-gray-600">Venta servicentro</p>
-                  <p className="text-lg font-bold text-teal-800">S/ {fmt2(totales.sumVs)}</p>
+                  <p className="text-lg font-bold text-teal-800">S/ {fmtMonto(totales.sumVs)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-cyan-100">
                   <p className="text-xs text-gray-600">Cobranzas (neto)</p>
-                  <p className="text-lg font-bold text-cyan-900">S/ {fmt2(totales.sumNeto)}</p>
+                  <p className="text-lg font-bold text-cyan-900">S/ {fmtMonto(totales.sumNeto)}</p>
                   <p className="text-[10px] text-gray-500 mt-1 leading-tight">
-                    Fact. S/ {fmt2(totales.sumFactura)} · Ret. S/ {fmt2(totales.sumRet)}
+                    Fact. S/ {fmtMonto(totales.sumFactura)} · Ret. S/ {fmtMonto(totales.sumRet)}
                   </p>
                 </div>
               </div>
@@ -946,14 +961,14 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                                 <tr key={row.producto_id} className="border-t border-gray-100">
                                   <td className="p-3">{row.producto_nombre}</td>
                                   <td className="p-3 text-right tabular-nums">{Number(row.total_galones || 0).toFixed(3)}</td>
-                                  <td className="p-3 text-right tabular-nums">S/ {fmt2(row.total_soles)}</td>
+                                  <td className="p-3 text-right tabular-nums">S/ {fmtMonto(row.total_soles)}</td>
                                 </tr>
                               ))}
                               {totales.sumGnvCuadre > 0 && (
                                 <tr className="border-t border-gray-100 bg-orange-50/30">
                                   <td className="p-3">GNV (sin financiación)</td>
                                   <td className="p-3 text-right text-gray-400">—</td>
-                                  <td className="p-3 text-right tabular-nums">S/ {fmt2(totales.sumGnvCuadre)}</td>
+                                  <td className="p-3 text-right tabular-nums">S/ {fmtMonto(totales.sumGnvCuadre)}</td>
                                 </tr>
                               )}
                             </>
@@ -972,41 +987,41 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                               : '—'}
                           </p>
                         </div>
-                        <span className="text-xl font-bold text-emerald-800 tabular-nums">+ S/ {fmt2(totales.subtotalCombustibleYGnv)}</span>
+                        <span className="text-xl font-bold text-emerald-800 tabular-nums">+ S/ {fmtMonto(totales.subtotalCombustibleYGnv)}</span>
                       </div>
                     )}
                   </section>
 
                   <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-4 flex flex-wrap justify-between gap-2 items-center shadow-sm">
                     <span className="font-semibold text-sky-950 text-base">Venta de productos</span>
-                    <span className="text-xl font-bold text-sky-800 tabular-nums">+ S/ {fmt2(totales.sumProductosSoles)}</span>
+                    <span className="text-xl font-bold text-sky-800 tabular-nums">+ S/ {fmtMonto(totales.sumProductosSoles)}</span>
                   </div>
 
                   <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-4 flex flex-wrap justify-between gap-2 items-center shadow-sm">
                     <span className="font-semibold text-sky-950 text-base">Venta servicentro</span>
-                    <span className="text-xl font-bold text-sky-800 tabular-nums">+ S/ {fmt2(totales.sumVs)}</span>
+                    <span className="text-xl font-bold text-sky-800 tabular-nums">+ S/ {fmtMonto(totales.sumVs)}</span>
                   </div>
 
                   <div className="rounded-lg border border-sky-200 bg-sky-50/70 p-4 flex flex-wrap justify-between gap-2 items-center shadow-sm">
                     <span className="font-semibold text-sky-950 text-base">Total cobranzas (neto)</span>
-                    <span className="text-xl font-bold text-sky-800 tabular-nums">+ S/ {fmt2(totales.sumNeto)}</span>
+                    <span className="text-xl font-bold text-sky-800 tabular-nums">+ S/ {fmtMonto(totales.sumNeto)}</span>
                   </div>
 
                   <div className="rounded-lg border border-red-100 bg-red-50/40 p-4 flex flex-wrap justify-between gap-2 items-center">
                     <span className="font-semibold text-red-900 text-base">Descuentos</span>
-                    <span className="text-xl font-bold text-red-700 tabular-nums">− S/ {fmt2(totales.sumDescuentosTurnos)}</span>
+                    <span className="text-xl font-bold text-red-700 tabular-nums">− S/ {fmtMonto(totales.sumDescuentosTurnos)}</span>
                   </div>
 
                   <div className="rounded-lg border border-red-100 bg-red-50/40 p-4 flex flex-wrap justify-between gap-2 items-center">
                     <span className="font-semibold text-red-900 text-base">Ventas al crédito</span>
-                    <span className="text-xl font-bold text-red-700 tabular-nums">− S/ {fmt2(totales.sumVentasCreditoTotal)}</span>
+                    <span className="text-xl font-bold text-red-700 tabular-nums">− S/ {fmtMonto(totales.sumVentasCreditoTotal)}</span>
                   </div>
 
                   <div className="rounded-xl border-2 border-emerald-800 bg-emerald-700 p-5 sm:p-6 space-y-2 shadow-md">
                     <div className="flex flex-wrap justify-between gap-3 items-center">
                       <span className="text-base sm:text-lg font-bold text-white tracking-tight">Cuadre final</span>
                       <span className="text-2xl sm:text-3xl font-bold text-white tabular-nums drop-shadow-sm">
-                        S/ {fmt2(totales.cuadreFinal)}
+                        S/ {fmtMonto(totales.cuadreFinal)}
                       </span>
                     </div>
                     <p className="text-xs text-emerald-100/95 leading-relaxed border-t border-emerald-600/80 pt-3">
@@ -1056,7 +1071,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                           <tr key={row.producto_id} className="border-t border-gray-100">
                             <td className="p-3">{row.producto_nombre}</td>
                             <td className="p-3 text-right tabular-nums">{Number(row.total_galones || 0).toFixed(3)}</td>
-                            <td className="p-3 text-right tabular-nums">S/ {fmt2(row.total_soles)}</td>
+                            <td className="p-3 text-right tabular-nums">S/ {fmtMonto(row.total_soles)}</td>
                           </tr>
                         ))
                       )}
@@ -1066,7 +1081,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-900">
                           <td className="p-3">Total</td>
                           <td className="p-3 text-right tabular-nums">{Number(totales.sumCombustibleGalones || 0).toFixed(3)}</td>
-                          <td className="p-3 text-right tabular-nums">S/ {fmt2(totales.sumCombustibleSoles)}</td>
+                          <td className="p-3 text-right tabular-nums">S/ {fmtMonto(totales.sumCombustibleSoles)}</td>
                         </tr>
                       </tfoot>
                     )}
@@ -1096,8 +1111,8 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         (detalle.venta_productos_por_producto || []).map((row) => (
                           <tr key={row.producto_id} className="border-t border-gray-100">
                             <td className="p-3">{row.producto_nombre}</td>
-                            <td className="p-3 text-right tabular-nums">{fmt2(row.total_cantidad)}</td>
-                            <td className="p-3 text-right tabular-nums">S/ {fmt2(row.total_soles)}</td>
+                            <td className="p-3 text-right tabular-nums">{fmtCantidad(row.total_cantidad)}</td>
+                            <td className="p-3 text-right tabular-nums">S/ {fmtMonto(row.total_soles)}</td>
                           </tr>
                         ))
                       )}
@@ -1106,8 +1121,8 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                       <tfoot>
                         <tr className="border-t-2 border-gray-200 bg-gray-50 font-semibold text-gray-900">
                           <td className="p-3">Total</td>
-                          <td className="p-3 text-right tabular-nums">{fmt2(totales.sumProductosCantidad)}</td>
-                          <td className="p-3 text-right tabular-nums">S/ {fmt2(totales.sumProductosSoles)}</td>
+                          <td className="p-3 text-right tabular-nums">{fmtCantidad(totales.sumProductosCantidad)}</td>
+                          <td className="p-3 text-right tabular-nums">S/ {fmtMonto(totales.sumProductosSoles)}</td>
                         </tr>
                       </tfoot>
                     )}
@@ -1139,7 +1154,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                                 <ul className="border border-teal-100 rounded-lg p-3 space-y-2 text-sm">
                                   {bloque.ventas_gnv.map((v) => (
                                     <li key={v.id} className="flex justify-between gap-2 border-b border-teal-50 last:border-0 pb-2 last:pb-0">
-                                      <span className="tabular-nums font-medium">S/ {fmt2(v.venta_total_soles)}</span>
+                                      <span className="tabular-nums font-medium">S/ {fmtMonto(v.venta_total_soles)}</span>
                                       {v.observaciones ? (
                                         <span className="text-gray-600 text-right text-xs shrink-0 max-w-[60%]">{v.observaciones}</span>
                                       ) : null}
@@ -1154,7 +1169,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                                 <ul className="border border-cyan-100 rounded-lg p-3 space-y-2 text-sm">
                                   {bloque.financiaciones_gnv.map((f) => (
                                     <li key={f.id} className="flex justify-between gap-2 border-b border-cyan-50 last:border-0 pb-2 last:pb-0">
-                                      <span className="tabular-nums font-medium">S/ {fmt2(f.monto_soles)}</span>
+                                      <span className="tabular-nums font-medium">S/ {fmtMonto(f.monto_soles)}</span>
                                       {f.observaciones ? (
                                         <span className="text-gray-600 text-right text-xs shrink-0 max-w-[60%]">{f.observaciones}</span>
                                       ) : null}
@@ -1170,15 +1185,15 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         <p className="font-semibold text-gray-900">Totales consolidación (GNV)</p>
                         <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 tabular-nums">
                           <span className="text-gray-600">Venta GNV</span>
-                          <span className="font-medium text-teal-800">S/ {fmt2(totales.sumVentaGnv)}</span>
+                          <span className="font-medium text-teal-800">S/ {fmtMonto(totales.sumVentaGnv)}</span>
                         </div>
                         <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 tabular-nums">
                           <span className="text-gray-600">Financiación GNV</span>
-                          <span className="font-medium text-cyan-900">S/ {fmt2(totales.sumFinanciacionGnv)}</span>
+                          <span className="font-medium text-cyan-900">S/ {fmtMonto(totales.sumFinanciacionGnv)}</span>
                         </div>
                         <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 pt-2 border-t border-gray-200 tabular-nums font-semibold text-gray-900">
                           <span>Total (suma al efectivo)</span>
-                          <span>S/ {fmt2(totales.sumGnvEfectivo)}</span>
+                          <span>S/ {fmtMonto(totales.sumGnvEfectivo)}</span>
                         </div>
                       </div>
                     </>
@@ -1200,7 +1215,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                             {bloque.ventas_pos.map((v) => (
                               <li key={v.id} className="text-sm flex justify-between gap-2 border-b border-gray-50 last:border-0 pb-2 last:pb-0">
                                 <span>
-                                  S/ {fmt2(v.monto)} · {v.tipo_tarjeta} · Op. {v.numero_operacion}
+                                  S/ {fmtMonto(v.monto)} · {v.tipo_tarjeta} · Op. {v.numero_operacion}
                                 </span>
                               </li>
                             ))}
@@ -1227,7 +1242,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                             <ul className="border border-amber-100 rounded-lg p-2 space-y-1 text-sm">
                               {bloque.guias_credito.map((g) => (
                                 <li key={g.id}>
-                                  S/ {fmt2(g.monto)}
+                                  S/ {fmtMonto(g.monto)}
                                   {g.numero_documento ? ` · Doc. ${g.numero_documento}` : ''}
                                 </li>
                               ))}
@@ -1240,7 +1255,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                             <ul className="border border-yellow-100 rounded-lg p-2 space-y-1 text-sm">
                               {bloque.guias_remision.map((g) => (
                                 <li key={g.id}>
-                                  S/ {fmt2(g.monto)}
+                                  S/ {fmtMonto(g.monto)}
                                   {g.numero_documento ? ` · Doc. ${g.numero_documento}` : ''}
                                 </li>
                               ))}
