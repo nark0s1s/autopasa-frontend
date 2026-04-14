@@ -21,6 +21,8 @@ import SurtidoresPage from './pages/mantenimiento/SurtidoresPage'
 import ContometrosPage from './pages/mantenimiento/ContometrosPage'
 import TurnosConfigPage from './pages/mantenimiento/TurnosConfigPage'
 import TurnoConfigIslaPage from './pages/mantenimiento/TurnoConfigIslaPage'
+import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
+import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
 
 // Componente para rutas protegidas
 function PrivateRoute({ children }) {
@@ -226,6 +228,26 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <TurnoConfigIslaPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/operaciones/ventas-servicentro"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <OperacionesServicentroPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/operaciones/cobranzas"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <OperacionesCobranzasPage />
                 </Layout>
               </PrivateRoute>
             }

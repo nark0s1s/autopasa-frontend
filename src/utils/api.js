@@ -157,12 +157,23 @@ export const getTurnoById = async (turnoId) => {
 
 /** Turnos de grifero cerrados sin consolidar (filtro por fecha de liquidación). */
 export const getGriferosCerradosParaConsolidar = async (params = {}) => {
-  const response = await api.get(`${API_TURNOS_LIQ}/grifero/cerrados-para-consolidar`, { params })
-  return response.data
+  const path = `${API_TURNOS_LIQ}/grifero/cerrados-para-consolidar`
+  console.info('[Consolidación liquidación][API] GET', path, { params })
+  const response = await api.get(path, { params })
+  const data = response.data
+  const n = Array.isArray(data) ? data.length : null
+  console.info('[Consolidación liquidación][API] GET cerrados-para-consolidar → OK', {
+    filas: n,
+    tipoDato: Array.isArray(data) ? 'array' : typeof data,
+    muestraIds: Array.isArray(data) ? data.slice(0, 5).map((r) => r?.id) : null,
+  })
+  return data
 }
 
-export const listarConsolidacionesLiquidacion = async (limit = 100) => {
-  const response = await api.get(`${API_TURNOS_LIQ}/consolidaciones`, { params: { limit } })
+export const listarConsolidacionesLiquidacion = async (limit = 100, estado = null) => {
+  const params = { limit }
+  if (estado) params.estado = estado
+  const response = await api.get(`${API_TURNOS_LIQ}/consolidaciones`, { params })
   return response.data
 }
 
@@ -171,9 +182,140 @@ export const obtenerConsolidacionLiquidacion = async (id) => {
   return response.data
 }
 
-export const crearConsolidacionLiquidacion = async (payload) => {
-  const response = await api.post(`${API_TURNOS_LIQ}/consolidaciones`, payload)
+export const obtenerConsolidacionVistaOperativa = async (id) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/consolidaciones/${id}/vista-operativa`)
   return response.data
+}
+
+export const listarTurnosLiquidacionReferenciaConsolidacion = async (consolidacionId) => {
+  const response = await api.get(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/turnos-liquidacion-referencia`
+  )
+  return response.data
+}
+
+export const listarVentasServicentroDisponiblesConsolidacion = async (consolidacionId) => {
+  const response = await api.get(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/ventas-servicentro/disponibles`
+  )
+  return response.data
+}
+
+export const listarCobranzasDisponiblesConsolidacion = async (consolidacionId) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/cobranzas/disponibles`)
+  return response.data
+}
+
+export const vincularVentaServicentroConsolidacion = async (consolidacionId, rowId, body = {}) => {
+  const response = await api.post(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/ventas-servicentro/${rowId}/vincular`,
+    body
+  )
+  return response.data
+}
+
+export const vincularCobranzaConsolidacion = async (consolidacionId, rowId, body = {}) => {
+  const response = await api.post(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/cobranzas/${rowId}/vincular`,
+    body
+  )
+  return response.data
+}
+
+export const cerrarConsolidacionLiquidacion = async (id) => {
+  const response = await api.patch(`${API_TURNOS_LIQ}/consolidaciones/${id}/cerrar`)
+  return response.data
+}
+
+export const crearConsolidacionVentaServicentro = async (consolidacionId, data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/ventas-servicentro`, data)
+  return response.data
+}
+
+export const actualizarConsolidacionVentaServicentro = async (rowId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/consolidaciones/ventas-servicentro/${rowId}`, data)
+  return response.data
+}
+
+export const eliminarConsolidacionVentaServicentro = async (rowId) => {
+  await api.delete(`${API_TURNOS_LIQ}/consolidaciones/ventas-servicentro/${rowId}`)
+}
+
+export const crearConsolidacionCobranza = async (consolidacionId, data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/cobranzas`, data)
+  return response.data
+}
+
+export const actualizarConsolidacionCobranza = async (rowId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/consolidaciones/cobranzas/${rowId}`, data)
+  return response.data
+}
+
+export const eliminarConsolidacionCobranza = async (rowId) => {
+  await api.delete(`${API_TURNOS_LIQ}/consolidaciones/cobranzas/${rowId}`)
+}
+
+export const listarVentasServicentroPendientes = async (params = {}) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/operaciones/ventas-servicentro/pendientes`, { params })
+  return response.data
+}
+
+export const crearVentaServicentroPendiente = async (data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/operaciones/ventas-servicentro`, data)
+  return response.data
+}
+
+export const actualizarVentaServicentroPendiente = async (rowId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/operaciones/ventas-servicentro/${rowId}`, data)
+  return response.data
+}
+
+export const eliminarVentaServicentroPendiente = async (rowId) => {
+  await api.delete(`${API_TURNOS_LIQ}/operaciones/ventas-servicentro/${rowId}`)
+}
+
+export const listarCobranzasPendientes = async (params = {}) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/operaciones/cobranzas/pendientes`, { params })
+  return response.data
+}
+
+export const crearCobranzaPendiente = async (data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/operaciones/cobranzas`, data)
+  return response.data
+}
+
+export const actualizarCobranzaPendiente = async (rowId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/operaciones/cobranzas/${rowId}`, data)
+  return response.data
+}
+
+export const eliminarCobranzaPendiente = async (rowId) => {
+  await api.delete(`${API_TURNOS_LIQ}/operaciones/cobranzas/${rowId}`)
+}
+
+export const crearConsolidacionLiquidacion = async (payload) => {
+  const path = `${API_TURNOS_LIQ}/consolidaciones`
+  console.info('[Consolidación liquidación][API] POST', path, {
+    payload,
+    nota: 'Este POST crea el registro de consolidación con los turno_cabecera_grifero_ids enviados.',
+  })
+  try {
+    const response = await api.post(path, payload)
+    console.info('[Consolidación liquidación][API] POST consolidaciones → OK', {
+      id: response.data?.id,
+      codigo: response.data?.codigo,
+      cantidad_turnos: response.data?.cantidad_turnos,
+      estado: response.data?.estado,
+    })
+    return response.data
+  } catch (e) {
+    console.error('[Consolidación liquidación][API] POST consolidaciones → ERROR', {
+      status: e.response?.status,
+      detail: e.response?.data?.detail ?? e.response?.data,
+      message: e.message,
+    })
+    throw e
+  }
 }
 
 /** Descarga PDF de liquidación del turno grifero (rubros / sumarización). */

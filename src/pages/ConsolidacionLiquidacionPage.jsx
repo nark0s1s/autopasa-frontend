@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
   CheckCircle,
@@ -6,18 +7,17 @@ import {
   RefreshCw,
   Landmark,
   ListOrdered,
-  X,
   CalendarRange,
-  FileText,
 } from 'lucide-react'
 import {
   getGriferosCerradosParaConsolidar,
   listarConsolidacionesLiquidacion,
-  obtenerConsolidacionLiquidacion,
   crearConsolidacionLiquidacion,
-  downloadConsolidacionReportePdf,
+  listarVentasServicentroPendientes,
+  listarCobranzasPendientes,
 } from '../utils/api'
 import TabLiquidacionPorTipoTurno from './TabLiquidacionPorTipoTurno'
+import { ConsolidacionOperativaPanel } from '../components/ConsolidacionOperativaPanel'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -27,8 +27,13 @@ function toYMD(d) {
   return new Date(x.getTime() - o).toISOString().split('T')[0]
 }
 
+/** Prefijo para filtrar en consola del navegador (F12 → Consola). */
+const LOG_CONS = '[Consolidación liquidación]'
+
 export default function ConsolidacionLiquidacionPage() {
   const { user } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
   const [tab, setTab] = useState('consolidacion')
 
   const [fechaDesde, setFechaDesde] = useState(() => {
@@ -43,11 +48,22 @@ export default function ConsolidacionLiquidacionPage() {
   const [selected, setSelected] = useState(() => new Set())
   const [historial, setHistorial] = useState([])
   const [loadingHist, setLoadingHist] = useState(false)
+  const [pendientes, setPendientes] = useState([])
+  const [loadingPend, setLoadingPend] = useState(false)
+  const [panelConsolidacionId, setPanelConsolidacionId] = useState(null)
   const [mensaje, setMensaje] = useState(null)
   const [modalObs, setModalObs] = useState(false)
   const [obsConsolidacion, setObsConsolidacion] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [detalle, setDetalle] = useState(null)
+  const [diasVentasOpciones, setDiasVentasOpciones] = useState([])
+  const [diasCobranzasOpciones, setDiasCobranzasOpciones] = useState([])
+  const [selDiasVentas, setSelDiasVentas] = useState(() => new Set())
+  const [selDiasCobranzas, setSelDiasCobranzas] = useState(() => new Set())
+  const [cargandoDiasPend, setCargandoDiasPend] = useState(false)
+  const tabRef = useRef(tab)
+  useEffect(() => {
+    tabRef.current = tab
+  }, [tab])
 
   const mostrarMensaje = useCallback((texto, tipo = 'success') => {
     setMensaje({ texto, tipo })
@@ -55,28 +71,68 @@ export default function ConsolidacionLiquidacionPage() {
     setTimeout(() => setMensaje(null), duracion)
   }, [])
 
-  const cargarCerrados = useCallback(async () => {
-    try {
-      setLoadingCerrados(true)
-      const data = await getGriferosCerradosParaConsolidar({
-        fecha_desde: fechaDesde || undefined,
-        fecha_hasta: fechaHasta || undefined,
+  const cargarCerrados = useCallback(
+    async (avisoListaActualizada = false, motivo = 'sin detalle') => {
+      console.info(LOG_CONS, 'cargarCerrados → inicio', {
+        motivo,
+        avisoListaActualizada,
+        fechaDesde,
+        fechaHasta,
+        nota: 'Solo lista turnos elegibles (GET). No crea consolidación.',
       })
-      setCerrados(Array.isArray(data) ? data : [])
-      setSelected(new Set())
-    } catch (e) {
-      console.error(e)
-      mostrarMensaje(e.response?.data?.detail || 'Error al cargar turnos cerrados', 'error')
-      setCerrados([])
-    } finally {
-      setLoadingCerrados(false)
-    }
-  }, [fechaDesde, fechaHasta, mostrarMensaje])
+      try {
+        setLoadingCerrados(true)
+        const data = await getGriferosCerradosParaConsolidar({
+          fecha_desde: fechaDesde || undefined,
+          fecha_hasta: fechaHasta || undefined,
+        })
+        const rows = Array.isArray(data) ? data : []
+        console.info(LOG_CONS, 'cargarCerrados → datos recibidos', {
+          filas: rows.length,
+          idsEnLista: rows.map((r) => r.id),
+          codigos: rows.map((r) => r.codigo),
+        })
+        setCerrados(rows)
+        const validIds = new Set(rows.map((r) => r.id))
+        setSelected((prev) => {
+          const next = new Set()
+          for (const id of prev) {
+            if (validIds.has(id)) next.add(id)
+          }
+          const quitados = prev.size - next.size
+          if (quitados > 0) {
+            console.info(LOG_CONS, 'Selección: quitados del Set por ya no estar en el listado', {
+              quitados,
+              antes: [...prev],
+              despues: [...next],
+            })
+          }
+          console.info(LOG_CONS, 'Selección actual (ids de turno_cabecera_grifero)', {
+            cantidad: next.size,
+            ids: [...next],
+          })
+          return next
+        })
+        if (avisoListaActualizada) {
+          mostrarMensaje('Lista de turnos actualizada')
+        }
+        console.info(LOG_CONS, 'cargarCerrados → fin OK')
+      } catch (e) {
+        console.error(LOG_CONS, 'cargarCerrados → error', e)
+        mostrarMensaje(e.response?.data?.detail || 'Error al cargar turnos cerrados', 'error')
+        setCerrados([])
+        setSelected(new Set())
+      } finally {
+        setLoadingCerrados(false)
+      }
+    },
+    [fechaDesde, fechaHasta, mostrarMensaje]
+  )
 
   const cargarHistorial = useCallback(async () => {
     try {
       setLoadingHist(true)
-      const data = await listarConsolidacionesLiquidacion(80)
+      const data = await listarConsolidacionesLiquidacion(80, 'cerrada')
       setHistorial(Array.isArray(data) ? data : [])
     } catch (e) {
       console.error(e)
@@ -86,13 +142,66 @@ export default function ConsolidacionLiquidacionPage() {
     }
   }, [mostrarMensaje])
 
+  const cargarPendientes = useCallback(async () => {
+    try {
+      setLoadingPend(true)
+      const data = await listarConsolidacionesLiquidacion(100, 'pendiente')
+      setPendientes(Array.isArray(data) ? data : [])
+    } catch (e) {
+      console.error(e)
+      mostrarMensaje(e.response?.data?.detail || 'Error al cargar liquidaciones pendientes', 'error')
+    } finally {
+      setLoadingPend(false)
+    }
+  }, [mostrarMensaje])
+
   useEffect(() => {
-    if (tab === 'consolidacion') cargarCerrados()
+    if (tab === 'consolidacion') {
+      void cargarCerrados(false, 'useEffect: pestaña «Elegir turnos» activa o cambió cargarCerrados (p. ej. fechas)')
+    }
   }, [tab, cargarCerrados])
 
   useEffect(() => {
     if (tab === 'historial') cargarHistorial()
   }, [tab, cargarHistorial])
+
+  useEffect(() => {
+    if (tab === 'pendientes') cargarPendientes()
+  }, [tab, cargarPendientes])
+
+  useEffect(() => {
+    if (location.pathname !== '/turno-consolidacion-liquidacion') return
+    if (location.state?.__menuReselect == null) return
+    const yaEnConsolidacion = tabRef.current === 'consolidacion'
+    setTab('consolidacion')
+    if (yaEnConsolidacion) {
+      void cargarCerrados(true, 'menú lateral: misma ruta (ya en pestaña elegir turnos)')
+    }
+    navigate(location.pathname, { replace: true, state: {} })
+  }, [location.pathname, location.state, cargarCerrados, navigate])
+
+  const irATab = (id) => {
+    if (tab === id) {
+      if (id === 'consolidacion') {
+        console.warn(
+          LOG_CONS,
+          'Clic en la MISMA pestaña «Elegir turnos (cerrados)».',
+          'Esto solo vuelve a ejecutar GET /grifero/cerrados-para-consolidar.',
+          'NO llama POST /consolidaciones. Para crear: marque turnos y pulse «Crear consolidación» en la cabecera.'
+        )
+        void cargarCerrados(true, 're-clic en pestaña elegir turnos')
+      } else if (id === 'pendientes') {
+        console.info(LOG_CONS, 'Re-clic pestaña pendientes → recargar lista')
+        void cargarPendientes()
+      } else if (id === 'historial') {
+        console.info(LOG_CONS, 'Re-clic pestaña historial → recargar lista')
+        void cargarHistorial()
+      }
+      return
+    }
+    console.info(LOG_CONS, 'Cambio de pestaña', { de: tab, a: id })
+    setTab(id)
+  }
 
   const toggle = (id) => {
     setSelected((prev) => {
@@ -108,38 +217,90 @@ export default function ConsolidacionLiquidacionPage() {
     else setSelected(new Set(cerrados.map((c) => c.id)))
   }
 
-  const totalesSel = useMemo(() => {
-    let esp = 0
-    let ent = 0
-    for (const c of cerrados) {
-      if (!selected.has(c.id)) continue
-      esp += Number(c.efectivo_esperado || 0)
-      ent += Number(c.efectivo_entregado || 0)
+  const cargarDiasPendientesOperaciones = useCallback(async () => {
+    setCargandoDiasPend(true)
+    try {
+      const params = {
+        fecha_desde: fechaDesde || undefined,
+        fecha_hasta: fechaHasta || undefined,
+      }
+      const [ventas, cobranzas] = await Promise.all([
+        listarVentasServicentroPendientes({}),
+        listarCobranzasPendientes(params),
+      ])
+      const vArr = Array.isArray(ventas) ? ventas : []
+      const cArr = Array.isArray(cobranzas) ? cobranzas : []
+      const dv = [
+        ...new Set(
+          vArr.map((r) => (r.fecha_venta != null ? String(r.fecha_venta).slice(0, 10) : '')).filter(Boolean)
+        ),
+      ].sort()
+      const dc = [
+        ...new Set(
+          cArr.map((r) => (r.fecha_cobranza != null ? String(r.fecha_cobranza).slice(0, 10) : '')).filter(Boolean)
+        ),
+      ].sort()
+      setDiasVentasOpciones(dv)
+      setDiasCobranzasOpciones(dc)
+      setSelDiasVentas(new Set(dv))
+      setSelDiasCobranzas(new Set(dc))
+    } catch (e) {
+      console.error(LOG_CONS, 'cargarDiasPendientesOperaciones', e)
+      setDiasVentasOpciones([])
+      setDiasCobranzasOpciones([])
+      setSelDiasVentas(new Set())
+      setSelDiasCobranzas(new Set())
+    } finally {
+      setCargandoDiasPend(false)
     }
-    return { esp, ent, dif: ent - esp }
-  }, [cerrados, selected])
+  }, [fechaDesde, fechaHasta])
 
   const abrirModalGuardar = () => {
+    const ids = Array.from(selected)
+    console.info(LOG_CONS, 'Crear consolidación (abrir modal)', {
+      cantidadSeleccionados: ids.length,
+      turno_cabecera_grifero_ids: ids,
+    })
     if (selected.size === 0) {
+      console.warn(LOG_CONS, 'Modal no abierto: ningún turno marcado')
       mostrarMensaje('Seleccione al menos un turno cerrado', 'error')
       return
     }
     setObsConsolidacion('')
     setModalObs(true)
+    void cargarDiasPendientesOperaciones()
+    console.info(LOG_CONS, 'Modal de confirmación abierto; al confirmar se hará POST /consolidaciones')
   }
 
   const confirmarConsolidacion = async () => {
+    const payload = {
+      turno_cabecera_grifero_ids: Array.from(selected),
+      observaciones: obsConsolidacion.trim() || null,
+      fechas_venta_servicentro: [...selDiasVentas].sort(),
+      fechas_cobranza: [...selDiasCobranzas].sort(),
+    }
+    console.info(LOG_CONS, 'confirmarConsolidacion → enviando POST /consolidaciones', payload)
     try {
       setGuardando(true)
-      await crearConsolidacionLiquidacion({
-        turno_cabecera_grifero_ids: Array.from(selected),
-        observaciones: obsConsolidacion.trim() || null,
-      })
+      const created = await crearConsolidacionLiquidacion(payload)
+      console.info(LOG_CONS, 'confirmarConsolidacion → respuesta backend', created)
       setModalObs(false)
-      mostrarMensaje('Consolidación registrada correctamente')
-      await cargarCerrados()
+      mostrarMensaje('Consolidación creada (pendiente). Complete venta servicentro y cobranzas, luego cierre cuando corresponda.')
+      await cargarCerrados(false, 'tras crear consolidación: refrescar turnos aún sin consolidar')
+      await cargarPendientes()
       await cargarHistorial()
+      setTab('pendientes')
+      if (created?.id) {
+        console.info(LOG_CONS, 'Abriendo panel operativo consolidación id=', created.id)
+        setPanelConsolidacionId(created.id)
+      } else {
+        console.warn(LOG_CONS, 'Respuesta sin id; no se abre panel', created)
+      }
     } catch (e) {
+      console.error(LOG_CONS, 'confirmarConsolidacion → fallo', {
+        status: e.response?.status,
+        detail: e.response?.data?.detail ?? e.response?.data,
+      })
       const d = e.response?.data?.detail
       mostrarMensaje(typeof d === 'string' ? d : e.message || 'Error al registrar', 'error')
     } finally {
@@ -147,35 +308,12 @@ export default function ConsolidacionLiquidacionPage() {
     }
   }
 
-  const verDetalle = async (id) => {
-    try {
-      const d = await obtenerConsolidacionLiquidacion(id)
-      setDetalle(d)
-    } catch (e) {
-      mostrarMensaje(e.response?.data?.detail || 'No se pudo cargar el detalle', 'error')
-    }
-  }
+  const abrirPanelConsolidacion = (id) => setPanelConsolidacionId(id)
 
-  const descargarPdfConsolidacion = async (id, codigo) => {
-    try {
-      await downloadConsolidacionReportePdf(id, codigo)
-    } catch (e) {
-      const d = e.response?.data
-      let msg = 'No se pudo generar el PDF'
-      if (d instanceof Blob) {
-        try {
-          const t = await d.text()
-          const j = JSON.parse(t)
-          msg = j.detail || msg
-        } catch {
-          /* ignore */
-        }
-      } else if (typeof e.response?.data?.detail === 'string') {
-        msg = e.response.data.detail
-      }
-      mostrarMensaje(msg, 'error')
-    }
-  }
+  const refrescarListasConsolidacion = useCallback(() => {
+    cargarPendientes()
+    cargarHistorial()
+  }, [cargarPendientes, cargarHistorial])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -191,14 +329,15 @@ export default function ConsolidacionLiquidacionPage() {
           </p>
           <nav className="flex gap-2 mt-4 flex-wrap">
             {[
-              { id: 'consolidacion', label: 'Consolidar efectivo (turnos cerrados)' },
-              { id: 'historial', label: 'Historial de consolidaciones' },
+              { id: 'consolidacion', label: 'Elegir turnos (cerrados, sin consolidar)' },
+              { id: 'pendientes', label: 'Liquidaciones pendientes' },
+              { id: 'historial', label: 'Historial (cerradas)' },
               { id: 'liquidacion_dia', label: 'Liquidación del día (tipo de turno)' },
             ].map((t) => (
               <button
                 key={t.id}
                 type="button"
-                onClick={() => setTab(t.id)}
+                onClick={() => irATab(t.id)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
                   tab === t.id
                     ? 'bg-primary-600 text-white'
@@ -209,6 +348,33 @@ export default function ConsolidacionLiquidacionPage() {
               </button>
             ))}
           </nav>
+          {tab === 'consolidacion' && (
+            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+              <p className="text-xs text-gray-500 max-w-2xl">
+                Marque turnos en la tabla y pulse <strong className="text-gray-700">Crear consolidación</strong> para enviar{' '}
+                <strong className="text-gray-700">POST /consolidaciones</strong>. La pestaña solo actualiza el listado (GET).
+                Consola: filtrar por{' '}
+                <code className="text-gray-700 bg-gray-100 px-1 rounded">Consolidación liquidación</code>.
+              </p>
+              <button
+                type="button"
+                onClick={abrirModalGuardar}
+                disabled={selected.size === 0 || loadingCerrados}
+                title={
+                  selected.size === 0 && !loadingCerrados
+                    ? 'Marque al menos un turno en la tabla'
+                    : `${selected.size} turno(s) seleccionado(s)`
+                }
+                className="btn btn-primary inline-flex items-center gap-2 shrink-0"
+              >
+                <Landmark className="w-5 h-5" />
+                Crear consolidación
+                {selected.size > 0 && (
+                  <span className="text-sm font-normal opacity-90">({selected.size})</span>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
@@ -250,7 +416,7 @@ export default function ConsolidacionLiquidacionPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => cargarCerrados()}
+                  onClick={() => cargarCerrados(false, 'botón «Actualizar lista»')}
                   disabled={loadingCerrados}
                   className="btn btn-secondary inline-flex items-center gap-2"
                 >
@@ -270,16 +436,13 @@ export default function ConsolidacionLiquidacionPage() {
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Selección para envío a banco</p>
                   <p className="text-xs text-gray-600">
-                    Efectivo esperado (sistema) y entregado (conteo grifero) según cada turno cerrado.
+                    Turnos cerrados a incluir en la consolidación. El efectivo por turno se revisa en cada cierre de turno.
                   </p>
                 </div>
                 <div className="text-right text-sm">
                   <p>
                     <span className="text-gray-600">Seleccionados:</span>{' '}
                     <strong>{selected.size}</strong> turno(s)
-                  </p>
-                  <p className="text-primary-800 font-semibold">
-                    Σ Efectivo esperado: S/ {totalesSel.esp.toFixed(2)} · Σ Entregado: S/ {totalesSel.ent.toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -300,20 +463,18 @@ export default function ConsolidacionLiquidacionPage() {
                       <th className="p-3">Liquidación / tipo</th>
                       <th className="p-3">Fecha turno</th>
                       <th className="p-3">Grifero</th>
-                      <th className="p-3 text-right">Efect. esperado</th>
-                      <th className="p-3 text-right">Efect. entregado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadingCerrados ? (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-gray-500">
+                        <td colSpan={5} className="p-8 text-center text-gray-500">
                           Cargando…
                         </td>
                       </tr>
                     ) : cerrados.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-gray-500">
+                        <td colSpan={5} className="p-8 text-center text-gray-500">
                           No hay turnos cerrados pendientes de consolidar en este rango.
                         </td>
                       </tr>
@@ -346,30 +507,87 @@ export default function ConsolidacionLiquidacionPage() {
                               : '—'}
                           </td>
                           <td className="p-3">{row.empleado_nombre}</td>
-                          <td className="p-3 text-right tabular-nums">
-                            S/ {Number(row.efectivo_esperado || 0).toFixed(2)}
-                          </td>
-                          <td className="p-3 text-right tabular-nums">
-                            S/ {Number(row.efectivo_entregado || 0).toFixed(2)}
-                          </td>
                         </tr>
                       ))
                     )}
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
 
-              <div className="p-4 border-t border-gray-200 flex justify-end">
-                <button
-                  type="button"
-                  onClick={abrirModalGuardar}
-                  disabled={selected.size === 0 || loadingCerrados}
-                  className="btn btn-primary inline-flex items-center gap-2"
-                >
-                  <Landmark className="w-5 h-5" />
-                  Registrar consolidación
-                </button>
+        {tab === 'pendientes' && (
+          <div className="card overflow-hidden">
+            <div className="p-4 border-b flex justify-between items-center flex-wrap gap-3">
+              <div>
+                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <AlertCircle className="w-5 h-5 text-amber-600" />
+                  Liquidaciones pendientes de cierre
+                </h2>
+                <p className="text-xs text-gray-600 mt-1">
+                  Abra una consolidación para ver combustible, venta de productos, GNV, POS, guías (solo lectura) y registrar
+                  venta servicentro y cobranzas (factura, retención y monto cobrado). Use &quot;Cerrar consolidación&quot; cuando
+                  termine.
+                </p>
               </div>
+              <button
+                type="button"
+                onClick={cargarPendientes}
+                disabled={loadingPend}
+                className="btn btn-secondary btn-sm inline-flex items-center gap-1"
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingPend ? 'animate-spin' : ''}`} />
+                Actualizar
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-3 text-left">Código</th>
+                    <th className="p-3 text-left">Registro</th>
+                    <th className="p-3 text-right">Turnos</th>
+                    <th className="p-3 text-left">Acción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loadingPend ? (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
+                        Cargando…
+                      </td>
+                    </tr>
+                  ) : pendientes.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
+                        No hay consolidaciones pendientes.
+                      </td>
+                    </tr>
+                  ) : (
+                    pendientes.map((h) => (
+                      <tr key={h.id} className="border-t border-gray-100 hover:bg-gray-50">
+                        <td className="p-3 font-mono text-xs">{h.codigo}</td>
+                        <td className="p-3">
+                          {h.registrado_en
+                            ? format(new Date(h.registrado_en), 'dd/MM/yyyy HH:mm', { locale: es })
+                            : '—'}
+                        </td>
+                        <td className="p-3 text-right">{h.cantidad_turnos}</td>
+                        <td className="p-3">
+                          <button
+                            type="button"
+                            className="text-primary-600 text-xs font-medium"
+                            onClick={() => abrirPanelConsolidacion(h.id)}
+                          >
+                            Abrir detalle
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
@@ -379,7 +597,7 @@ export default function ConsolidacionLiquidacionPage() {
             <div className="p-4 border-b flex justify-between items-center">
               <h2 className="font-semibold text-gray-900 flex items-center gap-2">
                 <ListOrdered className="w-5 h-5" />
-                Últimas consolidaciones
+                Consolidaciones cerradas
               </h2>
               <button
                 type="button"
@@ -398,21 +616,19 @@ export default function ConsolidacionLiquidacionPage() {
                     <th className="p-3 text-left">Código</th>
                     <th className="p-3 text-left">Fecha registro</th>
                     <th className="p-3 text-right">Turnos</th>
-                    <th className="p-3 text-right">Σ Esperado</th>
-                    <th className="p-3 text-right">Σ Entregado</th>
                     <th className="p-3 text-left">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingHist ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
                         Cargando…
                       </td>
                     </tr>
                   ) : historial.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
                         Sin consolidaciones registradas.
                       </td>
                     </tr>
@@ -426,28 +642,14 @@ export default function ConsolidacionLiquidacionPage() {
                             : '—'}
                         </td>
                         <td className="p-3 text-right">{h.cantidad_turnos}</td>
-                        <td className="p-3 text-right tabular-nums">
-                          S/ {Number(h.suma_efectivo_esperado || 0).toFixed(2)}
-                        </td>
-                        <td className="p-3 text-right tabular-nums">
-                          S/ {Number(h.suma_efectivo_entregado || 0).toFixed(2)}
-                        </td>
                         <td className="p-3">
                           <div className="flex flex-col gap-1 items-start">
                             <button
                               type="button"
                               className="text-primary-600 text-xs font-medium"
-                              onClick={() => verDetalle(h.id)}
+                              onClick={() => abrirPanelConsolidacion(h.id)}
                             >
                               Ver detalle
-                            </button>
-                            <button
-                              type="button"
-                              className="text-gray-700 text-xs font-medium inline-flex items-center gap-1"
-                              onClick={() => descargarPdfConsolidacion(h.id, h.codigo)}
-                            >
-                              <FileText className="w-3.5 h-3.5" />
-                              PDF
                             </button>
                           </div>
                         </td>
@@ -463,13 +665,120 @@ export default function ConsolidacionLiquidacionPage() {
 
       {modalObs && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card p-6 max-w-md w-full">
+          <div className="card p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-2">Confirmar consolidación</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Se registrarán <strong>{selected.size}</strong> turno(s). Σ efectivo esperado{' '}
-              <strong>S/ {totalesSel.esp.toFixed(2)}</strong>, Σ entregado{' '}
-              <strong>S/ {totalesSel.ent.toFixed(2)}</strong>.
+              Se registrarán <strong>{selected.size}</strong> turno(s) en esta consolidación.
             </p>
+            <p className="text-xs text-gray-600 mb-3">
+              <strong>Venta servicentro:</strong> días con registros pendientes ingresados en Operaciones (cualquier fecha).
+              <strong> Cobranzas:</strong> días pendientes dentro del rango de fechas del listado de turnos de arriba. Desmarque
+              días que no desea vincular al crear esta consolidación.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4 mb-4">
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/80">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <span className="text-sm font-medium text-gray-800">Días — venta servicentro</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="text-xs text-primary-600 font-medium"
+                      onClick={() => setSelDiasVentas(new Set(diasVentasOpciones))}
+                      disabled={cargandoDiasPend || diasVentasOpciones.length === 0}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-gray-600 font-medium"
+                      onClick={() => setSelDiasVentas(new Set())}
+                      disabled={cargandoDiasPend}
+                    >
+                      Ninguna
+                    </button>
+                  </div>
+                </div>
+                {cargandoDiasPend ? (
+                  <p className="text-xs text-gray-500">Cargando días con pendientes…</p>
+                ) : diasVentasOpciones.length === 0 ? (
+                  <p className="text-xs text-gray-500">No hay ventas servicentro pendientes.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {diasVentasOpciones.map((d) => (
+                      <label
+                        key={d}
+                        className="inline-flex items-center gap-1.5 text-xs bg-white border border-gray-200 rounded-full px-2.5 py-1 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selDiasVentas.has(d)}
+                          onChange={() => {
+                            setSelDiasVentas((prev) => {
+                              const n = new Set(prev)
+                              if (n.has(d)) n.delete(d)
+                              else n.add(d)
+                              return n
+                            })
+                          }}
+                        />
+                        {format(new Date(d + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/80">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <span className="text-sm font-medium text-gray-800">Días — cobranzas</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="text-xs text-primary-600 font-medium"
+                      onClick={() => setSelDiasCobranzas(new Set(diasCobranzasOpciones))}
+                      disabled={cargandoDiasPend || diasCobranzasOpciones.length === 0}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-gray-600 font-medium"
+                      onClick={() => setSelDiasCobranzas(new Set())}
+                      disabled={cargandoDiasPend}
+                    >
+                      Ninguna
+                    </button>
+                  </div>
+                </div>
+                {cargandoDiasPend ? (
+                  <p className="text-xs text-gray-500">Cargando días con pendientes…</p>
+                ) : diasCobranzasOpciones.length === 0 ? (
+                  <p className="text-xs text-gray-500">No hay cobranzas pendientes en el rango.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {diasCobranzasOpciones.map((d) => (
+                      <label
+                        key={d}
+                        className="inline-flex items-center gap-1.5 text-xs bg-white border border-gray-200 rounded-full px-2.5 py-1 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selDiasCobranzas.has(d)}
+                          onChange={() => {
+                            setSelDiasCobranzas((prev) => {
+                              const n = new Set(prev)
+                              if (n.has(d)) n.delete(d)
+                              else n.add(d)
+                              return n
+                            })
+                          }}
+                        />
+                        {format(new Date(d + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones (opcional)</label>
             <textarea
               className="input w-full min-h-[80px] mb-4"
@@ -478,80 +787,37 @@ export default function ConsolidacionLiquidacionPage() {
               placeholder="Ej. Depósito mañana turno noche + cierre anterior"
             />
             <div className="flex gap-2">
-              <button type="button" className="btn btn-secondary flex-1" onClick={() => setModalObs(false)} disabled={guardando}>
+              <button
+                type="button"
+                className="btn btn-secondary flex-1"
+                onClick={() => setModalObs(false)}
+                disabled={guardando}
+              >
                 Cancelar
               </button>
-              <button type="button" className="btn btn-primary flex-1" onClick={confirmarConsolidacion} disabled={guardando}>
-                {guardando ? 'Guardando…' : 'Guardar'}
+              <button
+                type="button"
+                className="btn btn-primary flex-1"
+                onClick={confirmarConsolidacion}
+                disabled={guardando || cargandoDiasPend}
+              >
+                {guardando ? 'Creando…' : 'Crear consolidación (pendiente)'}
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {detalle && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 overflow-y-auto">
-          <div className="card p-6 max-w-2xl w-full my-8 max-h-[90vh] overflow-y-auto">
-            <div className="flex justify-between items-start mb-4 gap-3 flex-wrap">
-              <div>
-                <h3 className="text-lg font-semibold">Consolidación {detalle.codigo}</h3>
-                <p className="text-xs text-gray-500">
-                  {detalle.registrado_en
-                    ? format(new Date(detalle.registrado_en), "dd/MM/yyyy HH:mm", { locale: es })
-                    : ''}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="btn btn-secondary btn-sm inline-flex items-center gap-1"
-                  onClick={() => descargarPdfConsolidacion(detalle.id, detalle.codigo)}
-                >
-                  <FileText className="w-4 h-4" />
-                  PDF
-                </button>
-                <button type="button" className="text-gray-400 hover:text-gray-700 p-1" onClick={() => setDetalle(null)}>
-                  <X className="w-6 h-6" />
-                </button>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm mb-4">
-              <div className="bg-primary-50 rounded-lg p-3">
-                <p className="text-xs text-gray-600">Σ Efectivo esperado</p>
-                <p className="text-xl font-bold">S/ {Number(detalle.suma_efectivo_esperado || 0).toFixed(2)}</p>
-              </div>
-              <div className="bg-green-50 rounded-lg p-3">
-                <p className="text-xs text-gray-600">Σ Efectivo entregado</p>
-                <p className="text-xl font-bold">S/ {Number(detalle.suma_efectivo_entregado || 0).toFixed(2)}</p>
-              </div>
-            </div>
-            {detalle.observaciones && (
-              <p className="text-sm text-gray-700 mb-4 p-3 bg-gray-50 rounded border">{detalle.observaciones}</p>
-            )}
-            <h4 className="font-medium text-gray-900 mb-2">Turnos incluidos</h4>
-            <ul className="space-y-2 text-sm">
-              {(detalle.turnos || []).map((t) => (
-                <li key={t.id} className="border border-gray-100 rounded-lg p-3">
-                  <div className="flex justify-between gap-2">
-                    <span className="font-mono text-xs">{t.turno_codigo}</span>
-                    <span className="text-xs text-gray-500">{t.turno_config_etiqueta}</span>
-                  </div>
-                  <div className="text-xs text-gray-600">{t.empleado_nombre}</div>
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    Fecha del turno:{' '}
-                    {t.fecha_turno
-                      ? format(new Date(t.fecha_turno + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })
-                      : '—'}
-                  </div>
-                  <div className="flex gap-4 mt-1 text-xs">
-                    <span>Esp. S/ {Number(t.efectivo_esperado || 0).toFixed(2)}</span>
-                    <span>Ent. S/ {Number(t.efectivo_entregado || 0).toFixed(2)}</span>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
+      {panelConsolidacionId != null && (
+        <ConsolidacionOperativaPanel
+          consolidacionId={panelConsolidacionId}
+          onClose={() => {
+            setPanelConsolidacionId(null)
+            refrescarListasConsolidacion()
+          }}
+          onMensaje={mostrarMensaje}
+          onCerrada={refrescarListasConsolidacion}
+        />
       )}
     </div>
   )

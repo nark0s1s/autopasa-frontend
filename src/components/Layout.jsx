@@ -22,6 +22,8 @@ import {
   Users2,
   LayoutGrid,
   Wrench,
+  Store,
+  Wallet,
 } from 'lucide-react'
 
 /** Iconos opcionales según `menu_opciones.icon` (coincidencia laxa con Lucide). */
@@ -60,7 +62,7 @@ function pathIsActive(pathname, path) {
   return pathname === path
 }
 
-function MenuBranch({ nodes, depth, sidebarOpen, location }) {
+function MenuBranch({ nodes, depth, sidebarOpen, location, navigate }) {
   if (!nodes?.length) return null
   return (
     <>
@@ -87,6 +89,7 @@ function MenuBranch({ nodes, depth, sidebarOpen, location }) {
                   depth={depth + 1}
                   sidebarOpen={sidebarOpen}
                   location={location}
+                  navigate={navigate}
                 />
               </div>
             </div>
@@ -99,6 +102,12 @@ function MenuBranch({ nodes, depth, sidebarOpen, location }) {
             <Link
               key={node.id}
               to={path}
+              onClick={(e) => {
+                if (isActive && navigate) {
+                  e.preventDefault()
+                  navigate(path, { replace: true, state: { __menuReselect: Date.now() } })
+                }
+              }}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
                 isActive ? 'bg-primary-50 text-primary-600' : 'text-gray-700 hover:bg-gray-100'
               }`}
@@ -204,7 +213,55 @@ function Layout({ children }) {
               depth={0}
               sidebarOpen={sidebarOpen}
               location={location}
+              navigate={navigate}
             />
+          )}
+          {!menuLoading && user && (
+            <div className={sidebarOpen ? 'px-4 mt-2 mb-4' : 'px-2 mt-2 mb-2'}>
+              {sidebarOpen && (
+                <h3 className="px-2 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Operaciones</h3>
+              )}
+              <div className="space-y-1 px-2">
+                <Link
+                  to="/operaciones/ventas-servicentro"
+                  onClick={(e) => {
+                    const p = '/operaciones/ventas-servicentro'
+                    if (location.pathname === p && navigate) {
+                      e.preventDefault()
+                      navigate(p, { replace: true, state: { __menuReselect: Date.now() } })
+                    }
+                  }}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                    location.pathname === '/operaciones/ventas-servicentro'
+                      ? 'bg-primary-50 text-primary-600'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={!sidebarOpen ? 'Venta servicentro' : ''}
+                >
+                  <Store className="w-5 h-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium truncate">Venta servicentro</span>}
+                </Link>
+                <Link
+                  to="/operaciones/cobranzas"
+                  onClick={(e) => {
+                    const p = '/operaciones/cobranzas'
+                    if (location.pathname === p && navigate) {
+                      e.preventDefault()
+                      navigate(p, { replace: true, state: { __menuReselect: Date.now() } })
+                    }
+                  }}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                    location.pathname === '/operaciones/cobranzas'
+                      ? 'bg-primary-50 text-primary-600'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={!sidebarOpen ? 'Cobranzas' : ''}
+                >
+                  <Wallet className="w-5 h-5 flex-shrink-0" />
+                  {sidebarOpen && <span className="text-sm font-medium truncate">Cobranzas</span>}
+                </Link>
+              </div>
+            </div>
           )}
         </nav>
 
