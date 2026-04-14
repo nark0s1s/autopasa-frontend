@@ -370,6 +370,8 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
       for (const f of b.financiaciones_gnv || []) sumFinanciacionGnv += Number(f.monto_soles || 0)
     }
     const sumGnvEfectivo = sumVentaGnv + sumFinanciacionGnv
+    /* Cuadre general: GNV = solo venta (sin financiación). */
+    const sumGnvCuadre = sumVentaGnv
     const vProd = detalle?.venta_productos_por_producto || []
     const sumProductosSoles = vProd.reduce((s, x) => s + Number(x.total_soles || 0), 0)
     const sumProductosCantidad = vProd.reduce((s, x) => s + Number(x.total_cantidad || 0), 0)
@@ -383,7 +385,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
     const sumVentasCreditoTotal = sumGuiasCredito + sumGuiasRemision
     const turnos = detalle?.turnos || []
     const sumDescuentosTurnos = turnos.reduce((s, t) => s + Number(t.total_descuentos ?? 0), 0)
-    const subtotalCombustibleYGnv = sumCombustibleSoles + sumGnvEfectivo
+    const subtotalCombustibleYGnv = sumCombustibleSoles + sumGnvCuadre
     const cuadreFinal =
       subtotalCombustibleYGnv +
       sumProductosSoles +
@@ -401,6 +403,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
       sumVentaGnv,
       sumFinanciacionGnv,
       sumGnvEfectivo,
+      sumGnvCuadre,
       sumProductosSoles,
       sumProductosCantidad,
       sumGuiasCredito,
@@ -870,10 +873,10 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-orange-100">
-                  <p className="text-xs text-gray-600">GNV (venta + financ.)</p>
-                  <p className="text-lg font-bold text-orange-900">S/ {fmt2(totales.sumGnvEfectivo)}</p>
+                  <p className="text-xs text-gray-600">GNV (sin financiación)</p>
+                  <p className="text-lg font-bold text-orange-900">S/ {fmt2(totales.sumGnvCuadre)}</p>
                   <p className="text-[10px] text-gray-500 mt-1 leading-tight">
-                    Venta S/ {fmt2(totales.sumVentaGnv)} · Fin. S/ {fmt2(totales.sumFinanciacionGnv)}
+                    Financiación (no en cuadre): S/ {fmt2(totales.sumFinanciacionGnv)}
                   </p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-violet-100">
@@ -931,7 +934,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         </thead>
                         <tbody>
                           {(detalle.combustible_por_producto || []).length === 0 &&
-                          totales.sumGnvEfectivo === 0 ? (
+                          totales.sumGnvCuadre === 0 ? (
                             <tr>
                               <td colSpan={3} className="p-4 text-center text-gray-500">
                                 Sin combustible ni GNV en los turnos consolidados.
@@ -946,11 +949,11 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                                   <td className="p-3 text-right tabular-nums">S/ {fmt2(row.total_soles)}</td>
                                 </tr>
                               ))}
-                              {totales.sumGnvEfectivo > 0 && (
+                              {totales.sumGnvCuadre > 0 && (
                                 <tr className="border-t border-gray-100 bg-orange-50/30">
-                                  <td className="p-3">GNV</td>
+                                  <td className="p-3">GNV (sin financiación)</td>
                                   <td className="p-3 text-right text-gray-400">—</td>
-                                  <td className="p-3 text-right tabular-nums">S/ {fmt2(totales.sumGnvEfectivo)}</td>
+                                  <td className="p-3 text-right tabular-nums">S/ {fmt2(totales.sumGnvCuadre)}</td>
                                 </tr>
                               )}
                             </>
@@ -958,12 +961,12 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         </tbody>
                       </table>
                     </div>
-                    {((detalle.combustible_por_producto || []).length > 0 || totales.sumGnvEfectivo > 0) && (
+                    {((detalle.combustible_por_producto || []).length > 0 || totales.sumGnvCuadre > 0) && (
                       <div className="mt-3 rounded-lg border border-emerald-300 bg-emerald-50/80 p-4 flex flex-wrap justify-between gap-2 items-center shadow-sm">
                         <div>
                           <span className="font-semibold text-emerald-900 text-base">Venta de Combustibles</span>
                           <p className="text-xs text-emerald-800/90 mt-0.5">
-                            Incluye GNV · Σ galones combustible{' '}
+                            Incluye GNV (sin financiación) · Σ galones combustible{' '}
                             {(detalle.combustible_por_producto || []).length > 0
                               ? Number(totales.sumCombustibleGalones || 0).toFixed(3)
                               : '—'}
@@ -1007,7 +1010,8 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                       </span>
                     </div>
                     <p className="text-xs text-emerald-100/95 leading-relaxed border-t border-emerald-600/80 pt-3">
-                      Combustible + GNV + productos + servicentro + cobranzas (neto) − descuentos − ventas al crédito.
+                      Combustible + GNV (sin financiación) + productos + servicentro + cobranzas (neto) − descuentos −
+                      ventas al crédito.
                     </p>
                   </div>
                 </div>
