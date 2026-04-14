@@ -227,6 +227,11 @@ export const cerrarConsolidacionLiquidacion = async (id) => {
   return response.data
 }
 
+/** Solo consolidaciones pendientes; 204 sin cuerpo. */
+export const eliminarConsolidacionLiquidacion = async (id) => {
+  await api.delete(`${API_TURNOS_LIQ}/consolidaciones/${id}`)
+}
+
 export const crearConsolidacionVentaServicentro = async (consolidacionId, data) => {
   const response = await api.post(`${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/ventas-servicentro`, data)
   return response.data

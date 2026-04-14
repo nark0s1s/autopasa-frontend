@@ -4,14 +4,23 @@ import { useAuth } from '../contexts/AuthContext'
 import {
   CheckCircle,
   AlertCircle,
+  AlertTriangle,
   RefreshCw,
   Landmark,
   ListOrdered,
   CalendarRange,
+  Trash2,
+  Eye,
+  PanelRightOpen,
+  X,
+  Loader2,
+  Fuel,
 } from 'lucide-react'
 import {
   getGriferosCerradosParaConsolidar,
   listarConsolidacionesLiquidacion,
+  obtenerConsolidacionLiquidacion,
+  eliminarConsolidacionLiquidacion,
   crearConsolidacionLiquidacion,
   listarVentasServicentroPendientes,
   listarCobranzasPendientes,
@@ -25,6 +34,25 @@ function toYMD(d) {
   const x = d instanceof Date ? d : new Date(d)
   const o = x.getTimezoneOffset() * 60000
   return new Date(x.getTime() - o).toISOString().split('T')[0]
+}
+
+/** Fechas de turno incluidos: un día si min=max; si no, menor — mayor. */
+function formatoRangoFechasTurno(desde, hasta) {
+  const ymd = (v) => {
+    if (v == null || v === '') return null
+    const s = String(v).slice(0, 10)
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return null
+    return s
+  }
+  const a = ymd(desde)
+  const b = ymd(hasta)
+  if (!a && !b) return '—'
+  const fmt = (s) => format(new Date(`${s}T12:00:00`), 'dd/MM/yyyy', { locale: es })
+  const da = a ? fmt(a) : null
+  const db = b ? fmt(b) : null
+  if (da && db && da === db) return da
+  if (da && db) return `${da} — ${db}`
+  return da || db || '—'
 }
 
 /** Prefijo para filtrar en consola del navegador (F12 → Consola). */
@@ -60,6 +88,9 @@ export default function ConsolidacionLiquidacionPage() {
   const [selDiasVentas, setSelDiasVentas] = useState(() => new Set())
   const [selDiasCobranzas, setSelDiasCobranzas] = useState(() => new Set())
   const [cargandoDiasPend, setCargandoDiasPend] = useState(false)
+  const [eliminandoConsolidacionId, setEliminandoConsolidacionId] = useState(null)
+  /** Modal eliminar: null | { id, codigo, loading, error, turnos } */
+  const [modalEliminarConsolidacion, setModalEliminarConsolidacion] = useState(null)
   const tabRef = useRef(tab)
   useEffect(() => {
     tabRef.current = tab
@@ -154,6 +185,53 @@ export default function ConsolidacionLiquidacionPage() {
       setLoadingPend(false)
     }
   }, [mostrarMensaje])
+
+  const abrirModalEliminarConsolidacion = useCallback(async (h) => {
+    const codigo = h.codigo || `#${h.id}`
+    setModalEliminarConsolidacion({
+      id: h.id,
+      codigo,
+      loading: true,
+      error: null,
+      turnos: [],
+    })
+    try {
+      const det = await obtenerConsolidacionLiquidacion(h.id)
+      const turnos = Array.isArray(det?.turnos) ? det.turnos : []
+      setModalEliminarConsolidacion((prev) =>
+        prev && prev.id === h.id
+          ? { ...prev, loading: false, error: null, turnos }
+          : prev
+      )
+    } catch (e) {
+      const msg = e.response?.data?.detail || 'No se pudo cargar el detalle de la consolidación'
+      setModalEliminarConsolidacion((prev) =>
+        prev && prev.id === h.id ? { ...prev, loading: false, error: msg, turnos: [] } : prev
+      )
+    }
+  }, [])
+
+  const cerrarModalEliminarConsolidacion = useCallback(() => {
+    setModalEliminarConsolidacion(null)
+  }, [])
+
+  const confirmarEliminarConsolidacionDesdeModal = useCallback(async () => {
+    const m = modalEliminarConsolidacion
+    if (!m?.id) return
+    try {
+      setEliminandoConsolidacionId(m.id)
+      await eliminarConsolidacionLiquidacion(m.id)
+      mostrarMensaje('Consolidación eliminada')
+      setModalEliminarConsolidacion(null)
+      setPanelConsolidacionId((prev) => (prev === m.id ? null : prev))
+      await cargarPendientes()
+      void cargarCerrados(false, 'tras eliminar consolidación pendiente')
+    } catch (e) {
+      mostrarMensaje(e.response?.data?.detail || 'No se pudo eliminar la consolidación', 'error')
+    } finally {
+      setEliminandoConsolidacionId(null)
+    }
+  }, [modalEliminarConsolidacion, cargarPendientes, cargarCerrados, mostrarMensaje])
 
   useEffect(() => {
     if (tab === 'consolidacion') {
@@ -546,9 +624,9 @@ export default function ConsolidacionLiquidacionPage() {
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="p-3 text-left">Código</th>
-                    <th className="p-3 text-left">Registro</th>
+                    <th className="p-3 text-left">Fechas turno</th>
                     <th className="p-3 text-right">Turnos</th>
-                    <th className="p-3 text-left">Acción</th>
+                    <th className="p-3 text-left">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -568,20 +646,37 @@ export default function ConsolidacionLiquidacionPage() {
                     pendientes.map((h) => (
                       <tr key={h.id} className="border-t border-gray-100 hover:bg-gray-50">
                         <td className="p-3 font-mono text-xs">{h.codigo}</td>
-                        <td className="p-3">
-                          {h.registrado_en
-                            ? format(new Date(h.registrado_en), 'dd/MM/yyyy HH:mm', { locale: es })
-                            : '—'}
+                        <td className="p-3 whitespace-nowrap">
+                          {formatoRangoFechasTurno(h.fecha_turno_desde, h.fecha_turno_hasta)}
                         </td>
                         <td className="p-3 text-right">{h.cantidad_turnos}</td>
                         <td className="p-3">
-                          <button
-                            type="button"
-                            className="text-primary-600 text-xs font-medium"
-                            onClick={() => abrirPanelConsolidacion(h.id)}
-                          >
-                            Abrir detalle
-                          </button>
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="btn btn-secondary text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1.5"
+                              onClick={() => abrirPanelConsolidacion(h.id)}
+                              title="Abrir panel con detalle y operaciones"
+                            >
+                              <PanelRightOpen className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                              <span className="hidden sm:inline">Abrir detalle</span>
+                              <span className="sm:hidden">Detalle</span>
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1.5 text-red-700 border border-red-200 bg-white hover:bg-red-50 hover:border-red-300 disabled:opacity-50"
+                              disabled={
+                                !!modalEliminarConsolidacion ||
+                                eliminandoConsolidacionId === h.id ||
+                                loadingPend
+                              }
+                              onClick={() => abrirModalEliminarConsolidacion(h)}
+                              title="Eliminar esta consolidación pendiente"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                              <span className="hidden sm:inline">Eliminar</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))
@@ -614,7 +709,7 @@ export default function ConsolidacionLiquidacionPage() {
                 <thead className="bg-gray-100">
                   <tr>
                     <th className="p-3 text-left">Código</th>
-                    <th className="p-3 text-left">Fecha registro</th>
+                    <th className="p-3 text-left">Fechas turno</th>
                     <th className="p-3 text-right">Turnos</th>
                     <th className="p-3 text-left">Acciones</th>
                   </tr>
@@ -636,19 +731,19 @@ export default function ConsolidacionLiquidacionPage() {
                     historial.map((h) => (
                       <tr key={h.id} className="border-t border-gray-100">
                         <td className="p-3 font-mono text-xs">{h.codigo}</td>
-                        <td className="p-3">
-                          {h.registrado_en
-                            ? format(new Date(h.registrado_en), "dd/MM/yyyy HH:mm", { locale: es })
-                            : '—'}
+                        <td className="p-3 whitespace-nowrap">
+                          {formatoRangoFechasTurno(h.fecha_turno_desde, h.fecha_turno_hasta)}
                         </td>
                         <td className="p-3 text-right">{h.cantidad_turnos}</td>
                         <td className="p-3">
                           <div className="flex flex-col gap-1 items-start">
                             <button
                               type="button"
-                              className="text-primary-600 text-xs font-medium"
+                              className="btn btn-secondary text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1.5"
                               onClick={() => abrirPanelConsolidacion(h.id)}
+                              title="Ver consolidación cerrada"
                             >
+                              <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden />
                               Ver detalle
                             </button>
                           </div>
@@ -662,6 +757,136 @@ export default function ConsolidacionLiquidacionPage() {
           </div>
         )}
       </div>
+
+      {modalEliminarConsolidacion && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="modal-eliminar-cons-titulo"
+        >
+          <div className="card p-0 max-w-lg w-full max-h-[90vh] flex flex-col shadow-xl border border-red-100">
+            <div className="px-5 py-4 border-b border-gray-100 bg-amber-50/90 flex items-start gap-3">
+              <div className="shrink-0 rounded-full bg-amber-100 p-2 text-amber-800">
+                <AlertTriangle className="w-5 h-5" aria-hidden />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 id="modal-eliminar-cons-titulo" className="text-lg font-semibold text-gray-900">
+                  Eliminar consolidación pendiente
+                </h3>
+                <p className="text-sm text-gray-700 mt-1 font-mono">{modalEliminarConsolidacion.codigo}</p>
+              </div>
+              <button
+                type="button"
+                className="p-1.5 rounded-lg text-gray-500 hover:bg-white/80 hover:text-gray-800 shrink-0"
+                onClick={cerrarModalEliminarConsolidacion}
+                disabled={!!eliminandoConsolidacionId}
+                aria-label="Cerrar"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="px-5 py-4 overflow-y-auto flex-1 space-y-4">
+              <div className="rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-sm text-amber-950">
+                <p>
+                  Los <strong>turnos dejarán de estar consolidados</strong> y podrán incluirse en una nueva
+                  consolidación. Las <strong>ventas servicentro</strong> y <strong>cobranzas</strong> vinculadas
+                  quedarán otra vez <strong>pendientes</strong> de consolidar.
+                </p>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-2 mb-2">
+                  <Fuel className="w-4 h-4 text-gray-600 shrink-0" aria-hidden />
+                  Turnos incluidos en esta consolidación
+                </h4>
+                {modalEliminarConsolidacion.loading ? (
+                  <div className="flex items-center gap-2 text-sm text-gray-600 py-6 justify-center">
+                    <Loader2 className="w-5 h-5 animate-spin shrink-0" aria-hidden />
+                    Cargando lista de turnos…
+                  </div>
+                ) : modalEliminarConsolidacion.error ? (
+                  <p className="text-sm text-red-700 bg-red-50 border border-red-100 rounded-lg p-3">
+                    {modalEliminarConsolidacion.error}
+                  </p>
+                ) : modalEliminarConsolidacion.turnos.length === 0 ? (
+                  <p className="text-sm text-gray-500 italic">
+                    No se listaron turnos en la respuesta. Aún puede eliminar la consolidación si corresponde.
+                  </p>
+                ) : (
+                  <div className="border border-gray-200 rounded-lg overflow-hidden">
+                    <div className="hidden sm:grid sm:grid-cols-12 gap-2 px-3 py-1.5 bg-gray-100 text-[10px] font-semibold uppercase tracking-wide text-gray-600 border-b border-gray-200">
+                      <span className="sm:col-span-3">Código</span>
+                      <span className="sm:col-span-3">Fecha turno</span>
+                      <span className="sm:col-span-4">Tipo / isla</span>
+                      <span className="sm:col-span-2 text-right">Grifero</span>
+                    </div>
+                    <ul className="divide-y divide-gray-100 max-h-[220px] overflow-y-auto text-sm">
+                    {modalEliminarConsolidacion.turnos.map((t) => (
+                      <li
+                        key={t.id}
+                        className="px-3 py-2.5 grid grid-cols-1 sm:grid-cols-12 gap-1.5 sm:gap-2 items-start sm:items-center bg-white"
+                      >
+                        <div className="sm:col-span-3 font-mono text-xs font-semibold text-primary-800">
+                          {t.turno_codigo}
+                        </div>
+                        <div className="sm:col-span-3 text-xs text-gray-600 tabular-nums">
+                          {t.fecha_turno
+                            ? format(
+                                new Date(`${String(t.fecha_turno).slice(0, 10)}T12:00:00`),
+                                'dd/MM/yyyy',
+                                { locale: es }
+                              )
+                            : '—'}
+                        </div>
+                        <div className="sm:col-span-4 text-xs text-gray-500 truncate" title={t.turno_config_etiqueta || ''}>
+                          {t.turno_config_etiqueta || '—'}
+                        </div>
+                        <div className="sm:col-span-2 text-xs text-gray-700 truncate text-left sm:text-right" title={t.empleado_nombre}>
+                          {t.empleado_nombre || '—'}
+                        </div>
+                      </li>
+                    ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 bg-gray-50/80 flex flex-wrap gap-2 justify-end">
+              <button
+                type="button"
+                className="btn btn-secondary inline-flex items-center gap-2"
+                onClick={cerrarModalEliminarConsolidacion}
+                disabled={!!eliminandoConsolidacionId}
+              >
+                <X className="w-4 h-4 shrink-0" aria-hidden />
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white border-red-700 disabled:opacity-60"
+                onClick={confirmarEliminarConsolidacionDesdeModal}
+                disabled={
+                  !!eliminandoConsolidacionId ||
+                  modalEliminarConsolidacion.loading ||
+                  !!modalEliminarConsolidacion.error
+                }
+              >
+                {eliminandoConsolidacionId === modalEliminarConsolidacion.id ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin shrink-0" aria-hidden />
+                    Eliminando…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4 shrink-0" aria-hidden />
+                    Sí, eliminar consolidación
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {modalObs && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
