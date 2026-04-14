@@ -187,6 +187,41 @@ export const obtenerConsolidacionVistaOperativa = async (id) => {
   return response.data
 }
 
+export const listarTurnosLiquidacionReferenciaConsolidacion = async (consolidacionId) => {
+  const response = await api.get(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/turnos-liquidacion-referencia`
+  )
+  return response.data
+}
+
+export const listarVentasServicentroDisponiblesConsolidacion = async (consolidacionId) => {
+  const response = await api.get(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/ventas-servicentro/disponibles`
+  )
+  return response.data
+}
+
+export const listarCobranzasDisponiblesConsolidacion = async (consolidacionId) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/cobranzas/disponibles`)
+  return response.data
+}
+
+export const vincularVentaServicentroConsolidacion = async (consolidacionId, rowId, body = {}) => {
+  const response = await api.post(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/ventas-servicentro/${rowId}/vincular`,
+    body
+  )
+  return response.data
+}
+
+export const vincularCobranzaConsolidacion = async (consolidacionId, rowId, body = {}) => {
+  const response = await api.post(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/cobranzas/${rowId}/vincular`,
+    body
+  )
+  return response.data
+}
+
 export const cerrarConsolidacionLiquidacion = async (id) => {
   const response = await api.patch(`${API_TURNOS_LIQ}/consolidaciones/${id}/cerrar`)
   return response.data
@@ -218,6 +253,44 @@ export const actualizarConsolidacionCobranza = async (rowId, data) => {
 
 export const eliminarConsolidacionCobranza = async (rowId) => {
   await api.delete(`${API_TURNOS_LIQ}/consolidaciones/cobranzas/${rowId}`)
+}
+
+export const listarVentasServicentroPendientes = async (params = {}) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/operaciones/ventas-servicentro/pendientes`, { params })
+  return response.data
+}
+
+export const crearVentaServicentroPendiente = async (data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/operaciones/ventas-servicentro`, data)
+  return response.data
+}
+
+export const actualizarVentaServicentroPendiente = async (rowId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/operaciones/ventas-servicentro/${rowId}`, data)
+  return response.data
+}
+
+export const eliminarVentaServicentroPendiente = async (rowId) => {
+  await api.delete(`${API_TURNOS_LIQ}/operaciones/ventas-servicentro/${rowId}`)
+}
+
+export const listarCobranzasPendientes = async (params = {}) => {
+  const response = await api.get(`${API_TURNOS_LIQ}/operaciones/cobranzas/pendientes`, { params })
+  return response.data
+}
+
+export const crearCobranzaPendiente = async (data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/operaciones/cobranzas`, data)
+  return response.data
+}
+
+export const actualizarCobranzaPendiente = async (rowId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/operaciones/cobranzas/${rowId}`, data)
+  return response.data
+}
+
+export const eliminarCobranzaPendiente = async (rowId) => {
+  await api.delete(`${API_TURNOS_LIQ}/operaciones/cobranzas/${rowId}`)
 }
 
 export const crearConsolidacionLiquidacion = async (payload) => {

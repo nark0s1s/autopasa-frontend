@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import {
@@ -13,6 +13,8 @@ import {
   getGriferosCerradosParaConsolidar,
   listarConsolidacionesLiquidacion,
   crearConsolidacionLiquidacion,
+  listarVentasServicentroPendientes,
+  listarCobranzasPendientes,
 } from '../utils/api'
 import TabLiquidacionPorTipoTurno from './TabLiquidacionPorTipoTurno'
 import { ConsolidacionOperativaPanel } from '../components/ConsolidacionOperativaPanel'
@@ -53,6 +55,11 @@ export default function ConsolidacionLiquidacionPage() {
   const [modalObs, setModalObs] = useState(false)
   const [obsConsolidacion, setObsConsolidacion] = useState('')
   const [guardando, setGuardando] = useState(false)
+  const [diasVentasOpciones, setDiasVentasOpciones] = useState([])
+  const [diasCobranzasOpciones, setDiasCobranzasOpciones] = useState([])
+  const [selDiasVentas, setSelDiasVentas] = useState(() => new Set())
+  const [selDiasCobranzas, setSelDiasCobranzas] = useState(() => new Set())
+  const [cargandoDiasPend, setCargandoDiasPend] = useState(false)
   const tabRef = useRef(tab)
   useEffect(() => {
     tabRef.current = tab
@@ -210,16 +217,43 @@ export default function ConsolidacionLiquidacionPage() {
     else setSelected(new Set(cerrados.map((c) => c.id)))
   }
 
-  const totalesSel = useMemo(() => {
-    let esp = 0
-    let ent = 0
-    for (const c of cerrados) {
-      if (!selected.has(c.id)) continue
-      esp += Number(c.efectivo_esperado || 0)
-      ent += Number(c.efectivo_entregado || 0)
+  const cargarDiasPendientesOperaciones = useCallback(async () => {
+    setCargandoDiasPend(true)
+    try {
+      const params = {
+        fecha_desde: fechaDesde || undefined,
+        fecha_hasta: fechaHasta || undefined,
+      }
+      const [ventas, cobranzas] = await Promise.all([
+        listarVentasServicentroPendientes({}),
+        listarCobranzasPendientes(params),
+      ])
+      const vArr = Array.isArray(ventas) ? ventas : []
+      const cArr = Array.isArray(cobranzas) ? cobranzas : []
+      const dv = [
+        ...new Set(
+          vArr.map((r) => (r.fecha_venta != null ? String(r.fecha_venta).slice(0, 10) : '')).filter(Boolean)
+        ),
+      ].sort()
+      const dc = [
+        ...new Set(
+          cArr.map((r) => (r.fecha_cobranza != null ? String(r.fecha_cobranza).slice(0, 10) : '')).filter(Boolean)
+        ),
+      ].sort()
+      setDiasVentasOpciones(dv)
+      setDiasCobranzasOpciones(dc)
+      setSelDiasVentas(new Set(dv))
+      setSelDiasCobranzas(new Set(dc))
+    } catch (e) {
+      console.error(LOG_CONS, 'cargarDiasPendientesOperaciones', e)
+      setDiasVentasOpciones([])
+      setDiasCobranzasOpciones([])
+      setSelDiasVentas(new Set())
+      setSelDiasCobranzas(new Set())
+    } finally {
+      setCargandoDiasPend(false)
     }
-    return { esp, ent, dif: ent - esp }
-  }, [cerrados, selected])
+  }, [fechaDesde, fechaHasta])
 
   const abrirModalGuardar = () => {
     const ids = Array.from(selected)
@@ -234,6 +268,7 @@ export default function ConsolidacionLiquidacionPage() {
     }
     setObsConsolidacion('')
     setModalObs(true)
+    void cargarDiasPendientesOperaciones()
     console.info(LOG_CONS, 'Modal de confirmación abierto; al confirmar se hará POST /consolidaciones')
   }
 
@@ -241,6 +276,8 @@ export default function ConsolidacionLiquidacionPage() {
     const payload = {
       turno_cabecera_grifero_ids: Array.from(selected),
       observaciones: obsConsolidacion.trim() || null,
+      fechas_venta_servicentro: [...selDiasVentas].sort(),
+      fechas_cobranza: [...selDiasCobranzas].sort(),
     }
     console.info(LOG_CONS, 'confirmarConsolidacion → enviando POST /consolidaciones', payload)
     try {
@@ -399,16 +436,13 @@ export default function ConsolidacionLiquidacionPage() {
                 <div>
                   <p className="text-sm font-semibold text-gray-900">Selección para envío a banco</p>
                   <p className="text-xs text-gray-600">
-                    Efectivo esperado (sistema) y entregado (conteo grifero) según cada turno cerrado.
+                    Turnos cerrados a incluir en la consolidación. El efectivo por turno se revisa en cada cierre de turno.
                   </p>
                 </div>
                 <div className="text-right text-sm">
                   <p>
                     <span className="text-gray-600">Seleccionados:</span>{' '}
                     <strong>{selected.size}</strong> turno(s)
-                  </p>
-                  <p className="text-primary-800 font-semibold">
-                    Σ Efectivo esperado: S/ {totalesSel.esp.toFixed(2)} · Σ Entregado: S/ {totalesSel.ent.toFixed(2)}
                   </p>
                 </div>
               </div>
@@ -429,20 +463,18 @@ export default function ConsolidacionLiquidacionPage() {
                       <th className="p-3">Liquidación / tipo</th>
                       <th className="p-3">Fecha turno</th>
                       <th className="p-3">Grifero</th>
-                      <th className="p-3 text-right">Efect. esperado</th>
-                      <th className="p-3 text-right">Efect. entregado</th>
                     </tr>
                   </thead>
                   <tbody>
                     {loadingCerrados ? (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-gray-500">
+                        <td colSpan={5} className="p-8 text-center text-gray-500">
                           Cargando…
                         </td>
                       </tr>
                     ) : cerrados.length === 0 ? (
                       <tr>
-                        <td colSpan={7} className="p-8 text-center text-gray-500">
+                        <td colSpan={5} className="p-8 text-center text-gray-500">
                           No hay turnos cerrados pendientes de consolidar en este rango.
                         </td>
                       </tr>
@@ -475,12 +507,6 @@ export default function ConsolidacionLiquidacionPage() {
                               : '—'}
                           </td>
                           <td className="p-3">{row.empleado_nombre}</td>
-                          <td className="p-3 text-right tabular-nums">
-                            S/ {Number(row.efectivo_esperado || 0).toFixed(2)}
-                          </td>
-                          <td className="p-3 text-right tabular-nums">
-                            S/ {Number(row.efectivo_entregado || 0).toFixed(2)}
-                          </td>
                         </tr>
                       ))
                     )}
@@ -500,8 +526,9 @@ export default function ConsolidacionLiquidacionPage() {
                   Liquidaciones pendientes de cierre
                 </h2>
                 <p className="text-xs text-gray-600 mt-1">
-                  Abra una consolidación para ver combustible, POS, guías (solo lectura) y registrar venta servicentro
-                  y cobranzas (factura, retención y monto cobrado). Use &quot;Cerrar consolidación&quot; cuando termine.
+                  Abra una consolidación para ver combustible, venta de productos, GNV, POS, guías (solo lectura) y registrar
+                  venta servicentro y cobranzas (factura, retención y monto cobrado). Use &quot;Cerrar consolidación&quot; cuando
+                  termine.
                 </p>
               </div>
               <button
@@ -521,21 +548,19 @@ export default function ConsolidacionLiquidacionPage() {
                     <th className="p-3 text-left">Código</th>
                     <th className="p-3 text-left">Registro</th>
                     <th className="p-3 text-right">Turnos</th>
-                    <th className="p-3 text-right">Σ Esperado</th>
-                    <th className="p-3 text-right">Σ Entregado</th>
                     <th className="p-3 text-left">Acción</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingPend ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
                         Cargando…
                       </td>
                     </tr>
                   ) : pendientes.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
                         No hay consolidaciones pendientes.
                       </td>
                     </tr>
@@ -549,12 +574,6 @@ export default function ConsolidacionLiquidacionPage() {
                             : '—'}
                         </td>
                         <td className="p-3 text-right">{h.cantidad_turnos}</td>
-                        <td className="p-3 text-right tabular-nums">
-                          S/ {Number(h.suma_efectivo_esperado || 0).toFixed(2)}
-                        </td>
-                        <td className="p-3 text-right tabular-nums">
-                          S/ {Number(h.suma_efectivo_entregado || 0).toFixed(2)}
-                        </td>
                         <td className="p-3">
                           <button
                             type="button"
@@ -597,21 +616,19 @@ export default function ConsolidacionLiquidacionPage() {
                     <th className="p-3 text-left">Código</th>
                     <th className="p-3 text-left">Fecha registro</th>
                     <th className="p-3 text-right">Turnos</th>
-                    <th className="p-3 text-right">Σ Esperado</th>
-                    <th className="p-3 text-right">Σ Entregado</th>
                     <th className="p-3 text-left">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
                   {loadingHist ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
                         Cargando…
                       </td>
                     </tr>
                   ) : historial.length === 0 ? (
                     <tr>
-                      <td colSpan={6} className="p-8 text-center text-gray-500">
+                      <td colSpan={4} className="p-8 text-center text-gray-500">
                         Sin consolidaciones registradas.
                       </td>
                     </tr>
@@ -625,12 +642,6 @@ export default function ConsolidacionLiquidacionPage() {
                             : '—'}
                         </td>
                         <td className="p-3 text-right">{h.cantidad_turnos}</td>
-                        <td className="p-3 text-right tabular-nums">
-                          S/ {Number(h.suma_efectivo_esperado || 0).toFixed(2)}
-                        </td>
-                        <td className="p-3 text-right tabular-nums">
-                          S/ {Number(h.suma_efectivo_entregado || 0).toFixed(2)}
-                        </td>
                         <td className="p-3">
                           <div className="flex flex-col gap-1 items-start">
                             <button
@@ -654,13 +665,120 @@ export default function ConsolidacionLiquidacionPage() {
 
       {modalObs && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="card p-6 max-w-md w-full">
+          <div className="card p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-2">Confirmar consolidación</h3>
             <p className="text-sm text-gray-600 mb-4">
-              Se registrarán <strong>{selected.size}</strong> turno(s). Σ efectivo esperado{' '}
-              <strong>S/ {totalesSel.esp.toFixed(2)}</strong>, Σ entregado{' '}
-              <strong>S/ {totalesSel.ent.toFixed(2)}</strong>.
+              Se registrarán <strong>{selected.size}</strong> turno(s) en esta consolidación.
             </p>
+            <p className="text-xs text-gray-600 mb-3">
+              <strong>Venta servicentro:</strong> días con registros pendientes ingresados en Operaciones (cualquier fecha).
+              <strong> Cobranzas:</strong> días pendientes dentro del rango de fechas del listado de turnos de arriba. Desmarque
+              días que no desea vincular al crear esta consolidación.
+            </p>
+            <div className="grid sm:grid-cols-2 gap-4 mb-4">
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/80">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <span className="text-sm font-medium text-gray-800">Días — venta servicentro</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="text-xs text-primary-600 font-medium"
+                      onClick={() => setSelDiasVentas(new Set(diasVentasOpciones))}
+                      disabled={cargandoDiasPend || diasVentasOpciones.length === 0}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-gray-600 font-medium"
+                      onClick={() => setSelDiasVentas(new Set())}
+                      disabled={cargandoDiasPend}
+                    >
+                      Ninguna
+                    </button>
+                  </div>
+                </div>
+                {cargandoDiasPend ? (
+                  <p className="text-xs text-gray-500">Cargando días con pendientes…</p>
+                ) : diasVentasOpciones.length === 0 ? (
+                  <p className="text-xs text-gray-500">No hay ventas servicentro pendientes.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {diasVentasOpciones.map((d) => (
+                      <label
+                        key={d}
+                        className="inline-flex items-center gap-1.5 text-xs bg-white border border-gray-200 rounded-full px-2.5 py-1 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selDiasVentas.has(d)}
+                          onChange={() => {
+                            setSelDiasVentas((prev) => {
+                              const n = new Set(prev)
+                              if (n.has(d)) n.delete(d)
+                              else n.add(d)
+                              return n
+                            })
+                          }}
+                        />
+                        {format(new Date(d + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/80">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <span className="text-sm font-medium text-gray-800">Días — cobranzas</span>
+                  <div className="flex gap-1">
+                    <button
+                      type="button"
+                      className="text-xs text-primary-600 font-medium"
+                      onClick={() => setSelDiasCobranzas(new Set(diasCobranzasOpciones))}
+                      disabled={cargandoDiasPend || diasCobranzasOpciones.length === 0}
+                    >
+                      Todas
+                    </button>
+                    <button
+                      type="button"
+                      className="text-xs text-gray-600 font-medium"
+                      onClick={() => setSelDiasCobranzas(new Set())}
+                      disabled={cargandoDiasPend}
+                    >
+                      Ninguna
+                    </button>
+                  </div>
+                </div>
+                {cargandoDiasPend ? (
+                  <p className="text-xs text-gray-500">Cargando días con pendientes…</p>
+                ) : diasCobranzasOpciones.length === 0 ? (
+                  <p className="text-xs text-gray-500">No hay cobranzas pendientes en el rango.</p>
+                ) : (
+                  <div className="flex flex-wrap gap-2">
+                    {diasCobranzasOpciones.map((d) => (
+                      <label
+                        key={d}
+                        className="inline-flex items-center gap-1.5 text-xs bg-white border border-gray-200 rounded-full px-2.5 py-1 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selDiasCobranzas.has(d)}
+                          onChange={() => {
+                            setSelDiasCobranzas((prev) => {
+                              const n = new Set(prev)
+                              if (n.has(d)) n.delete(d)
+                              else n.add(d)
+                              return n
+                            })
+                          }}
+                        />
+                        {format(new Date(d + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })}
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones (opcional)</label>
             <textarea
               className="input w-full min-h-[80px] mb-4"
@@ -669,10 +787,20 @@ export default function ConsolidacionLiquidacionPage() {
               placeholder="Ej. Depósito mañana turno noche + cierre anterior"
             />
             <div className="flex gap-2">
-              <button type="button" className="btn btn-secondary flex-1" onClick={() => setModalObs(false)} disabled={guardando}>
+              <button
+                type="button"
+                className="btn btn-secondary flex-1"
+                onClick={() => setModalObs(false)}
+                disabled={guardando}
+              >
                 Cancelar
               </button>
-              <button type="button" className="btn btn-primary flex-1" onClick={confirmarConsolidacion} disabled={guardando}>
+              <button
+                type="button"
+                className="btn btn-primary flex-1"
+                onClick={confirmarConsolidacion}
+                disabled={guardando || cargandoDiasPend}
+              >
                 {guardando ? 'Creando…' : 'Crear consolidación (pendiente)'}
               </button>
             </div>
