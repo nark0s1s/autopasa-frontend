@@ -14,6 +14,7 @@ import {
   Wallet,
   LayoutList,
   Calculator,
+  Landmark,
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
@@ -37,6 +38,7 @@ import {
 
 const TAB_CONFIG = [
   { id: 'cuadre_general', label: 'Cuadre general', icon: Calculator, readOnly: true },
+  { id: 'cuadre_efectivo_banco', label: 'Cuadre efectivo banco', icon: Landmark, readOnly: true },
   { id: 'resumen', label: 'Turnos incluidos', icon: LayoutList, readOnly: true },
   { id: 'combustible', label: 'Combustible', icon: Fuel, readOnly: true },
   { id: 'productos', label: 'Venta productos', icon: Package, readOnly: true },
@@ -76,6 +78,9 @@ function toYMD(d) {
 function ModalVentaServicentro({ fila, onClose, onGuardar }) {
   const [fechaVenta, setFechaVenta] = useState(() => toYMD(new Date()))
   const [monto, setMonto] = useState('')
+  const [mEf, setMEf] = useState('')
+  const [mPos, setMPos] = useState('')
+  const [mCred, setMCred] = useState('')
   const [concepto, setConcepto] = useState('')
   const [observaciones, setObservaciones] = useState('')
 
@@ -83,21 +88,45 @@ function ModalVentaServicentro({ fila, onClose, onGuardar }) {
     if (fila) {
       setFechaVenta((fila.fecha_venta || '').slice(0, 10) || toYMD(new Date()))
       setMonto(fila.monto != null ? String(fila.monto) : '')
+      const tot = Number(fila.monto) || 0
+      const hasSplit =
+        fila.monto_efectivo != null &&
+        (Number(fila.monto_pos) > 0 || Number(fila.monto_credito) > 0 || Number(fila.monto_efectivo) !== tot)
+      if (hasSplit || (fila.monto_efectivo != null && fila.monto_efectivo !== undefined)) {
+        setMEf(fila.monto_efectivo != null ? String(fila.monto_efectivo) : '')
+        setMPos(fila.monto_pos != null ? String(fila.monto_pos) : '0')
+        setMCred(fila.monto_credito != null ? String(fila.monto_credito) : '0')
+      } else {
+        setMEf(fila.monto != null ? String(fila.monto) : '')
+        setMPos('0')
+        setMCred('0')
+      }
       setConcepto(fila.concepto ?? '')
       setObservaciones(fila.observaciones ?? '')
     } else {
       setFechaVenta(toYMD(new Date()))
       setMonto('')
+      setMEf('')
+      setMPos('')
+      setMCred('')
       setConcepto('')
       setObservaciones('')
     }
   }, [fila])
 
+  const totalM = Number(monto) || 0
+  const sumDesglose = (Number(mEf) || 0) + (Number(mPos) || 0) + (Number(mCred) || 0)
+  const desgloseOk = totalM > 0 && Math.abs(sumDesglose - totalM) < 0.01
+
   const submit = (e) => {
     e.preventDefault()
+    if (!desgloseOk) return
     onGuardar({
       fecha_venta: fechaVenta,
-      monto: parseFloat(monto),
+      monto: totalM,
+      monto_efectivo: Number(mEf) || 0,
+      monto_pos: Number(mPos) || 0,
+      monto_credito: Number(mCred) || 0,
       concepto: concepto.trim() || null,
       observaciones: observaciones.trim() || null,
     })
@@ -119,16 +148,68 @@ function ModalVentaServicentro({ fila, onClose, onGuardar }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Monto (S/)</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Monto total (S/)</label>
             <input
               type="number"
               step="0.01"
               min="0"
               className="input w-full"
               value={monto}
-              onChange={(e) => setMonto(e.target.value)}
+              onChange={(e) => {
+                const v = e.target.value
+                setMonto(v)
+                const n = parseFloat(v)
+                if (Number.isFinite(n)) {
+                  setMEf(String(n))
+                  setMPos('0')
+                  setMCred('0')
+                }
+              }}
               required
             />
+          </div>
+          <div className="rounded-lg border border-teal-100 bg-teal-50/50 p-3 space-y-2">
+            <p className="text-xs font-semibold text-teal-900">Desglose (cuadre banco: solo efectivo va al depósito)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Efectivo</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="input w-full text-sm"
+                  value={mEf}
+                  onChange={(e) => setMEf(e.target.value)}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">POS</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="input w-full text-sm"
+                  value={mPos}
+                  onChange={(e) => setMPos(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Crédito</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="input w-full text-sm"
+                  value={mCred}
+                  onChange={(e) => setMCred(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className={`text-xs ${desgloseOk ? 'text-teal-800' : 'text-red-600'}`}>
+              Suma desglose: S/ {fmtMonto(sumDesglose)}
+              {totalM > 0 && !desgloseOk && ' · Debe coincidir con el monto total'}
+            </p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Concepto (opcional)</label>
@@ -142,7 +223,7 @@ function ModalVentaServicentro({ fila, onClose, onGuardar }) {
             <button type="button" className="btn btn-secondary flex-1" onClick={onClose}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary flex-1">
+            <button type="submit" className="btn btn-primary flex-1" disabled={!desgloseOk}>
               Guardar
             </button>
           </div>
@@ -165,6 +246,8 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
   const [clientes, setClientes] = useState([])
   const [montoFactura, setMontoFactura] = useState('')
   const [montoRetencion, setMontoRetencion] = useState('0')
+  const [cobEfectivo, setCobEfectivo] = useState('')
+  const [cobTransferencia, setCobTransferencia] = useState('')
   const [concepto, setConcepto] = useState('')
   const [observaciones, setObservaciones] = useState('')
 
@@ -181,6 +264,16 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
       setClienteId(fila.cliente_id != null ? String(fila.cliente_id) : '')
       setMontoFactura(fila.monto_factura != null ? String(fila.monto_factura) : '')
       setMontoRetencion(fila.monto_retencion != null ? String(fila.monto_retencion) : '0')
+      const net = montoCobradoLocal(fila.monto_factura, fila.monto_retencion)
+      if (fila.monto_cobrado_efectivo != null || fila.monto_cobrado_transferencia != null) {
+        setCobEfectivo(
+          fila.monto_cobrado_efectivo != null ? String(fila.monto_cobrado_efectivo) : String(net)
+        )
+        setCobTransferencia(fila.monto_cobrado_transferencia != null ? String(fila.monto_cobrado_transferencia) : '0')
+      } else {
+        setCobEfectivo(String(net))
+        setCobTransferencia('0')
+      }
       setConcepto(fila.concepto ?? '')
       setObservaciones(fila.observaciones ?? '')
     } else {
@@ -189,12 +282,28 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
       setClienteId('')
       setMontoFactura('')
       setMontoRetencion('0')
+      setCobEfectivo('')
+      setCobTransferencia('')
       setConcepto('')
       setObservaciones('')
     }
   }, [fila])
 
+  useEffect(() => {
+    if (fila) return
+    const n = montoCobradoLocal(montoFactura, montoRetencion)
+    if (n <= 0) {
+      setCobEfectivo('')
+      setCobTransferencia('')
+      return
+    }
+    setCobEfectivo(String(n))
+    setCobTransferencia('0')
+  }, [fila, montoFactura, montoRetencion])
+
   const neto = montoCobradoLocal(montoFactura, montoRetencion)
+  const sumCobDes = (Number(cobEfectivo) || 0) + (Number(cobTransferencia) || 0)
+  const cobDesgloseOk = neto > 0 && Math.abs(sumCobDes - neto) < 0.01
 
   const submit = (e) => {
     e.preventDefault()
@@ -203,12 +312,15 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
     if (mr > mf) {
       return
     }
+    if (!cobDesgloseOk) return
     onGuardar({
       fecha_cobranza: fechaCobranza,
       numero_factura: numeroFactura.trim() || null,
       cliente_id: clienteId ? parseInt(clienteId, 10) : null,
       monto_factura: mf,
       monto_retencion: mr,
+      monto_cobrado_efectivo: Number(cobEfectivo) || 0,
+      monto_cobrado_transferencia: Number(cobTransferencia) || 0,
       concepto: concepto.trim() || null,
       observaciones: observaciones.trim() || null,
     })
@@ -274,6 +386,37 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
             <p className="text-xs text-teal-900 font-medium">Monto cobrado (factura − retención)</p>
             <p className="text-lg font-bold text-teal-800">S/ {fmtMonto(neto)}</p>
           </div>
+          <div className="rounded-lg border border-cyan-100 bg-cyan-50/50 p-3 space-y-2">
+            <p className="text-xs font-semibold text-cyan-900">Cómo ingresó el neto (solo efectivo va al depósito)</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Efectivo</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="input w-full text-sm"
+                  value={cobEfectivo}
+                  onChange={(e) => setCobEfectivo(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-600 mb-0.5">Transferencia</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  className="input w-full text-sm"
+                  value={cobTransferencia}
+                  onChange={(e) => setCobTransferencia(e.target.value)}
+                />
+              </div>
+            </div>
+            <p className={`text-xs ${cobDesgloseOk ? 'text-cyan-900' : 'text-red-600'}`}>
+              Efectivo + transferencia: S/ {fmtMonto(sumCobDes)}
+              {neto > 0 && !cobDesgloseOk && ' · Debe igualar el neto cobrado'}
+            </p>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Concepto (opcional)</label>
             <input type="text" className="input w-full" value={concepto} onChange={(e) => setConcepto(e.target.value)} />
@@ -286,7 +429,7 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
             <button type="button" className="btn btn-secondary flex-1" onClick={onClose}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary flex-1" disabled={retMayor}>
+            <button type="submit" className="btn btn-primary flex-1" disabled={retMayor || !cobDesgloseOk}>
               Guardar
             </button>
           </div>
@@ -368,12 +511,25 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
     const vs = detalle?.ventas_servicentro || []
     const cob = detalle?.cobranzas || []
     const sumVs = vs.reduce((s, x) => s + Number(x.monto || 0), 0)
+    const sumVsEfectivo = vs.reduce((s, x) => {
+      const ef = x.monto_efectivo != null ? Number(x.monto_efectivo) : Number(x.monto || 0)
+      return s + ef
+    }, 0)
+    const sumVsPos = vs.reduce((s, x) => s + Number(x.monto_pos || 0), 0)
+    const sumVsCredito = vs.reduce((s, x) => s + Number(x.monto_credito || 0), 0)
     const sumFactura = cob.reduce((s, x) => s + Number(x.monto_factura || 0), 0)
     const sumRet = cob.reduce((s, x) => s + Number(x.monto_retencion || 0), 0)
     const sumNeto = cob.reduce((s, x) => {
       const mc = x.monto_cobrado != null ? Number(x.monto_cobrado) : montoCobradoLocal(x.monto_factura, x.monto_retencion)
       return s + mc
     }, 0)
+    const sumCobranzaEfectivo = cob.reduce((s, x) => {
+      const net = montoCobradoLocal(x.monto_factura, x.monto_retencion)
+      const ef =
+        x.monto_cobrado_efectivo != null ? Number(x.monto_cobrado_efectivo) : net
+      return s + ef
+    }, 0)
+    const sumCobranzaTransferencia = cob.reduce((s, x) => s + Number(x.monto_cobrado_transferencia || 0), 0)
     const comb = detalle?.combustible_por_producto || []
     const sumCombustibleSoles = comb.reduce((s, x) => s + Number(x.total_soles || 0), 0)
     const sumCombustibleGalones = comb.reduce((s, x) => s + Number(x.total_galones || 0), 0)
@@ -408,11 +564,18 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
       sumNeto -
       sumDescuentosTurnos -
       sumVentasCreditoTotal
+    const sumEfectivoTurnosEntregado = Number(detalle?.suma_efectivo_entregado || 0)
+    const cuadreEfectivoBanco = sumEfectivoTurnosEntregado + sumVsEfectivo + sumCobranzaEfectivo
     return {
       sumVs,
+      sumVsEfectivo,
+      sumVsPos,
+      sumVsCredito,
       sumFactura,
       sumRet,
       sumNeto,
+      sumCobranzaEfectivo,
+      sumCobranzaTransferencia,
       sumCombustibleSoles,
       sumCombustibleGalones,
       sumVentaGnv,
@@ -427,6 +590,8 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
       sumDescuentosTurnos,
       subtotalCombustibleYGnv,
       cuadreFinal,
+      sumEfectivoTurnosEntregado,
+      cuadreEfectivoBanco,
     }
   }, [detalle])
 
@@ -608,6 +773,9 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         : '—'}
                     </p>
                     <p className="font-semibold">S/ {fmtMonto(r.monto)}</p>
+                    <p className="text-xs text-gray-600 tabular-nums">
+                      Ef. S/ {fmtMonto(r.monto_efectivo ?? r.monto)} · POS S/ {fmtMonto(r.monto_pos ?? 0)} · Créd. S/ {fmtMonto(r.monto_credito ?? 0)}
+                    </p>
                     {r.empleado_nombre && <p className="text-xs text-gray-600">Registró: {r.empleado_nombre}</p>}
                     {r.concepto && <p className="text-sm text-gray-700">{r.concepto}</p>}
                     {r.observaciones && <p className="text-xs text-gray-500">{r.observaciones}</p>}
@@ -776,6 +944,9 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         <span className="font-medium">S/ {fmtMonto(r.monto_retencion)}</span>
                       </p>
                       <p className="text-teal-800 font-semibold">Monto cobrado: S/ {fmtMonto(neto)}</p>
+                      <p className="text-xs text-gray-600 tabular-nums">
+                        Ef. S/ {fmtMonto(r.monto_cobrado_efectivo ?? neto)} · Transf. S/ {fmtMonto(r.monto_cobrado_transferencia ?? 0)}
+                      </p>
                       {r.concepto && <p className="text-gray-700">{r.concepto}</p>}
                       {r.observaciones && <p className="text-xs text-gray-500">{r.observaciones}</p>}
                     </div>
@@ -904,12 +1075,18 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                 <div className="bg-white rounded-lg p-3 border border-teal-100">
                   <p className="text-xs text-gray-600">Venta servicentro</p>
                   <p className="text-lg font-bold text-teal-800">S/ {fmtMonto(totales.sumVs)}</p>
+                  <p className="text-[10px] text-gray-500 mt-1 leading-tight">
+                    Ef. S/ {fmtMonto(totales.sumVsEfectivo)} · POS S/ {fmtMonto(totales.sumVsPos)} · Créd. S/ {fmtMonto(totales.sumVsCredito)}
+                  </p>
                 </div>
                 <div className="bg-white rounded-lg p-3 border border-cyan-100">
                   <p className="text-xs text-gray-600">Cobranzas (neto)</p>
                   <p className="text-lg font-bold text-cyan-900">S/ {fmtMonto(totales.sumNeto)}</p>
                   <p className="text-[10px] text-gray-500 mt-1 leading-tight">
                     Fact. S/ {fmtMonto(totales.sumFactura)} · Ret. S/ {fmtMonto(totales.sumRet)}
+                  </p>
+                  <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">
+                    Ef. S/ {fmtMonto(totales.sumCobranzaEfectivo)} · Transf. S/ {fmtMonto(totales.sumCobranzaTransferencia)}
                   </p>
                 </div>
               </div>
@@ -1027,6 +1204,124 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                     <p className="text-xs text-emerald-100/95 leading-relaxed border-t border-emerald-600/80 pt-3">
                       Combustible + GNV (sin financiación) + productos + servicentro + cobranzas (neto) − descuentos −
                       ventas al crédito.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {subTab === 'cuadre_efectivo_banco' && (
+                <div className="space-y-5">
+                  <p className="text-sm text-gray-700 rounded-lg border border-slate-200 bg-slate-50/80 p-3 leading-relaxed">
+                    Cuadre distinto al general: aquí solo suma el <strong>efectivo que iría al banco</strong> — lo
+                    contado y entregado en cada turno de grifero, más efectivo de servicentro y de cobranzas. Las ventas
+                    POS, crédito y cobranzas por transferencia se muestran solo como referencia (no entran al depósito
+                    físico).
+                  </p>
+
+                  <section>
+                    <h3 className="text-sm font-semibold text-gray-900 uppercase tracking-wide mb-2">
+                      Efectivo entregado (turnos de grifero)
+                    </h3>
+                    <div className="overflow-x-auto rounded-lg border border-gray-200">
+                      <table className="w-full text-sm">
+                        <thead className="bg-gray-100 text-left">
+                          <tr>
+                            <th className="p-3">Turno</th>
+                            <th className="p-3 text-right">Efectivo esperado</th>
+                            <th className="p-3 text-right">Efectivo entregado</th>
+                            <th className="p-3 text-right">Diferencia</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(detalle.turnos || []).length === 0 ? (
+                            <tr>
+                              <td colSpan={4} className="p-4 text-center text-gray-500">
+                                Sin turnos en esta consolidación.
+                              </td>
+                            </tr>
+                          ) : (
+                            (detalle.turnos || []).map((t) => (
+                              <tr key={t.id} className="border-t border-gray-100">
+                                <td className="p-3">
+                                  <span className="font-mono text-xs">{t.turno_codigo}</span>
+                                  <span className="text-gray-500 text-xs block">{t.turno_config_etiqueta}</span>
+                                </td>
+                                <td className="p-3 text-right tabular-nums">S/ {fmtMonto(t.efectivo_esperado)}</td>
+                                <td className="p-3 text-right tabular-nums font-medium">S/ {fmtMonto(t.efectivo_entregado)}</td>
+                                <td className="p-3 text-right tabular-nums text-gray-700">S/ {fmtMonto(t.diferencia)}</td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                        {(detalle.turnos || []).length > 0 && (
+                          <tfoot>
+                            <tr className="border-t-2 border-gray-300 bg-emerald-50/60 font-semibold">
+                              <td className="p-3">Total entregado (va al banco)</td>
+                              <td className="p-3 text-right tabular-nums">S/ {fmtMonto(detalle.suma_efectivo_esperado)}</td>
+                              <td className="p-3 text-right tabular-nums text-emerald-900">
+                                S/ {fmtMonto(totales.sumEfectivoTurnosEntregado)}
+                              </td>
+                              <td className="p-3 text-right tabular-nums">—</td>
+                            </tr>
+                          </tfoot>
+                        )}
+                      </table>
+                    </div>
+                  </section>
+
+                  <section className="grid gap-4 md:grid-cols-2">
+                    <div className="rounded-lg border border-teal-200 bg-teal-50/40 p-4">
+                      <h3 className="text-sm font-semibold text-teal-950 mb-2">Venta servicentro</h3>
+                      <p className="text-xs text-teal-900/90 mb-3">Solo la columna efectivo suma al depósito.</p>
+                      <ul className="text-sm space-y-1 tabular-nums">
+                        <li className="flex justify-between gap-2">
+                          <span className="text-gray-700">Efectivo (banco)</span>
+                          <span className="font-bold text-teal-900">S/ {fmtMonto(totales.sumVsEfectivo)}</span>
+                        </li>
+                        <li className="flex justify-between gap-2 text-gray-600">
+                          <span>POS (referencia)</span>
+                          <span>S/ {fmtMonto(totales.sumVsPos)}</span>
+                        </li>
+                        <li className="flex justify-between gap-2 text-gray-600">
+                          <span>Crédito (referencia)</span>
+                          <span>S/ {fmtMonto(totales.sumVsCredito)}</span>
+                        </li>
+                        <li className="flex justify-between gap-2 pt-2 border-t border-teal-200 text-gray-700">
+                          <span>Total venta</span>
+                          <span>S/ {fmtMonto(totales.sumVs)}</span>
+                        </li>
+                      </ul>
+                    </div>
+                    <div className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-4">
+                      <h3 className="text-sm font-semibold text-cyan-950 mb-2">Cobranzas</h3>
+                      <p className="text-xs text-cyan-900/90 mb-3">Solo efectivo suma al depósito; transferencias van aparte.</p>
+                      <ul className="text-sm space-y-1 tabular-nums">
+                        <li className="flex justify-between gap-2">
+                          <span className="text-gray-700">Efectivo (banco)</span>
+                          <span className="font-bold text-cyan-900">S/ {fmtMonto(totales.sumCobranzaEfectivo)}</span>
+                        </li>
+                        <li className="flex justify-between gap-2 text-gray-600">
+                          <span>Transferencia (referencia)</span>
+                          <span>S/ {fmtMonto(totales.sumCobranzaTransferencia)}</span>
+                        </li>
+                        <li className="flex justify-between gap-2 pt-2 border-t border-cyan-200 text-gray-700">
+                          <span>Neto total cobranzas</span>
+                          <span>S/ {fmtMonto(totales.sumNeto)}</span>
+                        </li>
+                      </ul>
+                    </div>
+                  </section>
+
+                  <div className="rounded-xl border-2 border-slate-800 bg-slate-800 p-5 sm:p-6 space-y-2 shadow-md">
+                    <div className="flex flex-wrap justify-between gap-3 items-center">
+                      <span className="text-base sm:text-lg font-bold text-white tracking-tight">Total efectivo a depositar</span>
+                      <span className="text-2xl sm:text-3xl font-bold text-amber-300 tabular-nums drop-shadow-sm">
+                        S/ {fmtMonto(totales.cuadreEfectivoBanco)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-200/95 leading-relaxed border-t border-slate-600/80 pt-3">
+                      Σ efectivo entregado en turnos (S/ {fmtMonto(totales.sumEfectivoTurnosEntregado)}) + efectivo
+                      servicentro (S/ {fmtMonto(totales.sumVsEfectivo)}) + efectivo cobranzas (S/ {fmtMonto(totales.sumCobranzaEfectivo)}).
                     </p>
                   </div>
                 </div>
