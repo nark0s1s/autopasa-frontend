@@ -812,6 +812,75 @@ export const getCategoriasProducto = async () => {
 }
 
 // ============================================================================
+// LOGÍSTICA / STOCK
+// ============================================================================
+
+const API_LOGISTICA = '/api/logistica'
+
+export const getUnidadesMedida = async (activo = null) => {
+  const params = activo !== null && activo !== undefined ? { activo } : {}
+  const response = await api.get(`${API_LOGISTICA}/unidades-medida`, { params })
+  return response.data
+}
+
+export const crearUnidadMedida = async (data) => {
+  const response = await api.post(`${API_LOGISTICA}/unidades-medida`, data)
+  return response.data
+}
+
+export const actualizarUnidadMedida = async (id, data) => {
+  const response = await api.put(`${API_LOGISTICA}/unidades-medida/${id}`, data)
+  return response.data
+}
+
+export const getProveedores = async (activo = null) => {
+  const params = activo !== null && activo !== undefined ? { activo } : {}
+  const response = await api.get(`${API_LOGISTICA}/proveedores`, { params })
+  return response.data
+}
+
+export const getBancos = async (activo = true) => {
+  const params = activo !== null && activo !== undefined ? { activo } : {}
+  const response = await api.get(`${API_LOGISTICA}/bancos`, { params })
+  return response.data
+}
+
+export const crearProveedor = async (data) => {
+  const response = await api.post(`${API_LOGISTICA}/proveedores`, data)
+  return response.data
+}
+
+export const actualizarProveedor = async (id, data) => {
+  const response = await api.put(`${API_LOGISTICA}/proveedores/${id}`, data)
+  return response.data
+}
+
+export const getComprasFactura = async (params = {}) => {
+  const response = await api.get(`${API_LOGISTICA}/compras-factura`, { params })
+  return response.data
+}
+
+export const getCompraFactura = async (id) => {
+  const response = await api.get(`${API_LOGISTICA}/compras-factura/${id}`)
+  return response.data
+}
+
+export const crearCompraFactura = async (data) => {
+  const response = await api.post(`${API_LOGISTICA}/compras-factura`, data)
+  return response.data
+}
+
+export const getMovimientosStock = async (params = {}) => {
+  const response = await api.get(`${API_LOGISTICA}/movimientos-stock`, { params })
+  return response.data
+}
+
+export const crearAjusteStock = async (data) => {
+  const response = await api.post(`${API_LOGISTICA}/ajuste-stock`, data)
+  return response.data
+}
+
+// ============================================================================
 // CLIENTES
 // ============================================================================
 

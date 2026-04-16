@@ -15,11 +15,11 @@ export function ModalCierre({ turno, totales, onClose, onSuccess }) {
     setLoading(true)
     
     try {
-      await cerrarTurnoGrifero(turno.id, {
+      const cerrado = await cerrarTurnoGrifero(turno.id, {
         efectivo_entregado: parseFloat(efectivoEntregado),
         observaciones
       })
-      onSuccess()
+      onSuccess(cerrado)
     } catch (error) {
       console.error('Error al cerrar turno:', error)
       alert('Error al cerrar turno')

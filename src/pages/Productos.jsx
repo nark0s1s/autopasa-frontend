@@ -1,6 +1,14 @@
 import { useState, useEffect, useCallback } from 'react'
 import { Package, Plus, Edit2, ToggleLeft, ToggleRight, X, Search } from 'lucide-react'
-import { getProductosAdmin, crearProducto, actualizarProducto, getCategoriasProducto } from '../utils/api'
+import { getProductosAdmin, crearProducto, actualizarProducto, getCategoriasProducto, getUnidadesMedida } from '../utils/api'
+
+function isoToDatetimeLocal(iso) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime())) return ''
+  const p = (n) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`
+}
 
 // ──────────────────────────────────────────────
 // Notificación inline
@@ -22,7 +30,7 @@ function Notificacion({ notificacion, onClose }) {
 // ──────────────────────────────────────────────
 // Modal Crear / Editar Producto
 // ──────────────────────────────────────────────
-function ModalProducto({ producto, categorias, onClose, onSave }) {
+function ModalProducto({ producto, categorias, unidades, onClose, onSave }) {
   const esEdicion = !!producto
   const [form, setForm] = useState({
     codigo: producto?.codigo || '',
@@ -32,7 +40,14 @@ function ModalProducto({ producto, categorias, onClose, onSave }) {
     precio_venta: producto?.precio_venta ?? '',
     precio_compra: producto?.precio_compra ?? '',
     unidad_medida: producto?.unidad_medida || 'galón',
+    unidad_medida_id: producto?.unidad_medida_id ?? '',
     stock_actual: producto?.stock_actual ?? 0,
+    stock_min: producto?.stock_min ?? '',
+    stock_max: producto?.stock_max ?? '',
+    controla_stock: producto?.controla_stock ?? false,
+    ubicacion_almacen: producto?.ubicacion_almacen || '',
+    stock_corte_fecha: isoToDatetimeLocal(producto?.stock_corte_fecha),
+    stock_corte_saldo: producto?.stock_corte_saldo ?? '',
     activo: producto?.activo ?? true,
   })
   const [guardando, setGuardando] = useState(false)
@@ -47,12 +62,29 @@ function ModalProducto({ producto, categorias, onClose, onSave }) {
     e.preventDefault()
     setError('')
 
+    const umSel =
+      form.unidad_medida_id !== ''
+        ? (unidades || []).find((u) => u.id === parseInt(form.unidad_medida_id, 10))
+        : null
     const payload = {
       ...form,
       categoria_id: parseInt(form.categoria_id),
       precio_venta: parseFloat(form.precio_venta),
       precio_compra: form.precio_compra !== '' ? parseFloat(form.precio_compra) : null,
       stock_actual: parseFloat(form.stock_actual) || 0,
+      unidad_medida_id: form.unidad_medida_id !== '' ? parseInt(form.unidad_medida_id, 10) : null,
+      unidad_medida: umSel ? umSel.abreviatura : form.unidad_medida,
+      stock_min: form.stock_min !== '' ? parseFloat(form.stock_min) : null,
+      stock_max: form.stock_max !== '' ? parseFloat(form.stock_max) : null,
+      controla_stock: !!form.controla_stock,
+      ubicacion_almacen: form.ubicacion_almacen || null,
+      stock_corte_fecha: form.stock_corte_fecha
+        ? new Date(form.stock_corte_fecha).toISOString()
+        : null,
+      stock_corte_saldo:
+        form.stock_corte_saldo !== '' && form.stock_corte_saldo != null
+          ? parseFloat(form.stock_corte_saldo)
+          : null,
     }
 
     setGuardando(true)
@@ -156,16 +188,32 @@ function ModalProducto({ producto, categorias, onClose, onSave }) {
                 placeholder="0.00" />
             </div>
             <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Unidad de Medida *</label>
-              <select name="unidad_medida" value={form.unidad_medida} onChange={handleChange}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white">
-                <option value="galón">Galón</option>
-                <option value="litro">Litro</option>
-                <option value="unidad">Unidad</option>
-                <option value="kg">Kilogramo</option>
-                <option value="caja">Caja</option>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Unidad (catálogo)</label>
+              <select
+                name="unidad_medida_id"
+                value={form.unidad_medida_id}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+              >
+                <option value="">— Texto manual abajo —</option>
+                {(unidades || []).filter((u) => u.activo).map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.abreviatura} — {u.nombre}
+                  </option>
+                ))}
               </select>
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Etiqueta unidad (legacy / combustible)</label>
+            <input
+              name="unidad_medida"
+              value={form.unidad_medida}
+              onChange={handleChange}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="galón, litro…"
+            />
           </div>
 
           {/* Stock */}
@@ -187,6 +235,67 @@ function ModalProducto({ producto, categorias, onClose, onSave }) {
                 </label>
               </div>
             )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Stock mínimo (alerta)</label>
+              <input name="stock_min" type="number" step="0.001" min="0" value={form.stock_min} onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="Opcional" />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1">Stock máximo</label>
+              <input name="stock_max" type="number" step="0.001" min="0" value={form.stock_max} onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                placeholder="Opcional" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Ubicación en almacén</label>
+            <input name="ubicacion_almacen" value={form.ubicacion_almacen} onChange={handleChange}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              placeholder="Estante A, rack 3…" />
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" name="controla_stock" checked={form.controla_stock} onChange={handleChange} />
+            Descontar stock al vender en turno grifero (lubricantes / tienda)
+          </label>
+
+          <div className="p-3 rounded-lg border border-amber-100 bg-amber-50/80 space-y-3">
+            <p className="text-xs font-semibold text-amber-900">Combustible — corte de inventario</p>
+            <p className="text-xs text-amber-900/90 leading-relaxed">
+              Si define la fecha y hora de corte, solo los turnos con <strong>fecha de negocio</strong> mayor o
+              igual al día de ese corte (hora Lima) descontarán galones por lecturas de contómetro. Los turnos
+              históricos anteriores no mueven el stock. Las compras por factura siguen sumando. Con corte definido,
+              este producto <strong>no</strong> se descuenta por la pestaña «Ventas productos» (solo lecturas +
+              compras).
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Fecha/hora corte (inventario)</label>
+                <input
+                  name="stock_corte_fecha"
+                  type="datetime-local"
+                  value={form.stock_corte_fecha}
+                  onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1">Saldo al corte (referencia)</label>
+                <input
+                  name="stock_corte_saldo"
+                  type="number"
+                  step="0.001"
+                  min="0"
+                  value={form.stock_corte_saldo}
+                  onChange={handleChange}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                  placeholder="Opcional"
+                />
+              </div>
+            </div>
           </div>
 
           {/* Botones */}
@@ -215,6 +324,7 @@ function ModalProducto({ producto, categorias, onClose, onSave }) {
 export default function Productos() {
   const [productos, setProductos] = useState([])
   const [categorias, setCategorias] = useState([])
+  const [unidades, setUnidades] = useState([])
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
   const [filtroActivo, setFiltroActivo] = useState(null)
@@ -231,9 +341,14 @@ export default function Productos() {
   const cargarDatos = useCallback(async () => {
     setCargando(true)
     try {
-      const [prods, cats] = await Promise.all([getProductosAdmin(), getCategoriasProducto()])
+      const [prods, cats, ums] = await Promise.all([
+        getProductosAdmin(),
+        getCategoriasProducto(),
+        getUnidadesMedida(null).catch(() => []),
+      ])
       setProductos(prods)
       setCategorias(cats)
+      setUnidades(Array.isArray(ums) ? ums : [])
     } catch {
       mostrarNotif('error', 'Error al cargar productos')
     } finally {
@@ -245,7 +360,8 @@ export default function Productos() {
 
   const handleToggleActivo = async (prod) => {
     try {
-      await actualizarProducto(prod.id, { ...prod, activo: !prod.activo })
+      const { unidad_catalogo, ...rest } = prod
+      await actualizarProducto(prod.id, { ...rest, activo: !prod.activo })
       mostrarNotif('exito', `Producto ${prod.nombre} ${!prod.activo ? 'activado' : 'desactivado'}`)
       cargarDatos()
     } catch (err) {
@@ -351,6 +467,7 @@ export default function Productos() {
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">P. Venta</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">P. Compra</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Unidad</th>
+                  <th className="text-center px-4 py-3 font-semibold text-gray-600">Ctrl.</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">Stock</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Estado</th>
                   <th className="text-center px-4 py-3 font-semibold text-gray-600">Acciones</th>
@@ -369,9 +486,12 @@ export default function Productos() {
                     <td className="px-4 py-3 text-gray-500 text-xs">{p.subcategoria || '—'}</td>
                     <td className="px-4 py-3 text-right font-semibold text-green-700">{formatPrecio(p.precio_venta)}</td>
                     <td className="px-4 py-3 text-right text-gray-500">{formatPrecio(p.precio_compra)}</td>
-                    <td className="px-4 py-3 text-center text-xs text-gray-500">{p.unidad_medida}</td>
+                    <td className="px-4 py-3 text-center text-xs text-gray-500">
+                      {p.unidad_catalogo?.abreviatura || p.unidad_medida}
+                    </td>
+                    <td className="px-4 py-3 text-center text-xs text-gray-600">{p.controla_stock ? 'Sí' : 'No'}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-700">
-                      {parseFloat(p.stock_actual || 0).toFixed(2)}
+                      {parseFloat(p.stock_actual || 0).toFixed(3)}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${
@@ -420,8 +540,10 @@ export default function Productos() {
       {/* Modal */}
       {modalAbierto && (
         <ModalProducto
+          key={productoEditar?.id ?? 'nuevo'}
           producto={productoEditar}
           categorias={categorias}
+          unidades={unidades}
           onClose={() => { setModalAbierto(false); setProductoEditar(null) }}
           onSave={handleGuardado}
         />

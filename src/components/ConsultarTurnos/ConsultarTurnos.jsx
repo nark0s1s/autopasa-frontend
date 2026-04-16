@@ -170,10 +170,15 @@ export default function ConsultarTurnos() {
     setTextoConfirmarEliminarCerrado('')
   }
 
-  const handleCierreSuccess = () => {
+  const handleCierreSuccess = (cerrado) => {
     setShowModalCierre(false)
     volverALista()
-    mostrarMensaje('Turno cerrado correctamente')
+    const avisos = cerrado?.avisos_stock_combustible
+    const extra =
+      Array.isArray(avisos) && avisos.length
+        ? `\n\nInventario combustible:\n${avisos.join('\n')}`
+        : ''
+    mostrarMensaje(`Turno cerrado correctamente.${extra}`)
   }
 
   if (pageLoading) {
