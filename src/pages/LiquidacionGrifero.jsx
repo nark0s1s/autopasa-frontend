@@ -15,6 +15,7 @@ import {
   eliminarTurnoGriferoAbierto,
 } from '../utils/api'
 import EtiquetaTurnoConfig from '../components/EtiquetaTurnoConfig'
+import { turnoGriferoEsAbierto } from '../utils/turnoGriferoEstado'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -182,21 +183,49 @@ function LiquidacionGrifero() {
     }
   }
 
-  const getEstadoColor = (estado_id) => {
-    switch(estado_id) {
-      case 1: return 'bg-green-100 text-green-800' // Abierto
-      case 2: return 'bg-gray-100 text-gray-800'   // Cerrado
-      case 3: return 'bg-blue-100 text-blue-800'   // Auditado
-      default: return 'bg-gray-100 text-gray-800'
+  const getEstadoColor = (turno) => {
+    const c = String(turno?.estado_codigo || '').toLowerCase()
+    if (c === 'abierto') return 'bg-green-100 text-green-800'
+    if (c === 'cerrado') return 'bg-red-100 text-red-800'
+    if (c === 'auditado') return 'bg-blue-100 text-blue-800'
+    switch (turno?.estado_id) {
+      case 1:
+        return 'bg-green-100 text-green-800'
+      case 2:
+        return 'bg-red-100 text-red-800'
+      case 3:
+        return 'bg-blue-100 text-blue-800'
+      default:
+        return 'bg-gray-100 text-gray-800'
     }
   }
 
-  const getEstadoTexto = (estado_id) => {
-    switch(estado_id) {
-      case 1: return 'Abierto'
-      case 2: return 'Cerrado'
-      case 3: return 'Auditado'
-      default: return 'Desconocido'
+  const esTurnoCerrado = (turno) =>
+    String(turno?.estado_codigo || '').toLowerCase() === 'cerrado' || turno?.estado_id === 2
+
+  const montoDiferencia = (turno) => {
+    const v = turno?.diferencia
+    if (v === null || v === undefined || v === '') return 0
+    const n = parseFloat(v)
+    return Number.isFinite(n) ? n : 0
+  }
+
+  const getEstadoTexto = (turno) => {
+    const nom = turno?.estado_nombre?.trim()
+    if (nom) return nom
+    const c = String(turno?.estado_codigo || '').toLowerCase()
+    if (c === 'abierto') return 'Abierto'
+    if (c === 'cerrado') return 'Cerrado'
+    if (c === 'auditado') return 'Auditado'
+    switch (turno?.estado_id) {
+      case 1:
+        return 'Abierto'
+      case 2:
+        return 'Cerrado'
+      case 3:
+        return 'Auditado'
+      default:
+        return 'Desconocido'
     }
   }
 
@@ -379,8 +408,8 @@ function LiquidacionGrifero() {
                         {turno.empleado_nombre?.trim() || '—'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(turno.estado_id)}`}>
-                          {getEstadoTexto(turno.estado_id)}
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(turno)}`}>
+                          {getEstadoTexto(turno)}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -394,28 +423,30 @@ function LiquidacionGrifero() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        {turno.estado_id === 2 && (
+                        {esTurnoCerrado(turno) ? (
                           <div className="flex items-center gap-1">
-                            {parseFloat(turno.diferencia) === 0 ? (
+                            {montoDiferencia(turno) === 0 ? (
                               <span className="text-sm font-medium text-green-600">
-                                Cuadrado
+                                S/ {montoDiferencia(turno).toFixed(2)}
                               </span>
-                            ) : parseFloat(turno.diferencia) < 0 ? (
+                            ) : montoDiferencia(turno) < 0 ? (
                               <>
                                 <TrendingDown className="w-4 h-4 text-red-600" />
                                 <span className="text-sm font-medium text-red-600">
-                                  S/ {Math.abs(parseFloat(turno.diferencia)).toFixed(2)}
+                                  S/ {Math.abs(montoDiferencia(turno)).toFixed(2)}
                                 </span>
                               </>
                             ) : (
                               <>
                                 <TrendingUp className="w-4 h-4 text-orange-600" />
                                 <span className="text-sm font-medium text-orange-600">
-                                  S/ {parseFloat(turno.diferencia).toFixed(2)}
+                                  S/ {montoDiferencia(turno).toFixed(2)}
                                 </span>
                               </>
                             )}
                           </div>
+                        ) : (
+                          <span className="text-sm text-gray-400">—</span>
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -428,7 +459,7 @@ function LiquidacionGrifero() {
                             <Eye className="w-4 h-4" />
                             Ver Detalle
                           </button>
-                          {turno.estado_id === 1 && (
+                          {turnoGriferoEsAbierto(turno) && (
                             <button
                               type="button"
                               onClick={() => setTurnoAEliminar(turno)}

@@ -1,8 +1,14 @@
 import axios from 'axios'
 
-// Base del backend (VITE_API_URL en build). Las rutas /login, /dashboard, etc. del DOM son del SPA
-// (mismo origen que el HTML); el login va con POST a `${API_URL}/api/auth/login`, no con GET al API en /login.
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+// Base del backend. En `npm run dev`, por defecto cadena vacía → axios usa el mismo origen que la página
+// (p. ej. http://192.168.x.x:3000) y Vite reenvía `/api` al backend del `vite.config.js` (evita que otro PC
+// llame a su propio localhost:8000). En producción o si defines VITE_API_URL, se usa esa URL absoluta.
+const API_URL =
+  import.meta.env.VITE_API_URL != null && String(import.meta.env.VITE_API_URL).trim() !== ''
+    ? String(import.meta.env.VITE_API_URL).replace(/\/$/, '')
+    : import.meta.env.DEV
+      ? ''
+      : 'http://localhost:8000'
 
 const api = axios.create({
   baseURL: API_URL,
@@ -570,7 +576,11 @@ export const obtenerConciliacionStockPorConsolidacion = async (consolidacionId) 
   return response.data
 }
 
-/** @param {number} conciliacionId @param {{ lineas: Array<Record<string, unknown>>, observaciones?: string|null, fecha_corte_medicion?: string|null }} body */
+/**
+ * @param {number} conciliacionId
+ * @param {{ lineas: Array<Record<string, unknown>>, observaciones?: string|null, fecha_corte_medicion?: string|null }} body
+ *   fecha_corte_medicion: ignorado si la consolidación tiene fecha_turno_consolidacion (el API usa esa fecha).
+ */
 export const actualizarLineasConciliacionStock = async (conciliacionId, body) => {
   const response = await api.patch(`${API_CONCILIACION_STOCK}/${conciliacionId}/lineas`, body)
   return response.data

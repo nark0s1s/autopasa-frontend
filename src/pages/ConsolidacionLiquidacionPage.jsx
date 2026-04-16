@@ -22,8 +22,6 @@ import {
   obtenerConsolidacionLiquidacion,
   eliminarConsolidacionLiquidacion,
   crearConsolidacionLiquidacion,
-  listarVentasServicentroPendientes,
-  listarCobranzasPendientes,
 } from '../utils/api'
 import TabLiquidacionPorTipoTurno from './TabLiquidacionPorTipoTurno'
 import { ConsolidacionOperativaPanel } from '../components/ConsolidacionOperativaPanel'
@@ -84,11 +82,6 @@ export default function ConsolidacionLiquidacionPage() {
   const [modalObs, setModalObs] = useState(false)
   const [obsConsolidacion, setObsConsolidacion] = useState('')
   const [guardando, setGuardando] = useState(false)
-  const [diasVentasOpciones, setDiasVentasOpciones] = useState([])
-  const [diasCobranzasOpciones, setDiasCobranzasOpciones] = useState([])
-  const [selDiasVentas, setSelDiasVentas] = useState(() => new Set())
-  const [selDiasCobranzas, setSelDiasCobranzas] = useState(() => new Set())
-  const [cargandoDiasPend, setCargandoDiasPend] = useState(false)
   const [eliminandoConsolidacionId, setEliminandoConsolidacionId] = useState(null)
   /** Modal eliminar: null | { id, codigo, loading, error, turnos } */
   const [modalEliminarConsolidacion, setModalEliminarConsolidacion] = useState(null)
@@ -250,6 +243,11 @@ export default function ConsolidacionLiquidacionPage() {
     if (tab === 'pendientes') cargarPendientes()
   }, [tab, cargarPendientes])
 
+  /** Precarga consolidaciones pendientes al entrar a la ruta (la pestaña por defecto es otra). */
+  useEffect(() => {
+    void cargarPendientes()
+  }, [cargarPendientes])
+
   useEffect(() => {
     if (location.pathname !== '/turno-consolidacion-liquidacion') return
     if (location.state?.__menuReselect == null) return
@@ -298,44 +296,6 @@ export default function ConsolidacionLiquidacionPage() {
     else setSelected(new Set(cerrados.map((c) => c.id)))
   }
 
-  const cargarDiasPendientesOperaciones = useCallback(async () => {
-    setCargandoDiasPend(true)
-    try {
-      const params = {
-        fecha_desde: fechaDesde || undefined,
-        fecha_hasta: fechaHasta || undefined,
-      }
-      const [ventas, cobranzas] = await Promise.all([
-        listarVentasServicentroPendientes({}),
-        listarCobranzasPendientes(params),
-      ])
-      const vArr = Array.isArray(ventas) ? ventas : []
-      const cArr = Array.isArray(cobranzas) ? cobranzas : []
-      const dv = [
-        ...new Set(
-          vArr.map((r) => (r.fecha_venta != null ? String(r.fecha_venta).slice(0, 10) : '')).filter(Boolean)
-        ),
-      ].sort()
-      const dc = [
-        ...new Set(
-          cArr.map((r) => (r.fecha_cobranza != null ? String(r.fecha_cobranza).slice(0, 10) : '')).filter(Boolean)
-        ),
-      ].sort()
-      setDiasVentasOpciones(dv)
-      setDiasCobranzasOpciones(dc)
-      setSelDiasVentas(new Set(dv))
-      setSelDiasCobranzas(new Set(dc))
-    } catch (e) {
-      console.error(LOG_CONS, 'cargarDiasPendientesOperaciones', e)
-      setDiasVentasOpciones([])
-      setDiasCobranzasOpciones([])
-      setSelDiasVentas(new Set())
-      setSelDiasCobranzas(new Set())
-    } finally {
-      setCargandoDiasPend(false)
-    }
-  }, [fechaDesde, fechaHasta])
-
   const abrirModalGuardar = () => {
     const ids = Array.from(selected)
     console.info(LOG_CONS, 'Crear consolidación (abrir modal)', {
@@ -349,7 +309,6 @@ export default function ConsolidacionLiquidacionPage() {
     }
     setObsConsolidacion('')
     setModalObs(true)
-    void cargarDiasPendientesOperaciones()
     console.info(LOG_CONS, 'Modal de confirmación abierto; al confirmar se hará POST /consolidaciones')
   }
 
@@ -357,8 +316,8 @@ export default function ConsolidacionLiquidacionPage() {
     const payload = {
       turno_cabecera_grifero_ids: Array.from(selected),
       observaciones: obsConsolidacion.trim() || null,
-      fechas_venta_servicentro: [...selDiasVentas].sort(),
-      fechas_cobranza: [...selDiasCobranzas].sort(),
+      fechas_venta_servicentro: [],
+      fechas_cobranza: [],
     }
     console.info(LOG_CONS, 'confirmarConsolidacion → enviando POST /consolidaciones', payload)
     try {
@@ -903,115 +862,11 @@ export default function ConsolidacionLiquidacionPage() {
             <p className="text-sm text-gray-600 mb-4">
               Se registrarán <strong>{selected.size}</strong> turno(s) en esta consolidación.
             </p>
-            <p className="text-xs text-gray-600 mb-3">
-              <strong>Venta servicentro:</strong> días con registros pendientes ingresados en Operaciones (cualquier fecha).
-              <strong> Cobranzas:</strong> días pendientes dentro del rango de fechas del listado de turnos de arriba. Desmarque
-              días que no desea vincular al crear esta consolidación.
+            <p className="text-xs text-gray-600 mb-4 p-3 rounded-lg bg-blue-50 border border-blue-100">
+              Las ventas <strong>servicentro</strong> y <strong>cobranzas</strong> pendientes cuya fecha esté entre la
+              fecha de turno mínima y la máxima de los turnos seleccionados se vincularán automáticamente a esta
+              consolidación (no hace falta elegir días).
             </p>
-            <div className="grid sm:grid-cols-2 gap-4 mb-4">
-              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/80">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <span className="text-sm font-medium text-gray-800">Días — venta servicentro</span>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      className="text-xs text-primary-600 font-medium"
-                      onClick={() => setSelDiasVentas(new Set(diasVentasOpciones))}
-                      disabled={cargandoDiasPend || diasVentasOpciones.length === 0}
-                    >
-                      Todas
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs text-gray-600 font-medium"
-                      onClick={() => setSelDiasVentas(new Set())}
-                      disabled={cargandoDiasPend}
-                    >
-                      Ninguna
-                    </button>
-                  </div>
-                </div>
-                {cargandoDiasPend ? (
-                  <p className="text-xs text-gray-500">Cargando días con pendientes…</p>
-                ) : diasVentasOpciones.length === 0 ? (
-                  <p className="text-xs text-gray-500">No hay ventas servicentro pendientes.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {diasVentasOpciones.map((d) => (
-                      <label
-                        key={d}
-                        className="inline-flex items-center gap-1.5 text-xs bg-white border border-gray-200 rounded-full px-2.5 py-1 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selDiasVentas.has(d)}
-                          onChange={() => {
-                            setSelDiasVentas((prev) => {
-                              const n = new Set(prev)
-                              if (n.has(d)) n.delete(d)
-                              else n.add(d)
-                              return n
-                            })
-                          }}
-                        />
-                        {format(new Date(d + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <div className="border border-gray-200 rounded-lg p-3 bg-gray-50/80">
-                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <span className="text-sm font-medium text-gray-800">Días — cobranzas</span>
-                  <div className="flex gap-1">
-                    <button
-                      type="button"
-                      className="text-xs text-primary-600 font-medium"
-                      onClick={() => setSelDiasCobranzas(new Set(diasCobranzasOpciones))}
-                      disabled={cargandoDiasPend || diasCobranzasOpciones.length === 0}
-                    >
-                      Todas
-                    </button>
-                    <button
-                      type="button"
-                      className="text-xs text-gray-600 font-medium"
-                      onClick={() => setSelDiasCobranzas(new Set())}
-                      disabled={cargandoDiasPend}
-                    >
-                      Ninguna
-                    </button>
-                  </div>
-                </div>
-                {cargandoDiasPend ? (
-                  <p className="text-xs text-gray-500">Cargando días con pendientes…</p>
-                ) : diasCobranzasOpciones.length === 0 ? (
-                  <p className="text-xs text-gray-500">No hay cobranzas pendientes en el rango.</p>
-                ) : (
-                  <div className="flex flex-wrap gap-2">
-                    {diasCobranzasOpciones.map((d) => (
-                      <label
-                        key={d}
-                        className="inline-flex items-center gap-1.5 text-xs bg-white border border-gray-200 rounded-full px-2.5 py-1 cursor-pointer"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selDiasCobranzas.has(d)}
-                          onChange={() => {
-                            setSelDiasCobranzas((prev) => {
-                              const n = new Set(prev)
-                              if (n.has(d)) n.delete(d)
-                              else n.add(d)
-                              return n
-                            })
-                          }}
-                        />
-                        {format(new Date(d + 'T12:00:00'), 'dd/MM/yyyy', { locale: es })}
-                      </label>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones (opcional)</label>
             <textarea
               className="input w-full min-h-[80px] mb-4"
@@ -1032,7 +887,7 @@ export default function ConsolidacionLiquidacionPage() {
                 type="button"
                 className="btn btn-primary flex-1"
                 onClick={confirmarConsolidacion}
-                disabled={guardando || cargandoDiasPend}
+                disabled={guardando}
               >
                 {guardando ? 'Creando…' : 'Crear consolidación (pendiente)'}
               </button>

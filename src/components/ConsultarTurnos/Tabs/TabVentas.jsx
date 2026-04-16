@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { agregarVentaProducto } from '../../../utils/api'
+import { turnoGriferoEsAbierto } from '../../../utils/turnoGriferoEstado'
 import { ModalVenta } from '../Modals/ModalVenta'
 
 export function TabVentas({ turno, productos, onReload, onMensaje }) {
@@ -25,7 +26,7 @@ export function TabVentas({ turno, productos, onReload, onMensaje }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Ventas de Productos</h3>
-        {turno.estado_id === 1 && (
+        {turnoGriferoEsAbierto(turno) && (
           <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
             <Plus className="w-5 h-5 mr-2" />
             Nueva Venta

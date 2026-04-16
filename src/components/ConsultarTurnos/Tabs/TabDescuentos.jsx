@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { Plus } from 'lucide-react'
 import { getClientes, agregarDescuentoTurno } from '../../../utils/api'
+import { turnoGriferoEsAbierto } from '../../../utils/turnoGriferoEstado'
 import { ModalDescuentoTurno } from '../Modals/ModalDescuentoTurno'
 
 export function TabDescuentos({ turno, onReload, onMensaje }) {
@@ -51,7 +52,7 @@ export function TabDescuentos({ turno, onReload, onMensaje }) {
             Se guardan en el turno de grifero y reducen el efectivo esperado según monto de descuento.
           </p>
         </div>
-        {turno.estado_id === 1 && (
+        {turnoGriferoEsAbierto(turno) && (
           <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
             <Plus className="w-5 h-5 mr-2" />
             Nuevo descuento

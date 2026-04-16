@@ -8,6 +8,7 @@ import {
   actualizarFinanciacionGnv,
   eliminarFinanciacionGnv,
 } from '../../../utils/api'
+import { turnoGriferoEsAbierto } from '../../../utils/turnoGriferoEstado'
 import { ModalGNV } from '../Modals/ModalGNV'
 
 export function TabGNV({ turno, onReload, onMensaje }) {
@@ -139,7 +140,7 @@ export function TabGNV({ turno, onReload, onMensaje }) {
                 <span className="font-semibold text-teal-700">S/ {totalVentaGnv.toFixed(2)}</span>
               </p>
             </div>
-            {turno.estado_id === 1 && (
+            {turnoGriferoEsAbierto(turno) && (
               <button
                 type="button"
                 onClick={() => {
@@ -164,7 +165,7 @@ export function TabGNV({ turno, onReload, onMensaje }) {
                       <p className="text-sm text-gray-600 mt-1">{row.observaciones}</p>
                     )}
                   </div>
-                  {turno.estado_id === 1 && (
+                  {turnoGriferoEsAbierto(turno) && (
                     <div className="flex gap-2 shrink-0">
                       <button
                         type="button"
@@ -204,7 +205,7 @@ export function TabGNV({ turno, onReload, onMensaje }) {
                 <span className="font-semibold text-cyan-800">S/ {totalFinGnv.toFixed(2)}</span>
               </p>
             </div>
-            {turno.estado_id === 1 && (
+            {turnoGriferoEsAbierto(turno) && (
               <button
                 type="button"
                 onClick={() => {
@@ -229,7 +230,7 @@ export function TabGNV({ turno, onReload, onMensaje }) {
                       <p className="text-sm text-gray-600 mt-1">{row.observaciones}</p>
                     )}
                   </div>
-                  {turno.estado_id === 1 && (
+                  {turnoGriferoEsAbierto(turno) && (
                     <div className="flex gap-2 shrink-0">
                       <button
                         type="button"
