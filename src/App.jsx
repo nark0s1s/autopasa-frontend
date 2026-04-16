@@ -26,6 +26,7 @@ import TurnoConfigIslaPage from './pages/mantenimiento/TurnoConfigIslaPage'
 import UnidadesMedidaPage from './pages/mantenimiento/UnidadesMedidaPage'
 import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
 import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
+import KardexCombustiblePage from './pages/KardexCombustiblePage'
 
 // Componente para rutas protegidas
 function PrivateRoute({ children }) {
@@ -281,6 +282,16 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <OperacionesCobranzasPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/consultas/kardex-combustible"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <KardexCombustiblePage />
                 </Layout>
               </PrivateRoute>
             }

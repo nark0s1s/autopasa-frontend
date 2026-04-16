@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
+import EtiquetaTurnoConfig from './EtiquetaTurnoConfig'
 import {
   obtenerConsolidacionVistaOperativa,
   cerrarConsolidacionLiquidacion,
@@ -919,7 +920,14 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                           <>
                             {' '}
                             · Liq. <span className="font-mono">{r.turno_liquidacion_codigo}</span>
-                            {r.turno_config_etiqueta ? ` (${r.turno_config_etiqueta})` : ''}
+                            {r.turno_config_etiqueta ? (
+                              <>
+                                {' '}
+                                (
+                                <EtiquetaTurnoConfig texto={r.turno_config_etiqueta} className="inline" />
+                                )
+                              </>
+                            ) : null}
                           </>
                         ) : null}
                         {r.numero_factura ? (
@@ -1244,7 +1252,9 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                               <tr key={t.id} className="border-t border-gray-100">
                                 <td className="p-3">
                                   <span className="font-mono text-xs">{t.turno_codigo}</span>
-                                  <span className="text-gray-500 text-xs block">{t.turno_config_etiqueta}</span>
+                                  <span className="text-xs block mt-0.5">
+                                    <EtiquetaTurnoConfig texto={t.turno_config_etiqueta} />
+                                  </span>
                                 </td>
                                 <td className="p-3 text-right tabular-nums">S/ {fmtMonto(t.efectivo_esperado)}</td>
                                 <td className="p-3 text-right tabular-nums font-medium">S/ {fmtMonto(t.efectivo_entregado)}</td>
@@ -1335,7 +1345,9 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                       <li key={t.id} className="border border-gray-100 rounded-lg p-3 text-sm">
                         <div className="flex justify-between gap-2">
                           <span className="font-mono text-xs">{t.turno_codigo}</span>
-                          <span className="text-xs text-gray-500">{t.turno_config_etiqueta}</span>
+                          <span className="text-xs">
+                            <EtiquetaTurnoConfig texto={t.turno_config_etiqueta} />
+                          </span>
                         </div>
                         <div className="text-xs text-gray-600">{t.empleado_nombre}</div>
                       </li>

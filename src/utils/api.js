@@ -790,8 +790,10 @@ export const getMenuUsuario = async (empleadoId) => {
 // PRODUCTOS (Admin)
 // ============================================================================
 
-export const getProductosAdmin = async (activo = null) => {
-  const params = activo !== null ? { activo } : {}
+export const getProductosAdmin = async (activo = null, categoria_id = null) => {
+  const params = {}
+  if (activo !== null && activo !== undefined) params.activo = activo
+  if (categoria_id !== null && categoria_id !== undefined) params.categoria_id = categoria_id
   const response = await api.get('/api/infraestructura/productos', { params })
   return response.data
 }
@@ -872,6 +874,18 @@ export const crearCompraFactura = async (data) => {
 
 export const getMovimientosStock = async (params = {}) => {
   const response = await api.get(`${API_LOGISTICA}/movimientos-stock`, { params })
+  return response.data
+}
+
+export const getKardexCombustible = async ({ producto_id, desde, hasta }) => {
+  const response = await api.get(`${API_LOGISTICA}/kardex-combustible`, {
+    params: { producto_id, desde, hasta },
+  })
+  return response.data
+}
+
+export const getProductosCombustibleKardex = async () => {
+  const response = await api.get(`${API_LOGISTICA}/productos-combustible-kardex`)
   return response.data
 }
 

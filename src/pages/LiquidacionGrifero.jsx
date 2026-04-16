@@ -14,6 +14,7 @@ import {
   listarTurnosConfigInfra,
   eliminarTurnoGriferoAbierto,
 } from '../utils/api'
+import EtiquetaTurnoConfig from '../components/EtiquetaTurnoConfig'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -343,7 +344,7 @@ function LiquidacionGrifero() {
                 <thead className="bg-gray-50 border-b border-gray-200">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Cód. turno-config
+                      Tipo de turno (liquidación)
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Fecha del turno
@@ -368,10 +369,8 @@ function LiquidacionGrifero() {
                 <tbody className="bg-white divide-y divide-gray-200">
                   {turnos.map((turno) => (
                     <tr key={turno.id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap">
-                        <span className="font-mono font-medium">
-                          {turno.turno_config_codigo?.trim() || '—'}
-                        </span>
+                      <td className="px-6 py-4 text-sm text-gray-900 whitespace-nowrap max-w-xs">
+                        <EtiquetaTurnoConfig texto={turno.turno_config_etiqueta} />
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-800">
                         {formatearSoloFecha(turno.fecha_turno)}

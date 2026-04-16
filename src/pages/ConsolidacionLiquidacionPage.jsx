@@ -27,6 +27,7 @@ import {
 } from '../utils/api'
 import TabLiquidacionPorTipoTurno from './TabLiquidacionPorTipoTurno'
 import { ConsolidacionOperativaPanel } from '../components/ConsolidacionOperativaPanel'
+import EtiquetaTurnoConfig from '../components/EtiquetaTurnoConfig'
 import { format } from 'date-fns'
 import { es } from 'date-fns/locale'
 
@@ -838,8 +839,8 @@ export default function ConsolidacionLiquidacionPage() {
                               )
                             : '—'}
                         </div>
-                        <div className="sm:col-span-4 text-xs text-gray-500 truncate" title={t.turno_config_etiqueta || ''}>
-                          {t.turno_config_etiqueta || '—'}
+                        <div className="sm:col-span-4 text-xs truncate" title={t.turno_config_etiqueta || ''}>
+                          <EtiquetaTurnoConfig texto={t.turno_config_etiqueta} />
                         </div>
                         <div className="sm:col-span-2 text-xs text-gray-700 truncate text-left sm:text-right" title={t.empleado_nombre}>
                           {t.empleado_nombre || '—'}

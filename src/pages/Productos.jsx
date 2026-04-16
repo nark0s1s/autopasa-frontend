@@ -39,7 +39,6 @@ function ModalProducto({ producto, categorias, unidades, onClose, onSave }) {
     subcategoria: producto?.subcategoria || '',
     precio_venta: producto?.precio_venta ?? '',
     precio_compra: producto?.precio_compra ?? '',
-    unidad_medida: producto?.unidad_medida || 'galón',
     unidad_medida_id: producto?.unidad_medida_id ?? '',
     stock_actual: producto?.stock_actual ?? 0,
     stock_min: producto?.stock_min ?? '',
@@ -62,18 +61,16 @@ function ModalProducto({ producto, categorias, unidades, onClose, onSave }) {
     e.preventDefault()
     setError('')
 
-    const umSel =
-      form.unidad_medida_id !== ''
-        ? (unidades || []).find((u) => u.id === parseInt(form.unidad_medida_id, 10))
-        : null
     const payload = {
       ...form,
       categoria_id: parseInt(form.categoria_id),
       precio_venta: parseFloat(form.precio_venta),
       precio_compra: form.precio_compra !== '' ? parseFloat(form.precio_compra) : null,
       stock_actual: parseFloat(form.stock_actual) || 0,
-      unidad_medida_id: form.unidad_medida_id !== '' ? parseInt(form.unidad_medida_id, 10) : null,
-      unidad_medida: umSel ? umSel.abreviatura : form.unidad_medida,
+      unidad_medida_id:
+        form.unidad_medida_id !== '' && form.unidad_medida_id != null
+          ? parseInt(form.unidad_medida_id, 10)
+          : null,
       stock_min: form.stock_min !== '' ? parseFloat(form.stock_min) : null,
       stock_max: form.stock_max !== '' ? parseFloat(form.stock_max) : null,
       controla_stock: !!form.controla_stock,
@@ -173,8 +170,8 @@ function ModalProducto({ producto, categorias, unidades, onClose, onSave }) {
             </div>
           </div>
 
-          {/* Precios y unidad */}
-          <div className="grid grid-cols-3 gap-4">
+          {/* Precios */}
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Precio Venta (S/) *</label>
               <input name="precio_venta" type="number" step="0.01" min="0" value={form.precio_venta} onChange={handleChange} required
@@ -187,33 +184,23 @@ function ModalProducto({ producto, categorias, unidades, onClose, onSave }) {
                 className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
                 placeholder="0.00" />
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Unidad (catálogo)</label>
-              <select
-                name="unidad_medida_id"
-                value={form.unidad_medida_id}
-                onChange={handleChange}
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-              >
-                <option value="">— Texto manual abajo —</option>
-                {(unidades || []).filter((u) => u.activo).map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.abreviatura} — {u.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-600 mb-1">Etiqueta unidad (legacy / combustible)</label>
-            <input
-              name="unidad_medida"
-              value={form.unidad_medida}
+            <label className="block text-xs font-semibold text-gray-600 mb-1">Unidad de medida (catálogo)</label>
+            <select
+              name="unidad_medida_id"
+              value={form.unidad_medida_id}
               onChange={handleChange}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-              placeholder="galón, litro…"
-            />
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+            >
+              <option value="">Sin asignar (corregir luego en BD o aquí)</option>
+              {(unidades || []).filter((u) => u.activo).map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.abreviatura} — {u.nombre}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Stock */}
@@ -487,7 +474,7 @@ export default function Productos() {
                     <td className="px-4 py-3 text-right font-semibold text-green-700">{formatPrecio(p.precio_venta)}</td>
                     <td className="px-4 py-3 text-right text-gray-500">{formatPrecio(p.precio_compra)}</td>
                     <td className="px-4 py-3 text-center text-xs text-gray-500">
-                      {p.unidad_catalogo?.abreviatura || p.unidad_medida}
+                      {p.unidad_catalogo?.abreviatura || '—'}
                     </td>
                     <td className="px-4 py-3 text-center text-xs text-gray-600">{p.controla_stock ? 'Sí' : 'No'}</td>
                     <td className="px-4 py-3 text-right font-medium text-gray-700">
