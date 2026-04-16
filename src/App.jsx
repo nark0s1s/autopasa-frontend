@@ -27,6 +27,7 @@ import UnidadesMedidaPage from './pages/mantenimiento/UnidadesMedidaPage'
 import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
 import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
 import KardexCombustiblePage from './pages/KardexCombustiblePage'
+import ConciliacionStockCombustiblePage from './pages/ConciliacionStockCombustiblePage'
 
 // Componente para rutas protegidas
 function PrivateRoute({ children }) {
@@ -292,6 +293,16 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <KardexCombustiblePage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/supervision/conciliacion-stock-combustible"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <ConciliacionStockCombustiblePage />
                 </Layout>
               </PrivateRoute>
             }
