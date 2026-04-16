@@ -544,6 +544,94 @@ export const cerrarTurnoGrifero = async (turnoId, data) => {
 }
 
 // ============================================================================
+// CONCILIACIÓN STOCK COMBUSTIBLE (consolidación de liquidación cerrada)
+// ============================================================================
+
+const API_CONCILIACION_STOCK = '/api/conciliacion-stock-combustible'
+
+/** @param {{ limit?: number, fecha_desde?: string, fecha_hasta?: string }} [params] */
+export const listarConsolidacionesPendientesConciliacionStock = async (params = {}) => {
+  const response = await api.get(`${API_CONCILIACION_STOCK}/consolidaciones-pendientes`, { params })
+  return response.data
+}
+
+export const crearOAbrirConciliacionStockPorConsolidacion = async (consolidacionId) => {
+  const response = await api.post(`${API_CONCILIACION_STOCK}/consolidaciones/${consolidacionId}`)
+  return response.data
+}
+
+export const obtenerConciliacionStock = async (conciliacionId) => {
+  const response = await api.get(`${API_CONCILIACION_STOCK}/${conciliacionId}`)
+  return response.data
+}
+
+export const obtenerConciliacionStockPorConsolidacion = async (consolidacionId) => {
+  const response = await api.get(`${API_CONCILIACION_STOCK}/por-consolidacion/${consolidacionId}`)
+  return response.data
+}
+
+/** @param {number} conciliacionId @param {{ lineas: Array<Record<string, unknown>>, observaciones?: string|null, fecha_corte_medicion?: string|null }} body */
+export const actualizarLineasConciliacionStock = async (conciliacionId, body) => {
+  const response = await api.patch(`${API_CONCILIACION_STOCK}/${conciliacionId}/lineas`, body)
+  return response.data
+}
+
+/** @param {number} conciliacionId @param {{ observaciones_cierre?: string|null }} [body] */
+export const cerrarConciliacionStock = async (conciliacionId, body = {}) => {
+  const response = await api.post(`${API_CONCILIACION_STOCK}/${conciliacionId}/cerrar`, body)
+  return response.data
+}
+
+/** @param {{ limit?: number }} [params] */
+export const listarHistorialConciliacionesStockCerradas = async (params = {}) => {
+  const response = await api.get(`${API_CONCILIACION_STOCK}/historial/cerradas`, { params })
+  return response.data
+}
+
+/** @param {{ limit?: number }} [params] */
+export const listarComprasCombustibleDisponiblesConciliacion = async (params = {}) => {
+  const response = await api.get(`${API_CONCILIACION_STOCK}/compras-combustible/disponibles`, { params })
+  return response.data
+}
+
+/** @param {number} compraFacturaId @param {{ estado_combustible_logistica: string }} body */
+export const patchEstadoLogisticaCompraCombustible = async (compraFacturaId, body) => {
+  const response = await api.patch(
+    `${API_CONCILIACION_STOCK}/compras-combustible/${compraFacturaId}/estado-logistica`,
+    body
+  )
+  return response.data
+}
+
+/** @param {number} conciliacionId @param {{ compra_factura_ids: number[] }} body */
+export const vincularComprasConciliacionStock = async (conciliacionId, body) => {
+  const response = await api.post(`${API_CONCILIACION_STOCK}/${conciliacionId}/compras/vincular`, body)
+  return response.data
+}
+
+/** @param {number} conciliacionId @param {{ compra_factura_ids: number[] }} body */
+export const desvincularComprasConciliacionStock = async (conciliacionId, body) => {
+  const response = await api.post(`${API_CONCILIACION_STOCK}/${conciliacionId}/compras/desvincular`, body)
+  return response.data
+}
+
+/** PDF vertical (A4): grilla de conciliación cerrada y datos de la consolidación de liquidación. */
+export const downloadConciliacionStockCombustiblePdf = async (conciliacionId) => {
+  const response = await api.get(`${API_CONCILIACION_STOCK}/${conciliacionId}/reporte.pdf`, {
+    responseType: 'blob',
+  })
+  const blob = new Blob([response.data], { type: 'application/pdf' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `conciliacion-stock-combustible-${conciliacionId}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.URL.revokeObjectURL(url)
+}
+
+// ============================================================================
 // CATÁLOGOS
 // ============================================================================
 

@@ -5,6 +5,8 @@ import {
   Pencil,
   Trash2,
   Lock,
+  AlertTriangle,
+  CheckCircle,
   Fuel,
   Flame,
   Package,
@@ -445,6 +447,9 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
   const [loading, setLoading] = useState(true)
   const [subTab, setSubTab] = useState('cuadre_general')
   const [cerrando, setCerrando] = useState(false)
+  const [modalConfirmarCerrar, setModalConfirmarCerrar] = useState(false)
+  /** Tras cerrar OK: popup explícito antes de volver al listado (evita solo toast / sensación de alert). */
+  const [modalExitoCerrar, setModalExitoCerrar] = useState(null)
   const [edicion, setEdicion] = useState(null)
   const [eliminar, setEliminar] = useState(null)
   const [disponiblesVs, setDisponiblesVs] = useState([])
@@ -596,20 +601,26 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
     }
   }, [detalle])
 
-  const handleCerrarConsolidacion = async () => {
-    if (!pendiente) return
-    if (!window.confirm('¿Cerrar esta consolidación? No podrá agregar ni editar ventas servicentro ni cobranzas después.')) return
+  const ejecutarCerrarConsolidacion = async () => {
+    if (!pendiente || !detalle) return
+    const codigoCons = detalle.codigo
     try {
       setCerrando(true)
+      setModalConfirmarCerrar(false)
       await cerrarConsolidacionLiquidacion(consolidacionId)
-      onMensaje('Consolidación cerrada correctamente')
+      await cargar()
       onCerrada?.()
-      onClose()
+      setModalExitoCerrar({ codigo: codigoCons })
     } catch (e) {
       onMensaje(e.response?.data?.detail || 'No se pudo cerrar', 'error')
     } finally {
       setCerrando(false)
     }
+  }
+
+  const cerrarModalExitoCerrar = () => {
+    setModalExitoCerrar(null)
+    onClose()
   }
 
   const guardarVenta = async (payload) => {
@@ -1011,6 +1022,92 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
 
   return (
     <>
+      {modalExitoCerrar && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-exito-cerrar-cons"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) cerrarModalExitoCerrar()
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-6 max-w-md w-full">
+            <div className="flex gap-3 mb-4">
+              <div className="p-2 rounded-full bg-green-100 text-green-700 shrink-0">
+                <CheckCircle className="w-7 h-7" aria-hidden />
+              </div>
+              <div>
+                <h3 id="titulo-exito-cerrar-cons" className="text-lg font-semibold text-gray-900">
+                  Consolidación cerrada
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  La consolidación quedó registrada como <strong className="text-gray-800">cerrada</strong>. Ya no podrá
+                  editar ventas servicentro ni cobranzas en este documento.
+                </p>
+              </div>
+            </div>
+            <dl className="text-sm space-y-2 mb-5 border border-gray-100 rounded-lg p-3 bg-gray-50/80">
+              <div className="flex justify-between gap-2">
+                <dt className="text-gray-500">Código</dt>
+                <dd className="font-mono font-medium text-gray-900">{modalExitoCerrar.codigo}</dd>
+              </div>
+            </dl>
+            <button
+              type="button"
+              className="btn btn-primary w-full"
+              onClick={cerrarModalExitoCerrar}
+            >
+              Aceptar
+            </button>
+          </div>
+        </div>
+      )}
+
+      {modalConfirmarCerrar && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-confirmar-cerrar-cons"
+        >
+          <div className="card p-6 max-w-md w-full shadow-xl">
+            <div className="flex gap-3 mb-3">
+              <div className="p-2 rounded-full bg-amber-100 text-amber-800 shrink-0">
+                <AlertTriangle className="w-6 h-6" aria-hidden />
+              </div>
+              <div>
+                <h3 id="titulo-confirmar-cerrar-cons" className="text-lg font-semibold text-gray-900">
+                  ¿Cerrar esta consolidación?
+                </h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  No podrá agregar ni editar ventas de servicentro ni cobranzas asociadas a esta consolidación después
+                  de cerrarla.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                className="btn btn-secondary flex-1"
+                onClick={() => setModalConfirmarCerrar(false)}
+                disabled={cerrando}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary flex-1"
+                onClick={ejecutarCerrarConsolidacion}
+                disabled={cerrando}
+              >
+                {cerrando ? 'Cerrando…' : 'Sí, cerrar consolidación'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
         <div className="min-h-full flex justify-center p-4 py-8">
           <div className="card w-full max-w-5xl shadow-xl">
@@ -1041,10 +1138,10 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                   <button
                     type="button"
                     className="btn btn-primary inline-flex items-center gap-2"
-                    onClick={handleCerrarConsolidacion}
+                    onClick={() => setModalConfirmarCerrar(true)}
                     disabled={cerrando}
                   >
-                    {cerrando ? 'Cerrando…' : 'Cerrar consolidación'}
+                    Cerrar consolidación
                   </button>
                 )}
                 <button type="button" className="btn btn-secondary btn-sm" onClick={abrirPdf}>

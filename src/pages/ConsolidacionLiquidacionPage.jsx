@@ -92,6 +92,8 @@ export default function ConsolidacionLiquidacionPage() {
   const [eliminandoConsolidacionId, setEliminandoConsolidacionId] = useState(null)
   /** Modal eliminar: null | { id, codigo, loading, error, turnos } */
   const [modalEliminarConsolidacion, setModalEliminarConsolidacion] = useState(null)
+  /** Tras POST /consolidaciones OK: popup de éxito (además del panel operativo). */
+  const [modalExitoCrear, setModalExitoCrear] = useState(null)
   const tabRef = useRef(tab)
   useEffect(() => {
     tabRef.current = tab
@@ -364,7 +366,6 @@ export default function ConsolidacionLiquidacionPage() {
       const created = await crearConsolidacionLiquidacion(payload)
       console.info(LOG_CONS, 'confirmarConsolidacion → respuesta backend', created)
       setModalObs(false)
-      mostrarMensaje('Consolidación creada (pendiente). Complete venta servicentro y cobranzas, luego cierre cuando corresponda.')
       await cargarCerrados(false, 'tras crear consolidación: refrescar turnos aún sin consolidar')
       await cargarPendientes()
       await cargarHistorial()
@@ -372,8 +373,14 @@ export default function ConsolidacionLiquidacionPage() {
       if (created?.id) {
         console.info(LOG_CONS, 'Abriendo panel operativo consolidación id=', created.id)
         setPanelConsolidacionId(created.id)
+        setModalExitoCrear({
+          id: created.id,
+          codigo: created.codigo || `#${created.id}`,
+          cantidad_turnos: created.cantidad_turnos ?? payload.turno_cabecera_grifero_ids.length,
+        })
       } else {
         console.warn(LOG_CONS, 'Respuesta sin id; no se abre panel', created)
+        mostrarMensaje('Consolidación registrada, pero la respuesta no incluyó id. Revise el listado pendiente.', 'error')
       }
     } catch (e) {
       console.error(LOG_CONS, 'confirmarConsolidacion → fallo', {
@@ -1044,6 +1051,49 @@ export default function ConsolidacionLiquidacionPage() {
           onMensaje={mostrarMensaje}
           onCerrada={refrescarListasConsolidacion}
         />
+      )}
+
+      {modalExitoCrear && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-exito-crear-cons"
+        >
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 p-6 max-w-md w-full">
+            <div className="flex gap-3 mb-4">
+              <div className="p-2 rounded-full bg-green-100 text-green-700 shrink-0">
+                <CheckCircle className="w-7 h-7" aria-hidden />
+              </div>
+              <div>
+                <h3 id="titulo-exito-crear-cons" className="text-lg font-semibold text-gray-900">
+                  Consolidación creada
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  Estado <strong className="text-amber-800">pendiente</strong>. Complete venta servicentro y cobranzas
+                  en el panel, luego cierre la consolidación cuando corresponda.
+                </p>
+              </div>
+            </div>
+            <dl className="text-sm space-y-2 mb-5 border border-gray-100 rounded-lg p-3 bg-gray-50/80">
+              <div className="flex justify-between gap-2">
+                <dt className="text-gray-500">Código</dt>
+                <dd className="font-mono font-medium text-gray-900">{modalExitoCrear.codigo}</dd>
+              </div>
+              <div className="flex justify-between gap-2">
+                <dt className="text-gray-500">Turnos incluidos</dt>
+                <dd className="font-medium text-gray-900">{modalExitoCrear.cantidad_turnos}</dd>
+              </div>
+            </dl>
+            <button
+              type="button"
+              className="btn btn-primary w-full"
+              onClick={() => setModalExitoCrear(null)}
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
