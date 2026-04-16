@@ -13,7 +13,7 @@ export function NotificacionFlotante({ mensaje }) {
       ) : (
         <AlertCircle className="w-5 h-5" />
       )}
-      {mensaje.texto}
+      <span className="whitespace-pre-line">{mensaje.texto}</span>
     </div>
   )
 }

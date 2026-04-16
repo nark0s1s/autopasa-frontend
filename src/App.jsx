@@ -10,6 +10,8 @@ import CuadreDiario from './pages/CuadreDiario'
 import ProximamentePage from './pages/ProximamentePage'
 import Empleados from './pages/Empleados'
 import Productos from './pages/Productos'
+import Proveedores from './pages/Proveedores'
+import ComprasFactura from './pages/ComprasFactura'
 import Clientes from './pages/Clientes'
 import CuadreContable from './pages/CuadreContable'
 import GestionRoles from './pages/seguridad/GestionRoles'
@@ -21,6 +23,7 @@ import SurtidoresPage from './pages/mantenimiento/SurtidoresPage'
 import ContometrosPage from './pages/mantenimiento/ContometrosPage'
 import TurnosConfigPage from './pages/mantenimiento/TurnosConfigPage'
 import TurnoConfigIslaPage from './pages/mantenimiento/TurnoConfigIslaPage'
+import UnidadesMedidaPage from './pages/mantenimiento/UnidadesMedidaPage'
 import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
 import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
 
@@ -151,6 +154,36 @@ function App() {
                 </Layout>
               </PrivateRoute>
             } 
+          />
+          <Route
+            path="/mantenimiento/unidades-medida"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <UnidadesMedidaPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/proveedores"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <Proveedores />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/compras-factura"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <ComprasFactura />
+                </Layout>
+              </PrivateRoute>
+            }
           />
           <Route 
             path="/clientes" 
