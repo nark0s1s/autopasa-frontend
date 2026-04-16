@@ -176,7 +176,7 @@ export default function ConsultarTurnos() {
     const avisos = cerrado?.avisos_stock_combustible
     const extra =
       Array.isArray(avisos) && avisos.length
-        ? `\n\nInventario combustible:\n${avisos.join('\n')}`
+        ? `\n\nAvisos de inventario:\n${avisos.join('\n')}`
         : ''
     mostrarMensaje(`Turno cerrado correctamente.${extra}`)
   }
