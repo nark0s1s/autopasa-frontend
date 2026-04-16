@@ -85,7 +85,7 @@ function calcPreviewDiferenciaMedicion(medicionStr, saldoTeorico, umbralVerdePct
 }
 
 /** Mismo cuerpo que «Guardar borrador»: persistir mediciones y cabecera antes de cerrar. */
-function buildPatchLineasBody(detalle, lineEdits, obsCab, fechaCorte) {
+function buildPatchLineasBody(detalle, lineEdits, obsCab) {
   const lineas = (detalle.lineas || []).map((ln) => {
     const ed = lineEdits[ln.id] || {}
     const ml = parseNumInput(ed.medicion_litros)
@@ -96,7 +96,7 @@ function buildPatchLineasBody(detalle, lineEdits, obsCab, fechaCorte) {
   return {
     lineas,
     observaciones: obsCab.trim() || null,
-    fecha_corte_medicion: fechaCorte.trim() || null,
+    fecha_corte_medicion: null,
   }
 }
 
@@ -112,7 +112,6 @@ export default function ConciliacionStockCombustiblePage() {
   const [errorDetalle, setErrorDetalle] = useState('')
   const [saving, setSaving] = useState(false)
   const [downloadingPdf, setDownloadingPdf] = useState(false)
-  const [fechaCorte, setFechaCorte] = useState('')
   const [obsCab, setObsCab] = useState('')
   const [lineEdits, setLineEdits] = useState({})
 
@@ -141,7 +140,6 @@ export default function ConciliacionStockCombustiblePage() {
       }
     }
     setLineEdits(next)
-    setFechaCorte(d.fecha_corte_medicion ? String(d.fecha_corte_medicion).slice(0, 10) : '')
     setObsCab(d.observaciones != null ? String(d.observaciones) : '')
   }, [])
 
@@ -233,7 +231,7 @@ export default function ConciliacionStockCombustiblePage() {
     setSaving(true)
     setErrorDetalle('')
     try {
-      const body = buildPatchLineasBody(detalle, lineEdits, obsCab, fechaCorte)
+      const body = buildPatchLineasBody(detalle, lineEdits, obsCab)
       const d = await actualizarLineasConciliacionStock(detalle.id, body)
       setDetalle(d)
       syncEditsFromDetalle(d)
@@ -369,7 +367,7 @@ export default function ConciliacionStockCombustiblePage() {
     setSaving(true)
     setErrorDetalle('')
     try {
-      const bodyPatch = buildPatchLineasBody(detalle, lineEdits, obsCab, fechaCorte)
+      const bodyPatch = buildPatchLineasBody(detalle, lineEdits, obsCab)
       await actualizarLineasConciliacionStock(detalle.id, bodyPatch)
       const d = await cerrarConciliacionStock(detalle.id, {
         observaciones_cierre: obsCierre.trim() || null,
@@ -426,7 +424,7 @@ export default function ConciliacionStockCombustiblePage() {
               className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
             >
               <FileDown className="w-4 h-4" />
-              {downloadingPdf ? 'Generando PDF…' : 'Descargar PDF'}
+              {downloadingPdf ? 'Generando reporte…' : 'Generar Reporte'}
             </button>
           )}
           {esBorrador && (
@@ -472,20 +470,21 @@ export default function ConciliacionStockCombustiblePage() {
         {esBorrador && (
           <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 shadow-sm grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-medium text-gray-500 mb-1">Fecha corte medición</label>
-              <input
-                type="date"
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                value={fechaCorte}
-                onChange={(e) => setFechaCorte(e.target.value)}
-              />
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Fecha de corte medición (consolidación)
+              </label>
+              <p className="text-sm font-medium text-gray-900 tabular-nums py-2 px-3 rounded-lg bg-gray-50 border border-gray-200">
+                {fmtDateOnly(detalle.fecha_turno_consolidacion || detalle.fecha_corte_medicion)}
+              </p>
               <p className="text-[11px] text-gray-500 mt-1 leading-snug">
-                Al guardar borrador, si cambia esta fecha se recalcula el <strong className="text-gray-600">saldo inicial</strong>{' '}
-                en <strong className="text-gray-600">galones</strong> (<code className="text-gray-700">saldo_inicial_litros</code>
-                ): 1) si en el producto la <strong className="text-gray-600">fecha de stock de corte</strong> coincide con esta
-                fecha (Lima), se usa <strong className="text-gray-600">stock_corte_saldo</strong>; 2) si no, la última
-                conciliación de stock <em>cerrada</em> del <strong className="text-gray-600">día anterior</strong> (Lima) en
-                ese producto; 3) si no aplica, saldo kardex al inicio del día de corte.
+                Corresponde a la <strong className="text-gray-600">fecha de turno consolidada</strong> guardada al cerrar la
+                liquidación (la mayor <code className="text-gray-700">fecha_turno</code> de los turnos incluidos). Con ella se
+                calcula el <strong className="text-gray-600">saldo inicial</strong> en galones: 1) si en el producto la{' '}
+                <strong className="text-gray-600">fecha de stock de corte</strong> coincide con esta fecha (Lima), se usa{' '}
+                <strong className="text-gray-600">stock_corte_saldo</strong> del producto si el corte físico (Lima) es
+                el mismo día que esta fecha o el día siguiente; 2) si no, la última conciliación de stock <em>cerrada</em>{' '}
+                con fecha de corte <strong className="text-gray-600">anterior</strong> (mismo producto; medición o
+                teórico); 3) si no aplica, saldo kardex al inicio del día de corte (Lima).
               </p>
             </div>
             <div className="md:col-span-2">
@@ -639,9 +638,9 @@ export default function ConciliacionStockCombustiblePage() {
                     ¿Cerrar conciliación de stock?
                   </h3>
                   <p className="text-sm text-gray-600 mt-2">
-                    Se guardarán en el servidor las <strong className="text-gray-800">mediciones manuales</strong>, fecha
-                    de corte y observaciones de cabecera que ve en pantalla, y después se cerrará el documento. No podrá
-                    editarlo después.
+                    Se guardarán en el servidor las <strong className="text-gray-800">mediciones manuales</strong> y las
+                    observaciones de cabecera que ve en pantalla; la fecha de corte es la de la consolidación. Después se
+                    cerrará el documento. No podrá editarlo después.
                   </p>
                 </div>
               </div>

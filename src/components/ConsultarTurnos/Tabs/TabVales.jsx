@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus } from 'lucide-react'
 import { agregarVale } from '../../../utils/api'
+import { turnoGriferoEsAbierto } from '../../../utils/turnoGriferoEstado'
 import { ModalVale } from '../Modals/ModalVale'
 
 export function TabVales({ turno, tiposVale, onReload, onMensaje }) {
@@ -29,7 +30,7 @@ export function TabVales({ turno, tiposVale, onReload, onMensaje }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Vales</h3>
-        {turno.estado_id === 1 && (
+        {turnoGriferoEsAbierto(turno) && (
           <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
             <Plus className="w-5 h-5 mr-2" />
             Nuevo Vale

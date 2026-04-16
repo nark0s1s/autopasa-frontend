@@ -2,6 +2,7 @@ import { Fuel, LogOut, Gauge, Trash2 } from 'lucide-react'
 import { NotificacionFlotante } from './NotificacionFlotante'
 import { ModalEliminarTurnoCerrado } from './Modals/ModalEliminarTurnoCerrado'
 import { formatearFechaTurno } from '../../utils/formatearFechaTurno'
+import { turnoGriferoEsAbierto, turnoGriferoEsCerrado, turnoGriferoEsAuditado } from '../../utils/turnoGriferoEstado'
 
 export function TurnoLista({
   user,
@@ -66,13 +67,15 @@ export function TurnoLista({
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {turnos.map((t) => {
               const estadoLabel =
-                t.estado_id === 1 ? 'abierto' : t.estado_id === 2 ? 'cerrado' : 'auditado'
-              const estadoColor =
-                t.estado_id === 1
-                  ? 'bg-green-100 text-green-800'
-                  : t.estado_id === 2
-                    ? 'bg-gray-100 text-gray-800'
-                    : 'bg-blue-100 text-blue-800'
+                (t.estado_nombre && String(t.estado_nombre).trim()) ||
+                (turnoGriferoEsAbierto(t) ? 'Abierto' : turnoGriferoEsCerrado(t) ? 'Cerrado' : turnoGriferoEsAuditado(t) ? 'Auditado' : '—')
+              const estadoColor = turnoGriferoEsAbierto(t)
+                ? 'bg-green-100 text-green-800'
+                : turnoGriferoEsCerrado(t)
+                  ? 'bg-red-100 text-red-800'
+                  : turnoGriferoEsAuditado(t)
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-gray-100 text-gray-800'
 
               return (
                 <div
@@ -119,7 +122,7 @@ export function TurnoLista({
                   <button type="button" className="btn btn-primary w-full mt-4">
                     Ver Detalles
                   </button>
-                  {t.estado_id === 2 && (
+                  {turnoGriferoEsCerrado(t) && (
                     <button
                       type="button"
                       className="btn btn-danger w-full mt-2"

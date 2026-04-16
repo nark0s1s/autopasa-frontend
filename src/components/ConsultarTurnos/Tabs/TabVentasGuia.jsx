@@ -11,6 +11,7 @@ import {
   actualizarVentaGuiaRemisionTurno,
   eliminarVentaGuiaRemisionTurno,
 } from '../../../utils/api'
+import { turnoGriferoEsAbierto } from '../../../utils/turnoGriferoEstado'
 import { ModalLineaGuiaTurno } from '../Modals/ModalLineaGuiaTurno'
 
 export function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
@@ -121,7 +122,7 @@ export function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
             Ventas registradas con {esCredito ? 'guía de crédito' : 'guía de remisión'} en este turno.
           </p>
         </div>
-        {turno.estado_id === 1 && (
+        {turnoGriferoEsAbierto(turno) && (
           <button type="button" onClick={abrirNuevaLinea} className="btn btn-primary">
             <Plus className="w-5 h-5 mr-2" />
             Agregar
@@ -150,7 +151,7 @@ export function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
                     {pagadoFlag(linea) ? 'Pagado' : 'Pendiente'}
                   </span>
                 </div>
-                {turno.estado_id === 1 && (
+                {turnoGriferoEsAbierto(turno) && (
                   <div className="flex flex-wrap gap-2 justify-end shrink-0">
                     <button
                       type="button"

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import { agregarVentaPOS, actualizarVentaPOS, eliminarVentaPOS } from '../../../utils/api'
+import { turnoGriferoEsAbierto } from '../../../utils/turnoGriferoEstado'
 import { ModalPOS } from '../Modals/ModalPOS'
 
 export function TabPOS({ turno, onReload, onMensaje }) {
@@ -57,7 +58,7 @@ export function TabPOS({ turno, onReload, onMensaje }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Ventas con Tarjeta (POS)</h3>
-        {turno.estado_id === 1 && (
+        {turnoGriferoEsAbierto(turno) && (
           <button type="button" onClick={abrirNueva} className="btn btn-primary">
             <Plus className="w-5 h-5 mr-2" />
             Nueva Venta POS
@@ -78,7 +79,7 @@ export function TabPOS({ turno, onReload, onMensaje }) {
                   <p className="text-xs text-gray-500">Lote: {venta.numero_lote}</p>
                 )}
               </div>
-              {turno.estado_id === 1 && (
+              {turnoGriferoEsAbierto(turno) && (
                 <div className="flex gap-2 shrink-0">
                   <button
                     type="button"

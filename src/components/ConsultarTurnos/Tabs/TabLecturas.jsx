@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Plus, Pencil } from 'lucide-react'
 import { agregarLecturaContometro, actualizarLecturaContometro } from '../../../utils/api'
+import { turnoGriferoEsAbierto } from '../../../utils/turnoGriferoEstado'
 import { ModalLectura } from '../Modals/ModalLectura'
 import { ModalLecturaEditar } from '../Modals/ModalLecturaEditar'
 import { ModalLecturaFinal } from '../Modals/ModalLecturaFinal'
@@ -49,7 +50,7 @@ export function TabLecturas({ turno, contometros, onReload, onMensaje }) {
     <div>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold">Lecturas de Contómetros</h3>
-        {turno.estado_id === 1 && (
+        {turnoGriferoEsAbierto(turno) && (
           <button type="button" onClick={() => setShowModal(true)} className="btn btn-primary">
             <Plus className="w-5 h-5 mr-2" />
             Nueva Lectura
@@ -80,7 +81,7 @@ export function TabLecturas({ turno, contometros, onReload, onMensaje }) {
                     Total: {gal.toFixed(3)} gal × S/ {lectura.precio_venta} = S/ {monto.toFixed(2)}
                   </p>
                 </div>
-                {turno.estado_id === 1 && (
+                {turnoGriferoEsAbierto(turno) && (
                   <div className="flex flex-col gap-2 items-end">
                     <button
                       type="button"

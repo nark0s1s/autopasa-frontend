@@ -13,6 +13,7 @@ import {
   Flame,
 } from 'lucide-react'
 import { downloadTurnoGriferoReportePdf } from '../../utils/api'
+import { turnoGriferoEsAbierto, turnoGriferoEsCerrado } from '../../utils/turnoGriferoEstado'
 import { formatearFechaTurno } from '../../utils/formatearFechaTurno'
 import { NotificacionFlotante } from './NotificacionFlotante'
 import { ResumenTotales } from './ResumenTotales'
@@ -121,7 +122,7 @@ export function TurnoDetalle({
                 <FileText className="w-5 h-5" />
                 Descargar PDF
               </button>
-              {turno.estado_id === 2 && (
+              {turnoGriferoEsCerrado(turno) && (
                 <button
                   type="button"
                   className="btn btn-danger"
@@ -216,7 +217,7 @@ export function TurnoDetalle({
           </div>
         </div>
 
-        {turno.estado_id === 1 && totales && (
+        {turnoGriferoEsAbierto(turno) && totales && (
           <div className="card p-6">
             <div className="flex items-center justify-between">
               <div>
@@ -238,7 +239,7 @@ export function TurnoDetalle({
           </div>
         )}
 
-        {turno.estado_id === 2 && (
+        {turnoGriferoEsCerrado(turno) && (
           <div
             className={`card p-6 ${
               parseFloat(turno.diferencia || 0) === 0
