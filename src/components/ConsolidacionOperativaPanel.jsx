@@ -37,6 +37,7 @@ import {
   listarCobranzasDisponiblesConsolidacion,
   vincularVentaServicentroConsolidacion,
   vincularCobranzaConsolidacion,
+  getTiposPago,
 } from '../utils/api'
 
 const TAB_CONFIG = [
@@ -242,22 +243,36 @@ function montoCobradoLocal(factura, retencion) {
   return Math.max(0, f - r)
 }
 
+function tiposPagoCobranzaCatalogo(tipos) {
+  if (!Array.isArray(tipos)) return []
+  return tipos.filter((t) => t.codigo && String(t.codigo).startsWith('COB_'))
+}
+
 function ModalCobranza({ fila, onClose, onGuardar }) {
   const [fechaCobranza, setFechaCobranza] = useState(() => toYMD(new Date()))
   const [numeroFactura, setNumeroFactura] = useState('')
   const [clienteId, setClienteId] = useState('')
   const [clientes, setClientes] = useState([])
+  const [tiposPago, setTiposPago] = useState([])
   const [montoFactura, setMontoFactura] = useState('')
   const [montoRetencion, setMontoRetencion] = useState('0')
-  const [cobEfectivo, setCobEfectivo] = useState('')
-  const [cobTransferencia, setCobTransferencia] = useState('')
+  const [tipoPagoId, setTipoPagoId] = useState('')
   const [concepto, setConcepto] = useState('')
   const [observaciones, setObservaciones] = useState('')
+
+  const tiposCob = useMemo(() => tiposPagoCobranzaCatalogo(tiposPago), [tiposPago])
+  const defaultTipoId = useMemo(() => {
+    const ef = tiposCob.find((t) => t.codigo === 'COB_EFECTIVO')
+    return ef ? String(ef.id) : tiposCob[0] ? String(tiposCob[0].id) : ''
+  }, [tiposCob])
 
   useEffect(() => {
     getClientesAdmin(true)
       .then((d) => setClientes(Array.isArray(d) ? d : []))
       .catch(() => setClientes([]))
+    getTiposPago(true)
+      .then((d) => setTiposPago(Array.isArray(d) ? d : []))
+      .catch(() => setTiposPago([]))
   }, [])
 
   useEffect(() => {
@@ -267,16 +282,7 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
       setClienteId(fila.cliente_id != null ? String(fila.cliente_id) : '')
       setMontoFactura(fila.monto_factura != null ? String(fila.monto_factura) : '')
       setMontoRetencion(fila.monto_retencion != null ? String(fila.monto_retencion) : '0')
-      const net = montoCobradoLocal(fila.monto_factura, fila.monto_retencion)
-      if (fila.monto_cobrado_efectivo != null || fila.monto_cobrado_transferencia != null) {
-        setCobEfectivo(
-          fila.monto_cobrado_efectivo != null ? String(fila.monto_cobrado_efectivo) : String(net)
-        )
-        setCobTransferencia(fila.monto_cobrado_transferencia != null ? String(fila.monto_cobrado_transferencia) : '0')
-      } else {
-        setCobEfectivo(String(net))
-        setCobTransferencia('0')
-      }
+      setTipoPagoId(fila.tipo_pago_id != null ? String(fila.tipo_pago_id) : defaultTipoId)
       setConcepto(fila.concepto ?? '')
       setObservaciones(fila.observaciones ?? '')
     } else {
@@ -285,45 +291,29 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
       setClienteId('')
       setMontoFactura('')
       setMontoRetencion('0')
-      setCobEfectivo('')
-      setCobTransferencia('')
+      setTipoPagoId(defaultTipoId)
       setConcepto('')
       setObservaciones('')
     }
-  }, [fila])
-
-  useEffect(() => {
-    if (fila) return
-    const n = montoCobradoLocal(montoFactura, montoRetencion)
-    if (n <= 0) {
-      setCobEfectivo('')
-      setCobTransferencia('')
-      return
-    }
-    setCobEfectivo(String(n))
-    setCobTransferencia('0')
-  }, [fila, montoFactura, montoRetencion])
+  }, [fila, defaultTipoId])
 
   const neto = montoCobradoLocal(montoFactura, montoRetencion)
-  const sumCobDes = (Number(cobEfectivo) || 0) + (Number(cobTransferencia) || 0)
-  const cobDesgloseOk = neto > 0 && Math.abs(sumCobDes - neto) < 0.01
+  const sinCatalogo = tiposCob.length === 0
 
   const submit = (e) => {
     e.preventDefault()
     const mf = parseFloat(montoFactura)
     const mr = parseFloat(montoRetencion) || 0
-    if (mr > mf) {
+    if (mr > mf || !tipoPagoId) {
       return
     }
-    if (!cobDesgloseOk) return
     onGuardar({
       fecha_cobranza: fechaCobranza,
       numero_factura: numeroFactura.trim() || null,
       cliente_id: clienteId ? parseInt(clienteId, 10) : null,
       monto_factura: mf,
       monto_retencion: mr,
-      monto_cobrado_efectivo: Number(cobEfectivo) || 0,
-      monto_cobrado_transferencia: Number(cobTransferencia) || 0,
+      tipo_pago_id: parseInt(tipoPagoId, 10),
       concepto: concepto.trim() || null,
       observaciones: observaciones.trim() || null,
     })
@@ -390,35 +380,19 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
             <p className="text-lg font-bold text-teal-800">S/ {fmtMonto(neto)}</p>
           </div>
           <div className="rounded-lg border border-cyan-100 bg-cyan-50/50 p-3 space-y-2">
-            <p className="text-xs font-semibold text-cyan-900">Cómo ingresó el neto (solo efectivo va al depósito)</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <label className="block text-xs text-gray-600 mb-0.5">Efectivo</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="input w-full text-sm"
-                  value={cobEfectivo}
-                  onChange={(e) => setCobEfectivo(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-0.5">Transferencia</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="input w-full text-sm"
-                  value={cobTransferencia}
-                  onChange={(e) => setCobTransferencia(e.target.value)}
-                />
-              </div>
-            </div>
-            <p className={`text-xs ${cobDesgloseOk ? 'text-cyan-900' : 'text-red-600'}`}>
-              Efectivo + transferencia: S/ {fmtMonto(sumCobDes)}
-              {neto > 0 && !cobDesgloseOk && ' · Debe igualar el neto cobrado'}
-            </p>
+            <p className="text-xs font-semibold text-cyan-900">Medio de pago (catálogo tipo_pago)</p>
+            {sinCatalogo ? (
+              <p className="text-xs text-amber-800">No hay tipos COB_* en catálogo. Ejecute la migración SQL correspondiente.</p>
+            ) : (
+              <select className="input w-full text-sm" value={tipoPagoId} onChange={(e) => setTipoPagoId(e.target.value)} required>
+                {tiposCob.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre || t.codigo}
+                  </option>
+                ))}
+              </select>
+            )}
+            <p className="text-xs text-cyan-800">Solo efectivo (COB_EFECTIVO) suma al depósito; transferencia y cheque son referencia.</p>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Concepto (opcional)</label>
@@ -432,7 +406,7 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
             <button type="button" className="btn btn-secondary flex-1" onClick={onClose}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary flex-1" disabled={retMayor || !cobDesgloseOk}>
+            <button type="submit" className="btn btn-primary flex-1" disabled={retMayor || sinCatalogo || !tipoPagoId}>
               Guardar
             </button>
           </div>
@@ -529,13 +503,20 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
       const mc = x.monto_cobrado != null ? Number(x.monto_cobrado) : montoCobradoLocal(x.monto_factura, x.monto_retencion)
       return s + mc
     }, 0)
+    const netoCob = (x) =>
+      x.monto_cobrado != null ? Number(x.monto_cobrado) : montoCobradoLocal(x.monto_factura, x.monto_retencion)
     const sumCobranzaEfectivo = cob.reduce((s, x) => {
-      const net = montoCobradoLocal(x.monto_factura, x.monto_retencion)
-      const ef =
-        x.monto_cobrado_efectivo != null ? Number(x.monto_cobrado_efectivo) : net
-      return s + ef
+      if (x.tipo_pago_codigo === 'COB_EFECTIVO') return s + netoCob(x)
+      return s
     }, 0)
-    const sumCobranzaTransferencia = cob.reduce((s, x) => s + Number(x.monto_cobrado_transferencia || 0), 0)
+    const sumCobranzaTransferencia = cob.reduce((s, x) => {
+      if (x.tipo_pago_codigo === 'COB_TRANSFERENCIA') return s + netoCob(x)
+      return s
+    }, 0)
+    const sumCobranzaCheque = cob.reduce((s, x) => {
+      if (x.tipo_pago_codigo === 'COB_CHEQUE') return s + netoCob(x)
+      return s
+    }, 0)
     const comb = detalle?.combustible_por_producto || []
     const sumCombustibleSoles = comb.reduce((s, x) => s + Number(x.total_soles || 0), 0)
     const sumCombustibleGalones = comb.reduce((s, x) => s + Number(x.total_galones || 0), 0)
@@ -582,6 +563,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
       sumNeto,
       sumCobranzaEfectivo,
       sumCobranzaTransferencia,
+      sumCobranzaCheque,
       sumCombustibleSoles,
       sumCombustibleGalones,
       sumVentaGnv,
@@ -963,8 +945,8 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         <span className="font-medium">S/ {fmtMonto(r.monto_retencion)}</span>
                       </p>
                       <p className="text-teal-800 font-semibold">Monto cobrado: S/ {fmtMonto(neto)}</p>
-                      <p className="text-xs text-gray-600 tabular-nums">
-                        Ef. S/ {fmtMonto(r.monto_cobrado_efectivo ?? neto)} · Transf. S/ {fmtMonto(r.monto_cobrado_transferencia ?? 0)}
+                      <p className="text-xs text-gray-600">
+                        Medio (catálogo): <span className="font-medium">{r.tipo_pago_nombre || r.tipo_pago_codigo || '—'}</span>
                       </p>
                       {r.concepto && <p className="text-gray-700">{r.concepto}</p>}
                       {r.observaciones && <p className="text-xs text-gray-500">{r.observaciones}</p>}
@@ -1191,7 +1173,8 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                     Fact. S/ {fmtMonto(totales.sumFactura)} · Ret. S/ {fmtMonto(totales.sumRet)}
                   </p>
                   <p className="text-[10px] text-gray-500 mt-0.5 leading-tight">
-                    Ef. S/ {fmtMonto(totales.sumCobranzaEfectivo)} · Transf. S/ {fmtMonto(totales.sumCobranzaTransferencia)}
+                    Ef. S/ {fmtMonto(totales.sumCobranzaEfectivo)} · Transf. S/ {fmtMonto(totales.sumCobranzaTransferencia)} · Ch. S/{' '}
+                    {fmtMonto(totales.sumCobranzaCheque)}
                   </p>
                 </div>
               </div>
@@ -1401,7 +1384,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                     </div>
                     <div className="rounded-lg border border-cyan-200 bg-cyan-50/40 p-4">
                       <h3 className="text-sm font-semibold text-cyan-950 mb-2">Cobranzas</h3>
-                      <p className="text-xs text-cyan-900/90 mb-3">Solo efectivo suma al depósito; transferencias van aparte.</p>
+                      <p className="text-xs text-cyan-900/90 mb-3">Solo efectivo suma al depósito; transferencias y cheques van aparte.</p>
                       <ul className="text-sm space-y-1 tabular-nums">
                         <li className="flex justify-between gap-2">
                           <span className="text-gray-700">Efectivo (banco)</span>
@@ -1410,6 +1393,10 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                         <li className="flex justify-between gap-2 text-gray-600">
                           <span>Transferencia (referencia)</span>
                           <span>S/ {fmtMonto(totales.sumCobranzaTransferencia)}</span>
+                        </li>
+                        <li className="flex justify-between gap-2 text-gray-600">
+                          <span>Cheque (referencia)</span>
+                          <span>S/ {fmtMonto(totales.sumCobranzaCheque)}</span>
                         </li>
                         <li className="flex justify-between gap-2 pt-2 border-t border-cyan-200 text-gray-700">
                           <span>Neto total cobranzas</span>

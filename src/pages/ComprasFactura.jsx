@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ClipboardList, Plus, X, Trash2 } from 'lucide-react'
 import {
   getComprasFactura,
@@ -36,8 +36,17 @@ const lineaVacia = () => ({
   lote: '',
 })
 
-function ModalCompra({ proveedores, productos, onClose, onSave }) {
+function labelProveedor(p) {
+  return `${p.numero_documento} — ${p.razon_social}`
+}
+
+function ModalCompra({ productos, onClose, onSave }) {
   const [proveedor_id, setProveedorId] = useState('')
+  const [proveedorTexto, setProveedorTexto] = useState('')
+  const [opcionesProveedor, setOpcionesProveedor] = useState([])
+  const [provLoading, setProvLoading] = useState(false)
+  const [listaProvAbierta, setListaProvAbierta] = useState(false)
+  const blurProvTimer = useRef(null)
   const [serie, setSerie] = useState('F001')
   const [numero, setNumero] = useState('')
   const [fecha_emision, setFechaEmision] = useState(() => new Date().toISOString().slice(0, 10))
@@ -49,6 +58,30 @@ function ModalCompra({ proveedores, productos, onClose, onSave }) {
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    let cancelled = false
+    const t = setTimeout(async () => {
+      const q = proveedorTexto.trim()
+      setProvLoading(true)
+      try {
+        const data = await getProveedores(true, {
+          q: q.length ? q : undefined,
+          limit: q.length ? 80 : 50,
+        })
+        if (!cancelled) setOpcionesProveedor(Array.isArray(data) ? data : [])
+      } catch {
+        if (!cancelled) setOpcionesProveedor([])
+      } finally {
+        if (!cancelled) setProvLoading(false)
+      }
+    }, 260)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+      if (blurProvTimer.current) clearTimeout(blurProvTimer.current)
+    }
+  }, [proveedorTexto])
+
   const addLinea = () => setLineas((prev) => [...prev, lineaVacia()])
   const removeLinea = (idx) => setLineas((prev) => prev.filter((_, i) => i !== idx))
   const setLinea = (idx, field, value) => {
@@ -59,7 +92,7 @@ function ModalCompra({ proveedores, productos, onClose, onSave }) {
     e.preventDefault()
     setError('')
     if (!proveedor_id) {
-      setError('Seleccione proveedor')
+      setError('Busque y elija un proveedor de la lista')
       return
     }
     const detalles = lineas
@@ -112,23 +145,65 @@ function ModalCompra({ proveedores, productos, onClose, onSave }) {
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           {error && <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{error}</div>}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="md:col-span-2">
-              <label className="block text-xs font-semibold text-gray-600 mb-1">Proveedor *</label>
-              <select
-                value={proveedor_id}
-                onChange={(e) => setProveedorId(e.target.value)}
-                required
+            <div className="md:col-span-2 relative">
+              <label className="block text-xs font-semibold text-gray-600 mb-1" htmlFor="compra-proveedor-busqueda">
+                Proveedor *
+              </label>
+              <input
+                id="compra-proveedor-busqueda"
+                type="search"
+                autoComplete="off"
+                value={proveedorTexto}
+                onChange={(e) => {
+                  setProveedorTexto(e.target.value)
+                  setProveedorId('')
+                  setListaProvAbierta(true)
+                }}
+                onFocus={() => {
+                  if (blurProvTimer.current) clearTimeout(blurProvTimer.current)
+                  setListaProvAbierta(true)
+                }}
+                onBlur={() => {
+                  blurProvTimer.current = setTimeout(() => setListaProvAbierta(false), 200)
+                }}
+                placeholder="Escriba razón social o RUC…"
                 className="w-full border rounded-lg px-3 py-2 text-sm bg-white"
-              >
-                <option value="">Seleccionar…</option>
-                {proveedores
-                  .filter((p) => p.activo)
-                  .map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.numero_documento} — {p.razon_social}
-                    </option>
-                  ))}
-              </select>
+              />
+              {listaProvAbierta && (
+                <ul
+                  className="absolute z-30 mt-1 max-h-56 w-full overflow-auto rounded-lg border border-gray-200 bg-white shadow-lg text-sm"
+                  role="listbox"
+                >
+                  {provLoading && (
+                    <li className="px-3 py-2 text-gray-500" role="option">
+                      Buscando…
+                    </li>
+                  )}
+                  {!provLoading && opcionesProveedor.length === 0 && (
+                    <li className="px-3 py-2 text-gray-500" role="option">
+                      Sin coincidencias
+                    </li>
+                  )}
+                  {!provLoading &&
+                    opcionesProveedor.map((p) => (
+                      <li key={p.id} role="option">
+                        <button
+                          type="button"
+                          className="w-full text-left px-3 py-2 hover:bg-indigo-50 text-gray-800"
+                          onMouseDown={(ev) => ev.preventDefault()}
+                          onClick={() => {
+                            setProveedorId(String(p.id))
+                            setProveedorTexto(labelProveedor(p))
+                            setListaProvAbierta(false)
+                          }}
+                        >
+                          <span className="font-medium">{p.razon_social}</span>
+                          <span className="text-gray-500 text-xs block">{p.numero_documento}</span>
+                        </button>
+                      </li>
+                    ))}
+                </ul>
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-600 mb-1">Serie *</label>
@@ -454,7 +529,6 @@ export default function ComprasFactura() {
       </div>
       {modalCompra && (
         <ModalCompra
-          proveedores={proveedores}
           productos={productos}
           onClose={() => setModalCompra(false)}
           onSave={() => {
