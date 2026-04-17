@@ -685,6 +685,11 @@ export const getTiposVale = async (activo = true) => {
   return response.data
 }
 
+export const getTiposPago = async (activo = true) => {
+  const response = await api.get('/api/catalogos/tipos-pago', { params: { activo } })
+  return response.data
+}
+
 // ============================================================================
 // INFRAESTRUCTURA — MANTENIMIENTO (islas, surtidores, contómetros, turnos-config)
 // ============================================================================
@@ -933,8 +938,12 @@ export const actualizarUnidadMedida = async (id, data) => {
   return response.data
 }
 
-export const getProveedores = async (activo = null) => {
-  const params = activo !== null && activo !== undefined ? { activo } : {}
+export const getProveedores = async (activo = null, opts = {}) => {
+  const params = {}
+  if (activo !== null && activo !== undefined) params.activo = activo
+  const qv = opts.q != null ? String(opts.q).trim() : ''
+  if (qv) params.q = qv
+  if (opts.limit != null && opts.limit !== '') params.limit = Number(opts.limit)
   const response = await api.get(`${API_LOGISTICA}/proveedores`, { params })
   return response.data
 }
