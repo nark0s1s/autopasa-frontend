@@ -5,7 +5,9 @@ import {
   Pencil,
   Trash2,
   Lock,
+  Unlock,
   AlertTriangle,
+  AlertCircle,
   CheckCircle,
   Fuel,
   Flame,
@@ -24,6 +26,7 @@ import EtiquetaTurnoConfig from './EtiquetaTurnoConfig'
 import {
   obtenerConsolidacionVistaOperativa,
   cerrarConsolidacionLiquidacion,
+  reabrirConsolidacionLiquidacionCerrada,
   crearConsolidacionVentaServicentro,
   actualizarConsolidacionVentaServicentro,
   eliminarConsolidacionVentaServicentro,
@@ -137,7 +140,7 @@ function ModalVentaServicentro({ fila, onClose, onGuardar }) {
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
       <div className="card p-6 max-w-md w-full">
         <h3 className="text-lg font-semibold mb-4">{fila ? 'Editar venta servicentro' : 'Nueva venta servicentro'}</h3>
         <form onSubmit={submit} className="space-y-3">
@@ -322,7 +325,7 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
   const retMayor = (parseFloat(montoRetencion) || 0) > (parseFloat(montoFactura) || 0)
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
       <div className="card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
         <h3 className="text-lg font-semibold mb-4">{fila ? 'Editar cobranza' : 'Nueva cobranza'}</h3>
         <form onSubmit={submit} className="space-y-3">
@@ -416,12 +419,21 @@ function ModalCobranza({ fila, onClose, onGuardar }) {
   )
 }
 
-export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaje, onCerrada }) {
+export function ConsolidacionOperativaPanel({
+  consolidacionId,
+  onClose,
+  onMensaje,
+  onCerrada,
+  onDismissFloatingMessage,
+}) {
   const [detalle, setDetalle] = useState(null)
   const [loading, setLoading] = useState(true)
   const [subTab, setSubTab] = useState('cuadre_general')
   const [cerrando, setCerrando] = useState(false)
   const [modalConfirmarCerrar, setModalConfirmarCerrar] = useState(false)
+  const [modalConfirmarReabrir, setModalConfirmarReabrir] = useState(false)
+  const [errorReabrirConsolidacion, setErrorReabrirConsolidacion] = useState(null)
+  const [reabriendoConsolidacion, setReabriendoConsolidacion] = useState(false)
   /** Tras cerrar OK: popup explícito antes de volver al listado (evita solo toast / sensación de alert). */
   const [modalExitoCerrar, setModalExitoCerrar] = useState(null)
   const [edicion, setEdicion] = useState(null)
@@ -597,6 +609,30 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
       onMensaje(e.response?.data?.detail || 'No se pudo cerrar', 'error')
     } finally {
       setCerrando(false)
+    }
+  }
+
+  const cerrarModalConfirmarReabrir = () => {
+    setModalConfirmarReabrir(false)
+    setErrorReabrirConsolidacion(null)
+  }
+
+  const ejecutarReabrirConsolidacionCerrada = async () => {
+    if (pendiente || !detalle) return
+    setErrorReabrirConsolidacion(null)
+    setReabriendoConsolidacion(true)
+    try {
+      await reabrirConsolidacionLiquidacionCerrada(consolidacionId)
+      cerrarModalConfirmarReabrir()
+      onMensaje('Consolidación reabierta (pendiente).')
+      onCerrada?.()
+      await cargar()
+    } catch (e) {
+      const d = e.response?.data?.detail
+      const msg = typeof d === 'string' ? d : e.message || 'No se pudo reabrir'
+      setErrorReabrirConsolidacion(msg)
+    } finally {
+      setReabriendoConsolidacion(false)
     }
   }
 
@@ -983,7 +1019,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
 
   if (loading) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[52] p-4">
         <div className="card p-8 text-center">Cargando…</div>
       </div>
     )
@@ -991,7 +1027,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
 
   if (!detalle) {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[52] p-4">
         <div className="card p-6 max-w-md">
           <p className="text-gray-700 mb-4">No se pudo cargar la consolidación.</p>
           <button type="button" className="btn btn-secondary" onClick={onClose}>
@@ -1006,7 +1042,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
     <>
       {modalExitoCerrar && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70] p-4"
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="titulo-exito-cerrar-cons"
@@ -1046,9 +1082,70 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
         </div>
       )}
 
+      {modalConfirmarReabrir && (
+        <div
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-confirmar-reabrir-cons"
+          onClick={(e) => {
+            if (!reabriendoConsolidacion && e.target === e.currentTarget) cerrarModalConfirmarReabrir()
+          }}
+        >
+          <div className="card p-6 max-w-md w-full shadow-xl">
+            <div className="flex gap-3 mb-3">
+              <div className="p-2 rounded-full bg-amber-100 text-amber-800 shrink-0">
+                <Unlock className="w-6 h-6" aria-hidden />
+              </div>
+              <div>
+                <h3 id="titulo-confirmar-reabrir-cons" className="text-lg font-semibold text-gray-900">
+                  ¿Reabrir consolidación de liquidación?
+                </h3>
+                <p className="text-sm text-gray-600 mt-2">
+                  Volverá a <strong className="text-gray-800">pendiente</strong>. Si la conciliación de inventario de
+                  combustible asociada sigue <strong className="text-gray-800">cerrada</strong>, primero reábrala en{' '}
+                  <strong className="text-gray-800">Supervisión → Conciliación stock combustible</strong> (historial de
+                  cerradas, botón Reabrir).
+                </p>
+                <p className="text-xs text-gray-500 mt-2">
+                  Si no puede continuar, consulte con su supervisor.
+                </p>
+                {errorReabrirConsolidacion ? (
+                  <div
+                    role="alert"
+                    className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 flex gap-2 items-start"
+                  >
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden />
+                    <p className="leading-relaxed">{errorReabrirConsolidacion}</p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button
+                type="button"
+                className="btn btn-secondary flex-1"
+                onClick={cerrarModalConfirmarReabrir}
+                disabled={reabriendoConsolidacion}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary flex-1 bg-amber-600 hover:bg-amber-700 border-0"
+                onClick={ejecutarReabrirConsolidacionCerrada}
+                disabled={reabriendoConsolidacion}
+              >
+                {reabriendoConsolidacion ? 'Reabriendo…' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalConfirmarCerrar && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="titulo-confirmar-cerrar-cons"
@@ -1090,7 +1187,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
         </div>
       )}
 
-      <div className="fixed inset-0 bg-black/50 z-50 overflow-y-auto">
+      <div className="fixed inset-0 bg-black/50 z-[52] overflow-y-auto">
         <div className="min-h-full flex justify-center p-4 py-8">
           <div className="card w-full max-w-5xl shadow-xl">
             <div className="sticky top-0 z-10 bg-white border-b border-gray-200 px-5 py-4 flex flex-wrap justify-between gap-3 items-start">
@@ -1120,10 +1217,28 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
                   <button
                     type="button"
                     className="btn btn-primary inline-flex items-center gap-2"
-                    onClick={() => setModalConfirmarCerrar(true)}
+                    onClick={() => {
+                      onDismissFloatingMessage?.()
+                      setModalConfirmarCerrar(true)
+                    }}
                     disabled={cerrando}
                   >
                     Cerrar consolidación
+                  </button>
+                )}
+                {!pendiente && (
+                  <button
+                    type="button"
+                    className="btn btn-secondary btn-sm inline-flex items-center gap-2 text-amber-900 border-amber-300 bg-amber-50 hover:bg-amber-100"
+                    onClick={() => {
+                      onDismissFloatingMessage?.()
+                      setErrorReabrirConsolidacion(null)
+                      setModalConfirmarReabrir(true)
+                    }}
+                    disabled={reabriendoConsolidacion}
+                  >
+                    <Unlock className="w-4 h-4 shrink-0" aria-hidden />
+                    Reabrir
                   </button>
                 )}
                 <button type="button" className="btn btn-secondary btn-sm" onClick={abrirPdf}>
@@ -1681,7 +1796,7 @@ export function ConsolidacionOperativaPanel({ consolidacionId, onClose, onMensaj
       )}
 
       {eliminar && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
           <div className="card p-6 max-w-sm w-full">
             <p className="text-sm text-gray-800 mb-4">¿Eliminar este registro?</p>
             <div className="flex gap-2">

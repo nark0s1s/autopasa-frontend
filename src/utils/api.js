@@ -99,6 +99,12 @@ export const getCurrentUser = async () => {
   return response.data
 }
 
+/** Lista de códigos de permiso del usuario actual (p. ej. turno.cerrar). */
+export const getCurrentUserPermissions = async () => {
+  const response = await api.get('/api/auth/me/permissions')
+  return response.data
+}
+
 // ============================================================================
 // TURNOS (router FastAPI: prefix /api/turnos-liquidacion)
 // ============================================================================
@@ -158,6 +164,26 @@ export const listarTurnosGrifero = async (params = {}) => {
 
 export const getTurnoById = async (turnoId) => {
   const response = await api.get(`${API_TURNOS_LIQ}/grifero/${turnoId}`)
+  return response.data
+}
+
+/** Pasos y estados para reabrir un turno consolidado (corrección de cuadre). */
+export const getContextoReaperturaCorreccionTurnoGrifero = async (cabeceraId) => {
+  const response = await api.get(
+    `${API_TURNOS_LIQ}/grifero/${cabeceraId}/contexto-reapertura-correccion`
+  )
+  return response.data
+}
+
+/** Reabre turno cerrado → abierto con consolidación pendiente (revierte stock del cierre). */
+export const reabrirTurnoGriferoParaCorreccion = async (cabeceraId) => {
+  const response = await api.patch(`${API_TURNOS_LIQ}/grifero/${cabeceraId}/reabrir-para-correccion`)
+  return response.data
+}
+
+/** Consolidación liquidación cerrada → pendiente (no si conciliación stock sigue cerrada). */
+export const reabrirConsolidacionLiquidacionCerrada = async (consolidacionId) => {
+  const response = await api.patch(`${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/reabrir-cerrada`)
   return response.data
 }
 
@@ -589,6 +615,12 @@ export const actualizarLineasConciliacionStock = async (conciliacionId, body) =>
 /** @param {number} conciliacionId @param {{ observaciones_cierre?: string|null }} [body] */
 export const cerrarConciliacionStock = async (conciliacionId, body = {}) => {
   const response = await api.post(`${API_CONCILIACION_STOCK}/${conciliacionId}/cerrar`, body)
+  return response.data
+}
+
+/** Conciliación stock combustible cerrada → borrador (consolidación liquidación debe seguir cerrada). */
+export const reabrirConciliacionStockCerrada = async (conciliacionId) => {
+  const response = await api.patch(`${API_CONCILIACION_STOCK}/${conciliacionId}/reabrir-cerrada`)
   return response.data
 }
 

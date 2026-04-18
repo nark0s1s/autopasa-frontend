@@ -11,6 +11,7 @@ import {
   DollarSign,
   Percent,
   Flame,
+  Unlock,
 } from 'lucide-react'
 import { downloadTurnoGriferoReportePdf } from '../../utils/api'
 import { turnoGriferoEsAbierto, turnoGriferoEsCerrado } from '../../utils/turnoGriferoEstado'
@@ -19,6 +20,7 @@ import { NotificacionFlotante } from './NotificacionFlotante'
 import { ResumenTotales } from './ResumenTotales'
 import { ModalEliminarTurnoCerrado } from './Modals/ModalEliminarTurnoCerrado'
 import { ModalCierre } from './Modals/ModalCierre'
+import { PanelReaperturaCorreccion } from './PanelReaperturaCorreccion'
 import { TabLecturas } from './Tabs/TabLecturas'
 import { TabVentas } from './Tabs/TabVentas'
 import { TabPOS } from './Tabs/TabPOS'
@@ -27,6 +29,7 @@ import { TabVentasGuia } from './Tabs/TabVentasGuia'
 import { TabVales } from './Tabs/TabVales'
 import { TabDescuentos } from './Tabs/TabDescuentos'
 import { TabDepositos } from './Tabs/TabDepositos'
+import { puedeVerPanelReaperturaCorreccion } from '../../utils/reaperturaTurnoCorreccion'
 
 const TAB_CONFIG = [
   { id: 'lecturas', label: 'Lecturas Contómetro', icon: Gauge },
@@ -41,6 +44,7 @@ const TAB_CONFIG = [
 ]
 
 export function TurnoDetalle({
+  permisosApi,
   turno,
   mensaje,
   totales,
@@ -63,7 +67,18 @@ export function TurnoDetalle({
   onCancelEliminarCerrado,
   onConfirmEliminarCerrado,
   onCierreSuccess,
+  user,
 }) {
+  const puedeReaperturaCorreccion =
+    puedeVerPanelReaperturaCorreccion(permisosApi, user) === true
+
+  const irPanelReaperturaCorreccion = () => {
+    document.getElementById('panel-reapertura-correccion')?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  }
+
   const handleDownloadPdf = async () => {
     try {
       await downloadTurnoGriferoReportePdf(turno.id)
@@ -154,6 +169,16 @@ export function TurnoDetalle({
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <ResumenTotales totales={totales} />
+
+        <div id="panel-reapertura-correccion">
+          <PanelReaperturaCorreccion
+            turno={turno}
+            user={user}
+            permisosApi={permisosApi}
+            onMensaje={onMensaje}
+            onReload={onReload}
+          />
+        </div>
 
         <div className="card mb-6">
           <div className="border-b border-gray-200">
@@ -271,6 +296,24 @@ export function TurnoDetalle({
                   <p className="text-xl font-bold">S/ {parseFloat(turno.efectivo_entregado || 0).toFixed(2)}</p>
                 </div>
               </div>
+              {puedeReaperturaCorreccion && (
+                <div className="mt-6 pt-5 border-t border-gray-200/80">
+                  <p className="text-sm text-gray-700 mb-3 max-w-lg mx-auto">
+                    Si este turno está en una <strong>consolidación de liquidación</strong> y debe corregir el cuadre
+                    con la consolidación en <strong>pendiente</strong>, use la reapertura guiada (conciliación stock →
+                    consolidación → turno). El sistema recalcula totales de liquidación y galones en conciliación de
+                    stock al confirmar.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={irPanelReaperturaCorreccion}
+                    className="btn btn-secondary inline-flex items-center gap-2 text-amber-900 border-amber-300 bg-amber-50 hover:bg-amber-100"
+                  >
+                    <Unlock className="w-5 h-5 shrink-0" aria-hidden />
+                    Reabrir turno / corrección consolidada
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

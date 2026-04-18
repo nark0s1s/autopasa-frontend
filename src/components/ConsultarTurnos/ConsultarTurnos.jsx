@@ -6,7 +6,7 @@ import { useEphemeralMessage } from '../../hooks/useEphemeralMessage'
 import { useTurnoLiquidacion } from './hooks/useTurnoLiquidacion'
 import { useTurnosGriferoCatalogos } from '../../hooks/useTurnosGriferoCatalogos'
 import { useTurnoGriferoTotales } from '../../hooks/useTurnoGriferoTotales'
-import { eliminarTurnoGriferoCerrado } from '../../utils/api'
+import { eliminarTurnoGriferoCerrado, getCurrentUserPermissions } from '../../utils/api'
 import { TurnoLista } from './TurnoLista'
 import { TurnoDetalle } from './TurnoDetalle'
 
@@ -48,6 +48,26 @@ export default function ConsultarTurnos() {
   const [turnoEliminarCerrado, setTurnoEliminarCerrado] = useState(null)
   const [textoConfirmarEliminarCerrado, setTextoConfirmarEliminarCerrado] = useState('')
   const [eliminandoTurnoCerrado, setEliminandoTurnoCerrado] = useState(false)
+  const [permisosApi, setPermisosApi] = useState(null)
+
+  useEffect(() => {
+    if (!user) {
+      setPermisosApi([])
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const p = await getCurrentUserPermissions()
+        if (!cancelled) setPermisosApi(Array.isArray(p) ? p : [])
+      } catch {
+        if (!cancelled) setPermisosApi([])
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [user])
 
   useEffect(() => {
     let cancelled = false
@@ -227,6 +247,8 @@ export default function ConsultarTurnos() {
 
   return (
     <TurnoDetalle
+      user={user}
+      permisosApi={permisosApi}
       turno={turno}
       mensaje={mensaje}
       totales={totales}

@@ -15,6 +15,7 @@ import {
   X,
   Loader2,
   Fuel,
+  Unlock,
 } from 'lucide-react'
 import {
   getGriferosCerradosParaConsolidar,
@@ -22,6 +23,7 @@ import {
   obtenerConsolidacionLiquidacion,
   eliminarConsolidacionLiquidacion,
   crearConsolidacionLiquidacion,
+  reabrirConsolidacionLiquidacionCerrada,
 } from '../utils/api'
 import TabLiquidacionPorTipoTurno from './TabLiquidacionPorTipoTurno'
 import { ConsolidacionOperativaPanel } from '../components/ConsolidacionOperativaPanel'
@@ -87,15 +89,46 @@ export default function ConsolidacionLiquidacionPage() {
   const [modalEliminarConsolidacion, setModalEliminarConsolidacion] = useState(null)
   /** Tras POST /consolidaciones OK: popup de éxito (además del panel operativo). */
   const [modalExitoCrear, setModalExitoCrear] = useState(null)
+  /** Reabrir consolidación cerrada → pendiente: null | { id, codigo, error?: string | null } */
+  const [modalConfirmarReabrir, setModalConfirmarReabrir] = useState(null)
+  const [reabriendoConsolidacion, setReabriendoConsolidacion] = useState(false)
+  /** Fuerza remontar el panel si la misma consolidación pasa de cerrada a pendiente. */
+  const [panelMountKey, setPanelMountKey] = useState(0)
   const tabRef = useRef(tab)
+  const mensajeTimeoutRef = useRef(null)
   useEffect(() => {
     tabRef.current = tab
   }, [tab])
 
+  useEffect(
+    () => () => {
+      if (mensajeTimeoutRef.current) {
+        clearTimeout(mensajeTimeoutRef.current)
+        mensajeTimeoutRef.current = null
+      }
+    },
+    []
+  )
+
+  const dismissMensajeFlotante = useCallback(() => {
+    if (mensajeTimeoutRef.current) {
+      clearTimeout(mensajeTimeoutRef.current)
+      mensajeTimeoutRef.current = null
+    }
+    setMensaje(null)
+  }, [])
+
   const mostrarMensaje = useCallback((texto, tipo = 'success') => {
+    if (mensajeTimeoutRef.current) {
+      clearTimeout(mensajeTimeoutRef.current)
+      mensajeTimeoutRef.current = null
+    }
     setMensaje({ texto, tipo })
     const duracion = tipo === 'error' ? 6000 : 3500
-    setTimeout(() => setMensaje(null), duracion)
+    mensajeTimeoutRef.current = setTimeout(() => {
+      mensajeTimeoutRef.current = null
+      setMensaje(null)
+    }, duracion)
   }, [])
 
   const cargarCerrados = useCallback(
@@ -183,6 +216,7 @@ export default function ConsolidacionLiquidacionPage() {
   }, [mostrarMensaje])
 
   const abrirModalEliminarConsolidacion = useCallback(async (h) => {
+    dismissMensajeFlotante()
     const codigo = h.codigo || `#${h.id}`
     setModalEliminarConsolidacion({
       id: h.id,
@@ -205,7 +239,7 @@ export default function ConsolidacionLiquidacionPage() {
         prev && prev.id === h.id ? { ...prev, loading: false, error: msg, turnos: [] } : prev
       )
     }
-  }, [])
+  }, [dismissMensajeFlotante])
 
   const cerrarModalEliminarConsolidacion = useCallback(() => {
     setModalEliminarConsolidacion(null)
@@ -307,6 +341,7 @@ export default function ConsolidacionLiquidacionPage() {
       mostrarMensaje('Seleccione al menos un turno cerrado', 'error')
       return
     }
+    dismissMensajeFlotante()
     setObsConsolidacion('')
     setModalObs(true)
     console.info(LOG_CONS, 'Modal de confirmación abierto; al confirmar se hará POST /consolidaciones')
@@ -359,6 +394,28 @@ export default function ConsolidacionLiquidacionPage() {
     cargarPendientes()
     cargarHistorial()
   }, [cargarPendientes, cargarHistorial])
+
+  const ejecutarReabrirConsolidacionDesdeListado = async () => {
+    if (!modalConfirmarReabrir?.id) return
+    const id = modalConfirmarReabrir.id
+    setReabriendoConsolidacion(true)
+    setModalConfirmarReabrir((prev) => (prev ? { ...prev, error: null } : prev))
+    try {
+      await reabrirConsolidacionLiquidacionCerrada(id)
+      setModalConfirmarReabrir(null)
+      mostrarMensaje('Consolidación reabierta (pendiente).')
+      await refrescarListasConsolidacion()
+      if (panelConsolidacionId === id) {
+        setPanelMountKey((k) => k + 1)
+      }
+    } catch (e) {
+      const d = e.response?.data?.detail
+      const msg = typeof d === 'string' ? d : e.message || 'No se pudo reabrir'
+      setModalConfirmarReabrir((prev) => (prev?.id === id ? { ...prev, error: msg } : prev))
+    } finally {
+      setReabriendoConsolidacion(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -425,12 +482,17 @@ export default function ConsolidacionLiquidacionPage() {
 
       {mensaje && (
         <div
-          className={`fixed top-24 right-4 z-50 ${
+          role="status"
+          className={`fixed top-24 left-1/2 z-40 w-[min(36rem,calc(100%-2rem))] -translate-x-1/2 ${
             mensaje.tipo === 'success' ? 'bg-green-600' : 'bg-red-600'
-          } text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 max-w-md`}
+          } text-white px-5 py-3 rounded-lg shadow-lg flex flex-col items-center justify-center text-center gap-2`}
         >
-          {mensaje.tipo === 'success' ? <CheckCircle className="w-5 h-5 shrink-0" /> : <AlertCircle className="w-5 h-5 shrink-0" />}
-          <span className="text-sm">{mensaje.texto}</span>
+          {mensaje.tipo === 'success' ? (
+            <CheckCircle className="w-6 h-6 shrink-0 opacity-95" aria-hidden />
+          ) : (
+            <AlertCircle className="w-6 h-6 shrink-0 opacity-95" aria-hidden />
+          )}
+          <span className="text-sm leading-relaxed">{mensaje.texto}</span>
         </div>
       )}
 
@@ -703,7 +765,7 @@ export default function ConsolidacionLiquidacionPage() {
                         </td>
                         <td className="p-3 text-right">{h.cantidad_turnos}</td>
                         <td className="p-3">
-                          <div className="flex flex-col gap-1 items-start">
+                          <div className="flex flex-col sm:flex-row flex-wrap gap-1.5 items-start">
                             <button
                               type="button"
                               className="btn btn-secondary text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1.5"
@@ -712,6 +774,23 @@ export default function ConsolidacionLiquidacionPage() {
                             >
                               <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden />
                               Ver detalle
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-secondary text-xs px-2.5 py-1.5 rounded-md inline-flex items-center gap-1.5 text-amber-900 border-amber-300 bg-amber-50 hover:bg-amber-100 disabled:opacity-50"
+                              disabled={
+                                !!modalConfirmarReabrir ||
+                                !!modalEliminarConsolidacion ||
+                                reabriendoConsolidacion
+                              }
+                              title="Volver a estado pendiente (bloqueado si la conciliación de stock sigue cerrada)"
+                              onClick={() => {
+                                dismissMensajeFlotante()
+                                setModalConfirmarReabrir({ id: h.id, codigo: h.codigo || `#${h.id}` })
+                              }}
+                            >
+                              <Unlock className="w-3.5 h-3.5 shrink-0" aria-hidden />
+                              Reabrir
                             </button>
                           </div>
                         </td>
@@ -727,7 +806,7 @@ export default function ConsolidacionLiquidacionPage() {
 
       {modalEliminarConsolidacion && (
         <div
-          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="modal-eliminar-cons-titulo"
@@ -856,7 +935,7 @@ export default function ConsolidacionLiquidacionPage() {
       )}
 
       {modalObs && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
           <div className="card p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <h3 className="text-lg font-semibold mb-2">Confirmar consolidación</h3>
             <p className="text-sm text-gray-600 mb-4">
@@ -898,6 +977,7 @@ export default function ConsolidacionLiquidacionPage() {
 
       {panelConsolidacionId != null && (
         <ConsolidacionOperativaPanel
+          key={`${panelConsolidacionId}-${panelMountKey}`}
           consolidacionId={panelConsolidacionId}
           onClose={() => {
             setPanelConsolidacionId(null)
@@ -905,12 +985,81 @@ export default function ConsolidacionLiquidacionPage() {
           }}
           onMensaje={mostrarMensaje}
           onCerrada={refrescarListasConsolidacion}
+          onDismissFloatingMessage={dismissMensajeFlotante}
         />
+      )}
+
+      {modalConfirmarReabrir && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="titulo-reabrir-cons-liq"
+          onClick={(e) => {
+            if (!reabriendoConsolidacion && e.target === e.currentTarget) setModalConfirmarReabrir(null)
+          }}
+        >
+          <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-6">
+            <div className="flex gap-3 mb-4">
+              <div className="p-2 rounded-full bg-amber-100 text-amber-800 shrink-0">
+                <Unlock className="w-6 h-6" aria-hidden />
+              </div>
+              <div>
+                <h3 id="titulo-reabrir-cons-liq" className="text-lg font-semibold text-gray-900">
+                  ¿Reabrir consolidación de liquidación?
+                </h3>
+                <p className="text-sm text-gray-600 mt-2 font-mono">{modalConfirmarReabrir.codigo}</p>
+                <p className="text-sm text-gray-600 mt-2">
+                  La consolidación volverá a estado <strong className="text-gray-800">pendiente</strong> para editar
+                  servicentro, cobranzas y reabrir turnos de grifero si corresponde.
+                </p>
+                <p className="text-sm text-gray-600 mt-2">
+                  Si la <strong className="text-gray-800">conciliación de inventario de combustible</strong> de esta
+                  misma consolidación sigue <strong className="text-gray-800">cerrada</strong>, primero ábrala en{' '}
+                  <strong className="text-gray-800">Supervisión → Conciliación stock combustible</strong>, pestaña de
+                  cerradas, y use <strong className="text-gray-800">Reabrir</strong>; luego podrá reabrir esta
+                  consolidación.
+                </p>
+                <p className="text-xs text-gray-500 mt-3">
+                  Si el sistema no le permite esta acción, pida apoyo a un supervisor con acceso a consolidación y
+                  conciliación de stock.
+                </p>
+                {modalConfirmarReabrir.error ? (
+                  <div
+                    role="alert"
+                    className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 flex gap-2 items-start"
+                  >
+                    <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" aria-hidden />
+                    <p className="leading-relaxed">{modalConfirmarReabrir.error}</p>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                disabled={reabriendoConsolidacion}
+                onClick={() => setModalConfirmarReabrir(null)}
+                className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={reabriendoConsolidacion}
+                onClick={ejecutarReabrirConsolidacionDesdeListado}
+                className="flex-1 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50"
+              >
+                {reabriendoConsolidacion ? 'Reabriendo…' : 'Confirmar'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {modalExitoCrear && (
         <div
-          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+          className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100] p-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="titulo-exito-crear-cons"
