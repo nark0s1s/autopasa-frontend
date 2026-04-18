@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Fuel, ArrowLeft, RefreshCw, X, AlertTriangle, CheckCircle, FileDown } from 'lucide-react'
+import { Fuel, ArrowLeft, RefreshCw, X, AlertTriangle, CheckCircle, FileDown, Unlock } from 'lucide-react'
 import {
   listarConsolidacionesPendientesConciliacionStock,
   crearOAbrirConciliacionStockPorConsolidacion,
@@ -12,6 +12,7 @@ import {
   vincularComprasConciliacionStock,
   desvincularComprasConciliacionStock,
   downloadConciliacionStockCombustiblePdf,
+  reabrirConciliacionStockCerrada,
 } from '../utils/api'
 
 function fmtErr(e) {
@@ -118,6 +119,8 @@ export default function ConciliacionStockCombustiblePage() {
   const [modalConfirmarCerrar, setModalConfirmarCerrar] = useState(false)
   const [obsCierre, setObsCierre] = useState('')
   const [modalExitoCerrar, setModalExitoCerrar] = useState(null)
+  const [reabriendo, setReabriendo] = useState(false)
+  const [modalConfirmarReabrir, setModalConfirmarReabrir] = useState(false)
 
   const [modalCompras, setModalCompras] = useState(false)
   const [disponibles, setDisponibles] = useState([])
@@ -362,6 +365,22 @@ export default function ConciliacionStockCombustiblePage() {
     }
   }
 
+  const ejecutarReabrirConciliacionCerrada = async () => {
+    if (!detalle?.id) return
+    setReabriendo(true)
+    setErrorDetalle('')
+    try {
+      const d = await reabrirConciliacionStockCerrada(detalle.id)
+      setDetalle(d)
+      syncEditsFromDetalle(d)
+      setModalConfirmarReabrir(false)
+    } catch (e) {
+      setErrorDetalle(fmtErr(e))
+    } finally {
+      setReabriendo(false)
+    }
+  }
+
   const ejecutarCierreConciliacion = async () => {
     if (!detalle?.id) return
     setSaving(true)
@@ -387,6 +406,7 @@ export default function ConciliacionStockCombustiblePage() {
   }
 
   const esBorrador = detalle && String(detalle.estado).toLowerCase() === 'borrador'
+  const esCerrada = detalle && String(detalle.estado).toLowerCase() === 'cerrada'
   const umbralVerde = detalle?.umbral_verde_pct ?? 0.5
   const umbralAmarillo = detalle?.umbral_amarillo_pct ?? 1
 
@@ -417,15 +437,32 @@ export default function ConciliacionStockCombustiblePage() {
           </div>
           <div className="flex flex-wrap gap-2 items-center">
           {!esBorrador && (
-            <button
-              type="button"
-              disabled={downloadingPdf}
-              onClick={descargarPdfConciliacion}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
-            >
-              <FileDown className="w-4 h-4" />
-              {downloadingPdf ? 'Generando reporte…' : 'Generar Reporte'}
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={downloadingPdf}
+                onClick={descargarPdfConciliacion}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-300 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+              >
+                <FileDown className="w-4 h-4" />
+                {downloadingPdf ? 'Generando reporte…' : 'Generar Reporte'}
+              </button>
+              {esCerrada && (
+                <button
+                  type="button"
+                  disabled={reabriendo || modalConfirmarReabrir}
+                  onClick={() => {
+                    setErrorDetalle('')
+                    setModalConfirmarReabrir(true)
+                  }}
+                  title="Vuelve a estado borrador para corregir (la consolidación de liquidación debe seguir cerrada)"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-amber-50 border border-amber-300 text-sm font-medium text-amber-950 hover:bg-amber-100 disabled:opacity-50"
+                >
+                  <Unlock className="w-4 h-4" />
+                  {reabriendo ? 'Reabriendo…' : 'Reabrir'}
+                </button>
+              )}
+            </>
           )}
           {esBorrador && (
             <div className="flex flex-wrap gap-2">
@@ -616,6 +653,61 @@ export default function ConciliacionStockCombustiblePage() {
           <p className="mt-4 text-sm text-gray-700">
             <span className="font-medium">Cierre:</span> {detalle.observaciones_cierre}
           </p>
+        )}
+
+        {modalConfirmarReabrir && (
+          <div
+            className="fixed inset-0 z-[61] flex items-center justify-center p-4 bg-black/50"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="titulo-confirm-reabrir-stock"
+            onClick={(e) => {
+              if (!reabriendo && e.target === e.currentTarget) setModalConfirmarReabrir(false)
+            }}
+          >
+            <div className="bg-white rounded-xl shadow-xl border border-gray-200 max-w-md w-full p-6">
+              <div className="flex gap-3 mb-4">
+                <div className="p-2 rounded-full bg-amber-100 text-amber-800 shrink-0">
+                  <Unlock className="w-6 h-6" aria-hidden />
+                </div>
+                <div>
+                  <h3 id="titulo-confirm-reabrir-stock" className="text-lg font-semibold text-gray-900">
+                    ¿Reabrir conciliación de stock?
+                  </h3>
+                  <p className="text-sm text-gray-600 mt-2">
+                    La conciliación volverá a estado <strong className="text-gray-800">borrador</strong> para que pueda
+                    editarla de nuevo.
+                  </p>
+                  <p className="text-sm text-gray-600 mt-2">
+                    <strong className="text-gray-800">Requisito:</strong> la consolidación de liquidación asociada debe
+                    seguir <strong className="text-gray-800">cerrada</strong>. Si ya la reabrió a pendiente, cierre la
+                    consolidación otra vez o use el flujo desde consulta de turnos.
+                  </p>
+                  <p className="text-xs text-gray-500 mt-3">
+                    En el servidor se requiere el permiso <code className="text-gray-700">conciliacion_stock.editar</code>.
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={reabriendo}
+                  onClick={() => setModalConfirmarReabrir(false)}
+                  className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-sm font-medium text-gray-800 hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={reabriendo}
+                  onClick={ejecutarReabrirConciliacionCerrada}
+                  className="flex-1 px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-medium hover:bg-amber-700 disabled:opacity-50"
+                >
+                  {reabriendo ? 'Reabriendo…' : 'Confirmar'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {modalConfirmarCerrar && (
