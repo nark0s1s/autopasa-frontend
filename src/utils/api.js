@@ -1034,6 +1034,55 @@ export const crearAjusteStock = async (data) => {
 }
 
 // ============================================================================
+// GASTOS OPERATIVOS
+// ============================================================================
+
+const API_GASTOS_OPERATIVOS = '/api/gastos-operativos'
+
+export const getTiposComprobanteGasto = async (activo = true) => {
+  const params = activo !== null && activo !== undefined ? { activo } : {}
+  const response = await api.get(`${API_GASTOS_OPERATIVOS}/tipos-comprobante`, { params })
+  return response.data
+}
+
+export const getCentrosCostoGasto = async (activo = null) => {
+  const params = activo !== null && activo !== undefined ? { activo } : {}
+  const response = await api.get(`${API_GASTOS_OPERATIVOS}/centros-costo`, { params })
+  return response.data
+}
+
+export const getCategoriasGastoOperativo = async (activo = null) => {
+  const params = activo !== null && activo !== undefined ? { activo } : {}
+  const response = await api.get(`${API_GASTOS_OPERATIVOS}/categorias-gasto`, { params })
+  return response.data
+}
+
+export const getGastosOperativos = async (params = {}) => {
+  const response = await api.get(`${API_GASTOS_OPERATIVOS}/`, { params })
+  return response.data
+}
+
+export const getGastoOperativo = async (id) => {
+  const response = await api.get(`${API_GASTOS_OPERATIVOS}/${id}`)
+  return response.data
+}
+
+export const crearGastoOperativo = async (data) => {
+  const response = await api.post(`${API_GASTOS_OPERATIVOS}/`, data)
+  return response.data
+}
+
+export const actualizarGastoOperativo = async (id, data) => {
+  const response = await api.put(`${API_GASTOS_OPERATIVOS}/${id}`, data)
+  return response.data
+}
+
+export const anularGastoOperativo = async (id) => {
+  const response = await api.patch(`${API_GASTOS_OPERATIVOS}/${id}/anular`)
+  return response.data
+}
+
+// ============================================================================
 // CLIENTES
 // ============================================================================
 
