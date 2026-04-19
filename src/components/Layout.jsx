@@ -28,6 +28,7 @@ import {
 
 /** Iconos opcionales según `menu_opciones.icon` (coincidencia laxa con Lucide). */
 const ICON_BY_KEY = {
+  wallet: Wallet,
   calendar: Calendar,
   gauge: Gauge,
   'file-text': FileText,

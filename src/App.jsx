@@ -28,6 +28,7 @@ import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
 import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
 import KardexCombustiblePage from './pages/KardexCombustiblePage'
 import ConciliacionStockCombustiblePage from './pages/ConciliacionStockCombustiblePage'
+import GastosOperativosPage from './pages/GastosOperativosPage'
 
 // Componente para rutas protegidas
 function PrivateRoute({ children }) {
@@ -183,6 +184,16 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <ComprasFactura />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/gastos-operativos"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <GastosOperativosPage />
                 </Layout>
               </PrivateRoute>
             }
