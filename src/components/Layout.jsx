@@ -24,6 +24,7 @@ import {
   Wrench,
   Store,
   Wallet,
+  CreditCard,
 } from 'lucide-react'
 
 /** Iconos opcionales según `menu_opciones.icon` (coincidencia laxa con Lucide). */
@@ -47,6 +48,7 @@ const ICON_BY_KEY = {
   layoutgrid: LayoutGrid,
   wrench: Wrench,
   fuel: Fuel,
+  creditcard: CreditCard,
 }
 
 function menuIconComponent(icon) {
