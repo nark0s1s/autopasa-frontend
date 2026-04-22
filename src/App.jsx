@@ -24,6 +24,7 @@ import ContometrosPage from './pages/mantenimiento/ContometrosPage'
 import TurnosConfigPage from './pages/mantenimiento/TurnosConfigPage'
 import TurnoConfigIslaPage from './pages/mantenimiento/TurnoConfigIslaPage'
 import UnidadesMedidaPage from './pages/mantenimiento/UnidadesMedidaPage'
+import MediosPagoPage from './pages/mantenimiento/MediosPagoPage'
 import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
 import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
 import KardexCombustiblePage from './pages/KardexCombustiblePage'
@@ -274,6 +275,16 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <TurnoConfigIslaPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/mantenimiento/medios-pago"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <MediosPagoPage />
                 </Layout>
               </PrivateRoute>
             }

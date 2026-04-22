@@ -718,7 +718,18 @@ export const getTiposVale = async (activo = true) => {
 }
 
 export const getTiposPago = async (activo = true) => {
-  const response = await api.get('/api/catalogos/tipos-pago', { params: { activo } })
+  const params = activo !== null && activo !== undefined ? { activo } : {}
+  const response = await api.get('/api/catalogos/tipos-pago', { params })
+  return response.data
+}
+
+export const crearTipoPago = async (data) => {
+  const response = await api.post('/api/catalogos/tipos-pago', data)
+  return response.data
+}
+
+export const actualizarTipoPago = async (id, data) => {
+  const response = await api.put(`/api/catalogos/tipos-pago/${id}`, data)
   return response.data
 }
 
