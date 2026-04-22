@@ -388,6 +388,24 @@ export const downloadConsolidacionReportePdf = async (consolidacionId, codigo) =
   window.URL.revokeObjectURL(url)
 }
 
+/** Descarga PDF «Cuadre efectivo banco» (mismo criterio que la pestaña del panel). */
+export const downloadConsolidacionCuadreEfectivoBancoPdf = async (consolidacionId, codigo) => {
+  const response = await api.get(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/reporte-cuadre-efectivo-banco.pdf`,
+    { responseType: 'blob' }
+  )
+  const blob = new Blob([response.data], { type: 'application/pdf' })
+  const url = window.URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const safe = String(codigo || consolidacionId).replace(/[^\w.-]+/g, '_')
+  a.download = `consolidacion-cuadre-efectivo-${safe}.pdf`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  window.URL.revokeObjectURL(url)
+}
+
 /** Contómetros de las islas del turno_config de la liquidación (no el catálogo completo). */
 export const getContometrosParaTurnoGrifero = async (cabeceraGriferoId) => {
   const response = await api.get(

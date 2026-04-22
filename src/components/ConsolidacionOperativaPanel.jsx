@@ -34,6 +34,7 @@ import {
   actualizarConsolidacionCobranza,
   eliminarConsolidacionCobranza,
   downloadConsolidacionReportePdf,
+  downloadConsolidacionCuadreEfectivoBancoPdf,
   getClientesAdmin,
   listarTurnosLiquidacionReferenciaConsolidacion,
   listarVentasServicentroDisponiblesConsolidacion,
@@ -85,153 +86,125 @@ function toYMD(d) {
 function ModalVentaServicentro({ fila, onClose, onGuardar }) {
   const [fechaVenta, setFechaVenta] = useState(() => toYMD(new Date()))
   const [monto, setMonto] = useState('')
-  const [mEf, setMEf] = useState('')
-  const [mPos, setMPos] = useState('')
-  const [mCred, setMCred] = useState('')
+  const [tiposPago, setTiposPago] = useState([])
+  const [tipoPagoId, setTipoPagoId] = useState('')
   const [concepto, setConcepto] = useState('')
   const [observaciones, setObservaciones] = useState('')
+  const [guardando, setGuardando] = useState(false)
+
+  const tiposCob = useMemo(() => tiposPagoCobranzaCatalogo(tiposPago), [tiposPago])
+  const defaultTipoId = useMemo(() => {
+    const ef = tiposCob.find((t) => t.codigo === 'COB_EFECTIVO')
+    return ef ? String(ef.id) : tiposCob[0] ? String(tiposCob[0].id) : ''
+  }, [tiposCob])
+
+  useEffect(() => {
+    getTiposPago(true)
+      .then((d) => setTiposPago(Array.isArray(d) ? d : []))
+      .catch(() => setTiposPago([]))
+  }, [])
 
   useEffect(() => {
     if (fila) {
       setFechaVenta((fila.fecha_venta || '').slice(0, 10) || toYMD(new Date()))
       setMonto(fila.monto != null ? String(fila.monto) : '')
-      const tot = Number(fila.monto) || 0
-      const hasSplit =
-        fila.monto_efectivo != null &&
-        (Number(fila.monto_pos) > 0 || Number(fila.monto_credito) > 0 || Number(fila.monto_efectivo) !== tot)
-      if (hasSplit || (fila.monto_efectivo != null && fila.monto_efectivo !== undefined)) {
-        setMEf(fila.monto_efectivo != null ? String(fila.monto_efectivo) : '')
-        setMPos(fila.monto_pos != null ? String(fila.monto_pos) : '0')
-        setMCred(fila.monto_credito != null ? String(fila.monto_credito) : '0')
-      } else {
-        setMEf(fila.monto != null ? String(fila.monto) : '')
-        setMPos('0')
-        setMCred('0')
-      }
+      setTipoPagoId(fila.tipo_pago_id != null ? String(fila.tipo_pago_id) : defaultTipoId)
       setConcepto(fila.concepto ?? '')
       setObservaciones(fila.observaciones ?? '')
     } else {
       setFechaVenta(toYMD(new Date()))
       setMonto('')
-      setMEf('')
-      setMPos('')
-      setMCred('')
+      setTipoPagoId(defaultTipoId)
       setConcepto('')
       setObservaciones('')
     }
-  }, [fila])
+  }, [fila, defaultTipoId])
 
+  const sinCatalogo = tiposCob.length === 0
   const totalM = Number(monto) || 0
-  const sumDesglose = (Number(mEf) || 0) + (Number(mPos) || 0) + (Number(mCred) || 0)
-  const desgloseOk = totalM > 0 && Math.abs(sumDesglose - totalM) < 0.01
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
-    if (!desgloseOk) return
-    onGuardar({
-      fecha_venta: fechaVenta,
-      monto: totalM,
-      monto_efectivo: Number(mEf) || 0,
-      monto_pos: Number(mPos) || 0,
-      monto_credito: Number(mCred) || 0,
-      concepto: concepto.trim() || null,
-      observaciones: observaciones.trim() || null,
-    })
+    if (!tipoPagoId || totalM < 0 || !Number.isFinite(totalM)) return
+    setGuardando(true)
+    try {
+      await onGuardar({
+        fecha_venta: fechaVenta,
+        monto: totalM,
+        tipo_pago_id: parseInt(tipoPagoId, 10),
+        concepto: concepto.trim() || null,
+        observaciones: observaciones.trim() || null,
+      })
+    } finally {
+      setGuardando(false)
+    }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
-      <div className="card p-6 max-w-md w-full">
-        <h3 className="text-lg font-semibold mb-4">{fila ? 'Editar venta servicentro' : 'Nueva venta servicentro'}</h3>
-        <form onSubmit={submit} className="space-y-3">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/45 backdrop-blur-[1px]">
+      <div
+        className="bg-white rounded-2xl shadow-xl max-w-lg w-full max-h-[92vh] overflow-y-auto border border-gray-100"
+        role="dialog"
+        aria-modal="true"
+      >
+        <div className="flex items-start justify-between gap-3 px-5 pt-5 pb-3 border-b border-gray-100">
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Día de venta</label>
-            <input
-              type="date"
-              className="input w-full"
-              value={fechaVenta}
-              onChange={(e) => setFechaVenta(e.target.value)}
-              required
-            />
+            <h3 className="text-lg font-semibold text-gray-900">{fila ? 'Editar venta servicentro' : 'Nueva venta servicentro'}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Medio de pago vía catálogo (códigos COB_*). El sistema reparte efectivo / POS / crédito fiado para el cuadre.
+            </p>
+          </div>
+          <button type="button" className="p-2 rounded-lg text-gray-500 hover:bg-gray-100" onClick={onClose} aria-label="Cerrar">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <form onSubmit={submit} className="p-5 space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Día de venta</label>
+            <input type="date" className="input w-full" value={fechaVenta} onChange={(e) => setFechaVenta(e.target.value)} required />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Monto total (S/)</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Monto total (S/)</label>
             <input
               type="number"
               step="0.01"
               min="0"
               className="input w-full"
               value={monto}
-              onChange={(e) => {
-                const v = e.target.value
-                setMonto(v)
-                const n = parseFloat(v)
-                if (Number.isFinite(n)) {
-                  setMEf(String(n))
-                  setMPos('0')
-                  setMCred('0')
-                }
-              }}
+              onChange={(e) => setMonto(e.target.value)}
               required
             />
           </div>
-          <div className="rounded-lg border border-teal-100 bg-teal-50/50 p-3 space-y-2">
-            <p className="text-xs font-semibold text-teal-900">Desglose (cuadre banco: solo efectivo va al depósito)</p>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-              <div>
-                <label className="block text-xs text-gray-600 mb-0.5">Efectivo</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="input w-full text-sm"
-                  value={mEf}
-                  onChange={(e) => setMEf(e.target.value)}
-                  required
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-0.5">POS</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="input w-full text-sm"
-                  value={mPos}
-                  onChange={(e) => setMPos(e.target.value)}
-                />
-              </div>
-              <div>
-                <label className="block text-xs text-gray-600 mb-0.5">Crédito</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  className="input w-full text-sm"
-                  value={mCred}
-                  onChange={(e) => setMCred(e.target.value)}
-                />
-              </div>
-            </div>
-            <p className={`text-xs ${desgloseOk ? 'text-teal-800' : 'text-red-600'}`}>
-              Suma desglose: S/ {fmtMonto(sumDesglose)}
-              {totalM > 0 && !desgloseOk && ' · Debe coincidir con el monto total'}
-            </p>
+          <div className="rounded-xl bg-gradient-to-br from-teal-50 to-cyan-50 border border-teal-100/80 px-4 py-3">
+            <label className="block text-xs font-medium text-teal-900 mb-1">Medio de pago (catálogo)</label>
+            {sinCatalogo ? (
+              <p className="text-xs text-amber-800 bg-amber-50 border border-amber-100 rounded-lg px-2 py-2">
+                No hay tipos COB_* en tipo_pago. Ejecute las migraciones SQL de cobranza / medios de pago.
+              </p>
+            ) : (
+              <select className="input w-full text-sm" value={tipoPagoId} onChange={(e) => setTipoPagoId(e.target.value)} required>
+                {tiposCob.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nombre || t.codigo}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Concepto (opcional)</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Concepto (opcional)</label>
             <input type="text" className="input w-full" value={concepto} onChange={(e) => setConcepto(e.target.value)} />
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Observaciones (opcional)</label>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones (opcional)</label>
             <textarea className="input w-full min-h-[72px]" value={observaciones} onChange={(e) => setObservaciones(e.target.value)} />
           </div>
-          <div className="flex gap-2 pt-2">
-            <button type="button" className="btn btn-secondary flex-1" onClick={onClose}>
+          <div className="flex gap-2 pt-1">
+            <button type="button" className="btn btn-secondary flex-1" onClick={onClose} disabled={guardando}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary flex-1" disabled={!desgloseOk}>
-              Guardar
+            <button type="submit" className="btn btn-primary flex-1" disabled={guardando || sinCatalogo || !tipoPagoId}>
+              {guardando ? 'Guardando…' : 'Guardar'}
             </button>
           </div>
         </form>
@@ -711,11 +684,19 @@ export function ConsolidacionOperativaPanel({
     }
   }
 
-  const abrirPdf = async () => {
+  const abrirPdfConsolidacion = async () => {
     try {
       await downloadConsolidacionReportePdf(detalle.id, detalle.codigo)
     } catch (e) {
-      onMensaje('No se pudo descargar el PDF', 'error')
+      onMensaje('No se pudo descargar el reporte de consolidación', 'error')
+    }
+  }
+
+  const abrirPdfCuadreEfectivoBanco = async () => {
+    try {
+      await downloadConsolidacionCuadreEfectivoBancoPdf(detalle.id, detalle.codigo)
+    } catch (e) {
+      onMensaje('No se pudo descargar el reporte de cuadre efectivo banco', 'error')
     }
   }
 
@@ -803,8 +784,14 @@ export function ConsolidacionOperativaPanel({
                         : '—'}
                     </p>
                     <p className="font-semibold">S/ {fmtMonto(r.monto)}</p>
+                    {(r.tipo_pago_nombre || r.tipo_pago_codigo) && (
+                      <p className="text-xs font-medium text-teal-800">
+                        Medio: {r.tipo_pago_nombre || r.tipo_pago_codigo}
+                      </p>
+                    )}
                     <p className="text-xs text-gray-600 tabular-nums">
-                      Ef. S/ {fmtMonto(r.monto_efectivo ?? r.monto)} · POS S/ {fmtMonto(r.monto_pos ?? 0)} · Créd. S/ {fmtMonto(r.monto_credito ?? 0)}
+                      Ef. S/ {fmtMonto(r.monto_efectivo ?? r.monto)} · POS S/ {fmtMonto(r.monto_pos ?? 0)} · Créd. S/{' '}
+                      {fmtMonto(r.monto_credito ?? 0)}
                     </p>
                     {r.empleado_nombre && <p className="text-xs text-gray-600">Registró: {r.empleado_nombre}</p>}
                     {r.concepto && <p className="text-sm text-gray-700">{r.concepto}</p>}
@@ -1241,8 +1228,21 @@ export function ConsolidacionOperativaPanel({
                     Reabrir
                   </button>
                 )}
-                <button type="button" className="btn btn-secondary btn-sm" onClick={abrirPdf}>
-                  PDF
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm inline-flex items-center gap-1.5"
+                  onClick={abrirPdfConsolidacion}
+                >
+                  <FileText className="w-4 h-4 shrink-0" aria-hidden />
+                  Reporte consolidación liquidación
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm inline-flex items-center gap-1.5"
+                  onClick={abrirPdfCuadreEfectivoBanco}
+                >
+                  <Landmark className="w-4 h-4 shrink-0" aria-hidden />
+                  Reporte cuadre efectivo banco
                 </button>
                 <button type="button" className="p-2 text-gray-400 hover:text-gray-700" onClick={onClose} aria-label="Cerrar">
                   <X className="w-6 h-6" />
