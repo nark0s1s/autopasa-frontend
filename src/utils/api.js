@@ -259,6 +259,15 @@ export const cerrarConsolidacionLiquidacion = async (id) => {
   return response.data
 }
 
+/** Reparto del efectivo a banco entre cuentas de tesorería (consolidación pendiente). */
+export const guardarConsolidacionDepositosEfectivo = async (consolidacionId, lineas) => {
+  const response = await api.put(
+    `${API_TURNOS_LIQ}/consolidaciones/${consolidacionId}/depositos-efectivo`,
+    { lineas }
+  )
+  return response.data
+}
+
 /** Solo consolidaciones pendientes; 204 sin cuerpo. */
 export const eliminarConsolidacionLiquidacion = async (id) => {
   await api.delete(`${API_TURNOS_LIQ}/consolidaciones/${id}`)
@@ -980,6 +989,24 @@ export const getCategoriasProducto = async () => {
 // ============================================================================
 // LOGÍSTICA / STOCK
 // ============================================================================
+
+const API_TESORERIA = '/api/tesoreria'
+
+export const getTesoreriaCuentasCorrientes = async (activo = true) => {
+  const params = activo !== null && activo !== undefined ? { activo } : {}
+  const response = await api.get(`${API_TESORERIA}/cuentas-corrientes`, { params })
+  return response.data
+}
+
+export const crearTesoreriaCuentaCorriente = async (data) => {
+  const response = await api.post(`${API_TESORERIA}/cuentas-corrientes`, data)
+  return response.data
+}
+
+export const actualizarTesoreriaCuentaCorriente = async (id, data) => {
+  const response = await api.put(`${API_TESORERIA}/cuentas-corrientes/${id}`, data)
+  return response.data
+}
 
 const API_LOGISTICA = '/api/logistica'
 

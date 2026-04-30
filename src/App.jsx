@@ -30,6 +30,7 @@ import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
 import KardexCombustiblePage from './pages/KardexCombustiblePage'
 import ConciliacionStockCombustiblePage from './pages/ConciliacionStockCombustiblePage'
 import GastosOperativosPage from './pages/GastosOperativosPage'
+import TesoreriaCuentasCorrientesPage from './pages/TesoreriaCuentasCorrientesPage'
 
 // Componente para rutas protegidas
 function PrivateRoute({ children }) {
@@ -195,6 +196,67 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <GastosOperativosPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route path="/tesoreria/cuentas-corrientes" element={<Navigate to="/tesoreria/bancos" replace />} />
+          <Route
+            path="/tesoreria/cajas"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <ProximamentePage titulo="Tesorería — Cajas (efectivo físico)" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/tesoreria/bancos"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <TesoreriaCuentasCorrientesPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/tesoreria/conciliaciones"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <ProximamentePage titulo="Tesorería — Conciliaciones" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/tesoreria/movimientos"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <ProximamentePage titulo="Tesorería — Movimientos (ingresos / egresos)" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/tesoreria/cuentas-terceros"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <ProximamentePage titulo="Tesorería — Cuentas corrientes (clientes / proveedores)" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/tesoreria/reportes"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <ProximamentePage titulo="Tesorería — Reportes (flujo de caja, saldos, conciliación)" />
                 </Layout>
               </PrivateRoute>
             }
