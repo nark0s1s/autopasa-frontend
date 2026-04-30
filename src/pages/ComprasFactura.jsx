@@ -1,8 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { ClipboardList, Plus, X, Trash2 } from 'lucide-react'
+import { ClipboardList, Plus, X, Trash2, Pencil } from 'lucide-react'
 import {
   getComprasFactura,
+  getCompraFactura,
   crearCompraFactura,
+  actualizarCompraFactura,
+  eliminarCompraFactura,
   getProveedores,
   getProductosAdmin,
   getMovimientosStock,
@@ -40,7 +43,8 @@ function labelProveedor(p) {
   return `${p.numero_documento} — ${p.razon_social}`
 }
 
-function ModalCompra({ productos, onClose, onSave }) {
+function ModalCompra({ productos, mode, compraExistente, proveedorDisplayInicial, onClose, onSave }) {
+  const esEdicion = mode === 'edit'
   const [proveedor_id, setProveedorId] = useState('')
   const [proveedorTexto, setProveedorTexto] = useState('')
   const [opcionesProveedor, setOpcionesProveedor] = useState([])
@@ -57,6 +61,33 @@ function ModalCompra({ productos, onClose, onSave }) {
   const [lineas, setLineas] = useState([lineaVacia()])
   const [guardando, setGuardando] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!esEdicion || !compraExistente) return
+    setProveedorId(String(compraExistente.proveedor_id))
+    setProveedorTexto(proveedorDisplayInicial || '')
+    setSerie(compraExistente.serie || 'F001')
+    setNumero(String(compraExistente.numero ?? ''))
+    setFechaEmision(compraExistente.fecha_emision ? String(compraExistente.fecha_emision).slice(0, 10) : '')
+    setOrdenCompra(compraExistente.orden_compra || '')
+    setGuiaRemision(compraExistente.guia_remision || '')
+    setObservaciones(compraExistente.observaciones || '')
+    const igvNum = Number(compraExistente.igv ?? 0)
+    setAplicaIgv(igvNum > 0)
+    const sorted = [...(compraExistente.detalles || [])].sort((a, b) => a.numero_linea - b.numero_linea)
+    setLineas(
+      sorted.length
+        ? sorted.map((d) => ({
+            producto_id: String(d.producto_id),
+            cantidad: String(d.cantidad),
+            precio_unitario: String(d.precio_unitario),
+            descuento: String(d.descuento ?? 0),
+            unidad_medida_id: d.unidad_medida_id != null ? String(d.unidad_medida_id) : '',
+            lote: d.lote || '',
+          }))
+        : [lineaVacia()],
+    )
+  }, [esEdicion, compraExistente, proveedorDisplayInicial])
 
   useEffect(() => {
     let cancelled = false
@@ -110,20 +141,29 @@ function ModalCompra({ productos, onClose, onSave }) {
       setError('Agregue al menos una línea con producto, cantidad y precio')
       return
     }
+    const payloadBase = {
+      proveedor_id: parseInt(proveedor_id, 10),
+      tipo_comprobante: '01',
+      serie,
+      numero,
+      fecha_emision,
+      fecha_recepcion: esEdicion && compraExistente ? compraExistente.fecha_recepcion ?? null : null,
+      fecha_vencimiento_pago: esEdicion && compraExistente ? compraExistente.fecha_vencimiento_pago ?? null : null,
+      moneda: esEdicion && compraExistente ? compraExistente.moneda || 'PEN' : 'PEN',
+      tipo_cambio: esEdicion && compraExistente ? Number(compraExistente.tipo_cambio ?? 1) : 1,
+      orden_compra: orden_compra || null,
+      guia_remision: guia_remision || null,
+      observaciones: observaciones || null,
+      aplica_igv,
+      detalles,
+    }
     setGuardando(true)
     try {
-      await crearCompraFactura({
-        proveedor_id: parseInt(proveedor_id, 10),
-        tipo_comprobante: '01',
-        serie,
-        numero,
-        fecha_emision,
-        orden_compra: orden_compra || null,
-        guia_remision: guia_remision || null,
-        observaciones: observaciones || null,
-        aplica_igv,
-        detalles,
-      })
+      if (esEdicion && compraExistente) {
+        await actualizarCompraFactura(compraExistente.id, payloadBase)
+      } else {
+        await crearCompraFactura(payloadBase)
+      }
       onSave()
     } catch (err) {
       const detail = err.response?.data?.detail
@@ -137,7 +177,9 @@ function ModalCompra({ productos, onClose, onSave }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}>
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between p-6 border-b">
-          <h2 className="text-lg font-bold text-gray-800">Registrar factura de compra</h2>
+          <h2 className="text-lg font-bold text-gray-800">
+            {esEdicion ? 'Editar factura de compra' : 'Registrar factura de compra'}
+          </h2>
           <button type="button" onClick={onClose} className="p-2 rounded-lg hover:bg-gray-100 text-gray-500">
             <X size={20} />
           </button>
@@ -307,7 +349,7 @@ function ModalCompra({ productos, onClose, onSave }) {
               Cancelar
             </button>
             <button type="submit" disabled={guardando} className="flex-1 py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium disabled:opacity-50">
-              {guardando ? 'Registrando…' : 'Registrar e ingresar stock'}
+              {guardando ? 'Guardando…' : esEdicion ? 'Guardar cambios y ajustar stock' : 'Registrar e ingresar stock'}
             </button>
           </div>
         </form>
@@ -392,7 +434,8 @@ export default function ComprasFactura() {
   const [productos, setProductos] = useState([])
   const [cargando, setCargando] = useState(true)
   const [tab, setTab] = useState('compras')
-  const [modalCompra, setModalCompra] = useState(false)
+  const [modalCompra, setModalCompra] = useState(null)
+  const [cargandoDetalleCompra, setCargandoDetalleCompra] = useState(null)
   const [modalAjuste, setModalAjuste] = useState(false)
   const [notif, setNotif] = useState(null)
 
@@ -431,7 +474,9 @@ export default function ComprasFactura() {
             <ClipboardList className="text-indigo-600" size={28} />
             Compras y stock
           </h1>
-          <p className="text-sm text-gray-400 mt-1">Facturas de proveedor ingresan inventario; movimientos registran trazabilidad</p>
+          <p className="text-sm text-gray-400 mt-1">
+            Facturas de proveedor ingresan inventario; editar o eliminar revierte las cantidades en stock salvo restricciones de conciliación
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -443,7 +488,7 @@ export default function ComprasFactura() {
           </button>
           <button
             type="button"
-            onClick={() => setModalCompra(true)}
+            onClick={() => setModalCompra({ mode: 'create' })}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl text-sm font-semibold"
           >
             <Plus size={18} /> Nueva compra
@@ -479,10 +524,13 @@ export default function ComprasFactura() {
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Documento</th>
                   <th className="text-left px-4 py-3 font-semibold text-gray-600">Fecha</th>
                   <th className="text-right px-4 py-3 font-semibold text-gray-600">Total</th>
+                  <th className="text-right px-4 py-3 font-semibold text-gray-600 w-[1%] whitespace-nowrap">Acciones</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {compras.map((c) => (
+                {compras.map((c) => {
+                  const bloqueadaConc = Boolean(c.conciliacion_stock_combustible_id)
+                  return (
                   <tr key={c.id} className="hover:bg-gray-50">
                     <td className="px-4 py-2 font-mono text-xs text-indigo-700">{c.codigo_interno}</td>
                     <td className="px-4 py-2">{nombreProv(c.proveedor_id)}</td>
@@ -491,8 +539,69 @@ export default function ComprasFactura() {
                     </td>
                     <td className="px-4 py-2">{c.fecha_emision}</td>
                     <td className="px-4 py-2 text-right font-semibold">S/ {Number(c.total).toFixed(2)}</td>
+                    <td className="px-4 py-2 text-right">
+                      <div className="flex justify-end gap-1">
+                        <button
+                          type="button"
+                          disabled={bloqueadaConc || cargandoDetalleCompra === c.id}
+                          title={
+                            bloqueadaConc
+                              ? 'No editable: compra vinculada a conciliación de stock combustible'
+                              : 'Modificar compra (ajusta stock según líneas)'
+                          }
+                          onClick={async () => {
+                            setCargandoDetalleCompra(c.id)
+                            try {
+                              const full = await getCompraFactura(c.id)
+                              setModalCompra({
+                                mode: 'edit',
+                                compra: full,
+                                proveedorDisplay: nombreProv(full.proveedor_id),
+                              })
+                            } catch {
+                              setNotif({ tipo: 'error', mensaje: 'No se pudo cargar la compra' })
+                            } finally {
+                              setCargandoDetalleCompra(null)
+                            }
+                          }}
+                          className="p-2 rounded-lg text-indigo-600 hover:bg-indigo-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Pencil size={16} />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={bloqueadaConc}
+                          title={
+                            bloqueadaConc
+                              ? 'No se puede eliminar: vinculada a conciliación de stock combustible'
+                              : 'Eliminar factura y revertir cantidades en stock'
+                          }
+                          onClick={async () => {
+                            const ok = window.confirm(
+                              `¿Eliminar la compra ${c.codigo_interno}? Las cantidades de esta factura saldrán del stock de cada producto. Esta acción no se puede deshacer.`,
+                            )
+                            if (!ok) return
+                            try {
+                              await eliminarCompraFactura(c.id)
+                              setNotif({ tipo: 'exito', mensaje: 'Compra eliminada; stock actualizado' })
+                              cargar()
+                            } catch (err) {
+                              const detail = err.response?.data?.detail
+                              setNotif({
+                                tipo: 'error',
+                                mensaje: typeof detail === 'string' ? detail : 'Error al eliminar la compra',
+                              })
+                            }
+                          }}
+                          className="p-2 rounded-lg text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
             {compras.length === 0 && <p className="p-8 text-center text-gray-400 text-sm">Sin compras registradas</p>}
@@ -529,11 +638,19 @@ export default function ComprasFactura() {
       </div>
       {modalCompra && (
         <ModalCompra
+          key={modalCompra.mode === 'edit' ? `edit-${modalCompra.compra.id}` : 'create'}
           productos={productos}
-          onClose={() => setModalCompra(false)}
+          mode={modalCompra.mode === 'edit' ? 'edit' : 'create'}
+          compraExistente={modalCompra.mode === 'edit' ? modalCompra.compra : null}
+          proveedorDisplayInicial={modalCompra.mode === 'edit' ? modalCompra.proveedorDisplay : ''}
+          onClose={() => setModalCompra(null)}
           onSave={() => {
-            setModalCompra(false)
-            setNotif({ tipo: 'exito', mensaje: 'Compra registrada; stock actualizado' })
+            const fueEdicion = modalCompra.mode === 'edit'
+            setModalCompra(null)
+            setNotif({
+              tipo: 'exito',
+              mensaje: fueEdicion ? 'Compra actualizada; stock ajustado' : 'Compra registrada; stock actualizado',
+            })
             cargar()
           }}
         />

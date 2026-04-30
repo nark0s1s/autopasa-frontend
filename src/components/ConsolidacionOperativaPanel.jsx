@@ -35,6 +35,8 @@ import {
   eliminarConsolidacionCobranza,
   downloadConsolidacionReportePdf,
   downloadConsolidacionCuadreEfectivoBancoPdf,
+  guardarConsolidacionDepositosEfectivo,
+  getTesoreriaCuentasCorrientes,
   getClientesAdmin,
   listarTurnosLiquidacionReferenciaConsolidacion,
   listarVentasServicentroDisponiblesConsolidacion,
@@ -416,13 +418,36 @@ export function ConsolidacionOperativaPanel({
   const [refsTl, setRefsTl] = useState([])
   const [loadingDisp, setLoadingDisp] = useState(false)
   const [tlVincCb, setTlVincCb] = useState('')
+  const [cuentasTesoreria, setCuentasTesoreria] = useState([])
+  const [lineasReparto, setLineasReparto] = useState([])
+  const [guardandoReparto, setGuardandoReparto] = useState(false)
 
   const cargar = useCallback(async () => {
     try {
       setLoading(true)
       const d = await obtenerConsolidacionVistaOperativa(consolidacionId)
       setDetalle(d)
+      const deps = d?.depositos_efectivo || []
+      if (deps.length > 0) {
+        setLineasReparto(
+          deps.map((row) => ({
+            key: `d-${row.id}`,
+            tesoreria_cuenta_corriente_id: row.tesoreria_cuenta_corriente_id,
+            monto: String(row.monto ?? ''),
+          }))
+        )
+      } else if (d?.estado === 'pendiente') {
+        setLineasReparto([{ key: `n-${Date.now()}`, tesoreria_cuenta_corriente_id: '', monto: '' }])
+      } else {
+        setLineasReparto([])
+      }
       if (d?.estado === 'pendiente') {
+        try {
+          const cc = await getTesoreriaCuentasCorrientes(true)
+          setCuentasTesoreria(Array.isArray(cc) ? cc : [])
+        } catch {
+          setCuentasTesoreria([])
+        }
         try {
           setLoadingDisp(true)
           const [refs, vs, cb] = await Promise.all([
@@ -441,6 +466,7 @@ export function ConsolidacionOperativaPanel({
           setLoadingDisp(false)
         }
       } else {
+        setCuentasTesoreria([])
         setRefsTl([])
         setDisponiblesVs([])
         setDisponiblesCb([])
@@ -491,7 +517,8 @@ export function ConsolidacionOperativaPanel({
     const netoCob = (x) =>
       x.monto_cobrado != null ? Number(x.monto_cobrado) : montoCobradoLocal(x.monto_factura, x.monto_retencion)
     const sumCobranzaEfectivo = cob.reduce((s, x) => {
-      if (x.tipo_pago_codigo === 'COB_EFECTIVO') return s + netoCob(x)
+      const cod = (x.tipo_pago_codigo || '').toLowerCase()
+      if (cod === 'cob_efectivo' || cod === 'efectivo') return s + netoCob(x)
       return s
     }, 0)
     const sumCobranzaTransferencia = cob.reduce((s, x) => {
@@ -681,6 +708,42 @@ export function ConsolidacionOperativaPanel({
       await cargar()
     } catch (e) {
       onMensaje(e.response?.data?.detail || 'No se pudo incluir la cobranza', 'error')
+    }
+  }
+
+  const parseMontoReparto = (s) => {
+    if (s == null || s === '') return 0
+    const t = String(s).trim().replace(/\s/g, '').replace(',', '.')
+    const n = parseFloat(t)
+    return Number.isFinite(n) ? n : 0
+  }
+
+  const sumRepartoLineas = useMemo(
+    () => lineasReparto.reduce((acc, x) => acc + parseMontoReparto(x.monto), 0),
+    [lineasReparto]
+  )
+
+  const guardarRepartoEfectivo = async () => {
+    const target = totales.cuadreEfectivoBanco
+    const lineas = lineasReparto
+      .filter((x) => x.tesoreria_cuenta_corriente_id && parseMontoReparto(x.monto) > 0)
+      .map((x) => ({
+        tesoreria_cuenta_corriente_id: Number(x.tesoreria_cuenta_corriente_id),
+        monto: parseMontoReparto(x.monto).toFixed(2),
+      }))
+    if (target > 0 && lineas.length === 0) {
+      onMensaje('Agregue al menos una cuenta con monto para el reparto.', 'error')
+      return
+    }
+    try {
+      setGuardandoReparto(true)
+      await guardarConsolidacionDepositosEfectivo(consolidacionId, lineas)
+      onMensaje('Reparto por cuenta guardado')
+      await cargar()
+    } catch (e) {
+      onMensaje(e.response?.data?.detail || 'No se pudo guardar el reparto', 'error')
+    } finally {
+      setGuardandoReparto(false)
     }
   }
 
@@ -1519,6 +1582,165 @@ export function ConsolidacionOperativaPanel({
                         </li>
                       </ul>
                     </div>
+                  </section>
+
+                  <section className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-4 space-y-3">
+                    <h3 className="text-sm font-semibold text-indigo-950 uppercase tracking-wide">
+                      Reparto del efectivo a banco (tesorería)
+                    </h3>
+                    <p className="text-xs text-gray-700 leading-relaxed">
+                      Distribuya el total en una o más cuentas corrientes. La suma debe ser exactamente{' '}
+                      <strong className="text-indigo-900">S/ {fmtMonto(totales.cuadreEfectivoBanco)}</strong> para poder
+                      cerrar la consolidación. Mantenimiento:{' '}
+                      <span className="text-indigo-800 font-medium">Menú Tesorería → Bancos (CC / ahorro)</span>.
+                    </p>
+                    {pendiente ? (
+                      <div className="space-y-2">
+                        {cuentasTesoreria.length === 0 && (
+                          <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded p-2">
+                            No hay cuentas de tesorería activas o no tiene permiso para listarlas. Cree cuentas en
+                            Tesorería o solicite acceso.
+                          </p>
+                        )}
+                        <div className="overflow-x-auto rounded border border-indigo-100 bg-white">
+                          <table className="w-full text-sm">
+                            <thead className="bg-indigo-100/80 text-left">
+                              <tr>
+                                <th className="p-2">Cuenta corriente</th>
+                                <th className="p-2 text-right w-36">Monto S/</th>
+                                <th className="p-2 w-12" />
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {lineasReparto.map((row) => (
+                                <tr key={row.key} className="border-t border-gray-100">
+                                  <td className="p-2">
+                                    <select
+                                      className="w-full border rounded px-2 py-1.5 text-xs"
+                                      value={row.tesoreria_cuenta_corriente_id}
+                                      onChange={(e) => {
+                                        const v = e.target.value
+                                        setLineasReparto((prev) =>
+                                          prev.map((r) =>
+                                            r.key === row.key ? { ...r, tesoreria_cuenta_corriente_id: v } : r
+                                          )
+                                        )
+                                      }}
+                                    >
+                                      <option value="">— Seleccione —</option>
+                                      {cuentasTesoreria.map((c) => (
+                                        <option key={c.id} value={c.id}>
+                                          {c.nombre} ({c.banco?.nombre || 'Banco'}) · …{String(c.numero_cuenta || '').slice(-4)}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </td>
+                                  <td className="p-2">
+                                    <input
+                                      type="text"
+                                      inputMode="decimal"
+                                      className="w-full border rounded px-2 py-1.5 text-right tabular-nums text-xs"
+                                      value={row.monto}
+                                      onChange={(e) => {
+                                        const v = e.target.value
+                                        setLineasReparto((prev) =>
+                                          prev.map((r) => (r.key === row.key ? { ...r, monto: v } : r))
+                                        )
+                                      }}
+                                      placeholder="0.00"
+                                    />
+                                  </td>
+                                  <td className="p-2 text-center">
+                                    <button
+                                      type="button"
+                                      className="p-1 text-gray-400 hover:text-red-600"
+                                      title="Quitar fila"
+                                      onClick={() =>
+                                        setLineasReparto((prev) =>
+                                          prev.length <= 1 ? prev : prev.filter((r) => r.key !== row.key)
+                                        )
+                                      }
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-xs tabular-nums">
+                            <span className="text-gray-600">Suma reparto: </span>
+                            <span
+                              className={
+                                Math.abs(sumRepartoLineas - totales.cuadreEfectivoBanco) < 0.005
+                                  ? 'font-semibold text-emerald-800'
+                                  : 'font-semibold text-red-700'
+                              }
+                            >
+                              S/ {fmtMonto(sumRepartoLineas)}
+                            </span>
+                            {totales.cuadreEfectivoBanco > 0 &&
+                              Math.abs(sumRepartoLineas - totales.cuadreEfectivoBanco) >= 0.005 && (
+                                <span className="text-red-600 ml-2">≠ total requerido</span>
+                              )}
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                              onClick={() =>
+                                setLineasReparto((prev) => [
+                                  ...prev,
+                                  { key: `n-${Date.now()}`, tesoreria_cuenta_corriente_id: '', monto: '' },
+                                ])
+                              }
+                            >
+                              <Plus className="w-4 h-4" />
+                              Otra cuenta
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-primary btn-sm"
+                              disabled={guardandoReparto || cuentasTesoreria.length === 0}
+                              onClick={guardarRepartoEfectivo}
+                            >
+                              {guardandoReparto ? 'Guardando…' : 'Guardar reparto'}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="overflow-x-auto rounded border border-indigo-100 bg-white">
+                        <table className="w-full text-sm">
+                          <thead className="bg-indigo-100/80 text-left">
+                            <tr>
+                              <th className="p-2">Cuenta</th>
+                              <th className="p-2">Banco</th>
+                              <th className="p-2 text-right">Monto S/</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(detalle.depositos_efectivo || []).length === 0 ? (
+                              <tr>
+                                <td colSpan={3} className="p-3 text-center text-gray-500 text-xs">
+                                  Sin reparto registrado.
+                                </td>
+                              </tr>
+                            ) : (
+                              (detalle.depositos_efectivo || []).map((d) => (
+                                <tr key={d.id} className="border-t border-gray-100">
+                                  <td className="p-2">{d.cuenta_corriente?.nombre || '—'}</td>
+                                  <td className="p-2 text-gray-600">{d.cuenta_corriente?.banco?.nombre || '—'}</td>
+                                  <td className="p-2 text-right tabular-nums font-medium">{fmtMonto(d.monto)}</td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
                   </section>
 
                   <div className="rounded-xl border-2 border-slate-800 bg-slate-800 p-5 sm:p-6 space-y-2 shadow-md">
