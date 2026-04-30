@@ -1067,6 +1067,15 @@ export const crearCompraFactura = async (data) => {
   return response.data
 }
 
+export const actualizarCompraFactura = async (id, data) => {
+  const response = await api.put(`${API_LOGISTICA}/compras-factura/${id}`, data)
+  return response.data
+}
+
+export const eliminarCompraFactura = async (id) => {
+  await api.delete(`${API_LOGISTICA}/compras-factura/${id}`)
+}
+
 export const getMovimientosStock = async (params = {}) => {
   const response = await api.get(`${API_LOGISTICA}/movimientos-stock`, { params })
   return response.data
