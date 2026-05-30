@@ -24,6 +24,7 @@ import ContometrosPage from './pages/mantenimiento/ContometrosPage'
 import TurnosConfigPage from './pages/mantenimiento/TurnosConfigPage'
 import TurnoConfigIslaPage from './pages/mantenimiento/TurnoConfigIslaPage'
 import UnidadesMedidaPage from './pages/mantenimiento/UnidadesMedidaPage'
+import CentrosCostoPage from './pages/mantenimiento/CentrosCostoPage'
 import MediosPagoPage from './pages/mantenimiento/MediosPagoPage'
 import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
 import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
@@ -166,6 +167,16 @@ function App() {
               <PrivateRoute>
                 <Layout>
                   <UnidadesMedidaPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/mantenimiento/centros-costo"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <CentrosCostoPage />
                 </Layout>
               </PrivateRoute>
             }
