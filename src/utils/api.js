@@ -1116,6 +1116,16 @@ export const getCentrosCostoGasto = async (activo = null) => {
   return response.data
 }
 
+export const crearCentroCosto = async (data) => {
+  const response = await api.post(`${API_GASTOS_OPERATIVOS}/centros-costo`, data)
+  return response.data
+}
+
+export const actualizarCentroCosto = async (id, data) => {
+  const response = await api.put(`${API_GASTOS_OPERATIVOS}/centros-costo/${id}`, data)
+  return response.data
+}
+
 export const getCategoriasGastoOperativo = async (activo = null) => {
   const params = activo !== null && activo !== undefined ? { activo } : {}
   const response = await api.get(`${API_GASTOS_OPERATIVOS}/categorias-gasto`, { params })

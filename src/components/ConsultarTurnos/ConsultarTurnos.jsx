@@ -220,6 +220,7 @@ export default function ConsultarTurnos() {
         mensaje={mensaje}
         onLogout={handleLogout}
         onSelectTurno={cargarDetalleTurno}
+        onMensaje={mostrarMensaje}
         onOpenEliminarCerrado={openEliminarCerrado}
         turnoEliminarCerrado={turnoEliminarCerrado}
         textoConfirmarEliminarCerrado={textoConfirmarEliminarCerrado}

@@ -1,8 +1,87 @@
-import { Fuel, LogOut, Gauge, Trash2 } from 'lucide-react'
+import { useState, useMemo, useEffect } from 'react'
+import {
+  Fuel,
+  LogOut,
+  Trash2,
+  FileText,
+  Eye,
+  TrendingUp,
+  TrendingDown,
+  ChevronLeft,
+  ChevronRight,
+} from 'lucide-react'
 import { NotificacionFlotante } from './NotificacionFlotante'
 import { ModalEliminarTurnoCerrado } from './Modals/ModalEliminarTurnoCerrado'
 import { formatearFechaTurno } from '../../utils/formatearFechaTurno'
 import { turnoGriferoEsAbierto, turnoGriferoEsCerrado, turnoGriferoEsAuditado } from '../../utils/turnoGriferoEstado'
+import { downloadTurnoGriferoReportePdf } from '../../utils/api'
+
+const PAGE_SIZE_OPTIONS = [10, 15, 25, 50]
+const DEFAULT_PAGE_SIZE = 15
+
+function getEstadoLabel(t) {
+  return (
+    (t.estado_nombre && String(t.estado_nombre).trim()) ||
+    (turnoGriferoEsAbierto(t) ? 'Abierto' : turnoGriferoEsCerrado(t) ? 'Cerrado' : turnoGriferoEsAuditado(t) ? 'Auditado' : '—')
+  )
+}
+
+function getEstadoColor(t) {
+  if (turnoGriferoEsAbierto(t)) return 'bg-green-100 text-green-800'
+  if (turnoGriferoEsCerrado(t)) return 'bg-red-100 text-red-800'
+  if (turnoGriferoEsAuditado(t)) return 'bg-blue-100 text-blue-800'
+  return 'bg-gray-100 text-gray-800'
+}
+
+function montoDiferencia(t) {
+  const v = t?.diferencia
+  if (v === null || v === undefined || v === '') return 0
+  const n = parseFloat(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+function nombreGrifero(t) {
+  const flat = t.empleado_nombre?.trim()
+  if (flat) return flat
+  const nested = [t.empleado?.nombres, t.empleado?.apellidos].filter(Boolean).join(' ').trim()
+  return nested || '—'
+}
+
+function buildPageNumbers(current, total) {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1)
+  const pages = new Set([1, total, current, current - 1, current + 1])
+  const sorted = [...pages].filter((p) => p >= 1 && p <= total).sort((a, b) => a - b)
+  const result = []
+  for (let i = 0; i < sorted.length; i += 1) {
+    if (i > 0 && sorted[i] - sorted[i - 1] > 1) result.push('…')
+    result.push(sorted[i])
+  }
+  return result
+}
+
+function fechaTurnoTimestamp(t) {
+  const v = t?.fecha_turno
+  if (!v) return 0
+  const s = typeof v === 'string' ? v.slice(0, 10) : String(v).slice(0, 10)
+  const ms = new Date(`${s}T12:00:00`).getTime()
+  return Number.isFinite(ms) ? ms : 0
+}
+
+function nombreTipoTurno(t) {
+  const et = t.turno_config_etiqueta?.trim()
+  if (!et) return '—'
+  const sep = ' - '
+  const i = et.indexOf(sep)
+  return i === -1 ? et : et.slice(0, i)
+}
+
+function ordenarTurnosPorFechaDesc(lista) {
+  return [...lista].sort((a, b) => {
+    const diffFecha = fechaTurnoTimestamp(b) - fechaTurnoTimestamp(a)
+    if (diffFecha !== 0) return diffFecha
+    return (b.id || 0) - (a.id || 0)
+  })
+}
 
 export function TurnoLista({
   user,
@@ -10,6 +89,7 @@ export function TurnoLista({
   mensaje,
   onLogout,
   onSelectTurno,
+  onMensaje,
   onOpenEliminarCerrado,
   turnoEliminarCerrado,
   textoConfirmarEliminarCerrado,
@@ -18,10 +98,59 @@ export function TurnoLista({
   onCancelEliminarCerrado,
   onConfirmEliminarCerrado,
 }) {
+  const [descargandoPdfId, setDescargandoPdfId] = useState(null)
+  const [pagina, setPagina] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
+
+  const turnosOrdenados = useMemo(() => ordenarTurnosPorFechaDesc(turnos), [turnos])
+
+  const totalTurnos = turnosOrdenados.length
+  const totalPaginas = Math.max(1, Math.ceil(totalTurnos / pageSize))
+
+  useEffect(() => {
+    setPagina(1)
+  }, [totalTurnos, pageSize])
+
+  useEffect(() => {
+    if (pagina > totalPaginas) setPagina(totalPaginas)
+  }, [pagina, totalPaginas])
+
+  const turnosPagina = useMemo(() => {
+    const inicio = (pagina - 1) * pageSize
+    return turnosOrdenados.slice(inicio, inicio + pageSize)
+  }, [turnosOrdenados, pagina, pageSize])
+
+  const rangoInicio = totalTurnos === 0 ? 0 : (pagina - 1) * pageSize + 1
+  const rangoFin = Math.min(pagina * pageSize, totalTurnos)
+  const pageNumbers = buildPageNumbers(pagina, totalPaginas)
+
+  const handleDownloadPdf = async (e, turnoId) => {
+    e.stopPropagation()
+    setDescargandoPdfId(turnoId)
+    try {
+      await downloadTurnoGriferoReportePdf(turnoId)
+    } catch (err) {
+      const d = err.response?.data
+      let msg = 'No se pudo generar el PDF'
+      if (d instanceof Blob) {
+        try {
+          const t = await d.text()
+          const j = JSON.parse(t)
+          msg = j.detail || msg
+        } catch {
+          /* ignore */
+        }
+      } else if (typeof d?.detail === 'string') msg = d.detail
+      onMensaje?.(msg, 'error')
+    } finally {
+      setDescargandoPdfId(null)
+    }
+  }
+
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#f5f3e0' }}>
-      <header className="border-b border-gray-200 sticky top-0 z-10" style={{ backgroundColor: '#faf8e4' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen flex flex-col" style={{ backgroundColor: '#f5f3e0' }}>
+      <header className="border-b border-gray-200 sticky top-0 z-10 shrink-0" style={{ backgroundColor: '#faf8e4' }}>
+        <div className="w-full px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 bg-primary-600 rounded-lg flex items-center justify-center">
@@ -44,102 +173,240 @@ export function TurnoLista({
 
       <NotificacionFlotante mensaje={mensaje} />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Turnos del Día</h2>
-          <p className="text-gray-600">Selecciona un turno para ver sus detalles y liquidación</p>
+      <div className="flex-1 w-full px-4 sm:px-6 lg:px-8 py-6">
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold text-gray-900 mb-1">Turnos del Día</h2>
+          <p className="text-gray-600 text-sm">Selecciona un turno para ver sus detalles y liquidación</p>
           {user?.rol?.nombre === 'grifero' && (
-            <p className="text-sm text-amber-800 mt-2">
+            <p className="text-sm text-amber-800 mt-1">
               Solo se muestran tus turnos de grifero. Los perfiles de administración ven todos los turnos.
             </p>
           )}
         </div>
 
-        {turnos.length === 0 ? (
-          <div className="card p-12 text-center">
-            <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Fuel className="w-10 h-10 text-gray-400" />
+        <div className="card overflow-hidden">
+          {totalTurnos === 0 ? (
+            <div className="p-12 text-center">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Fuel className="w-10 h-10 text-gray-400" />
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay turnos registrados</h3>
+              <p className="text-gray-600">No se encontraron turnos para el día de hoy</p>
             </div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-2">No hay turnos registrados</h3>
-            <p className="text-gray-600">No se encontraron turnos para el día de hoy</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {turnos.map((t) => {
-              const estadoLabel =
-                (t.estado_nombre && String(t.estado_nombre).trim()) ||
-                (turnoGriferoEsAbierto(t) ? 'Abierto' : turnoGriferoEsCerrado(t) ? 'Cerrado' : turnoGriferoEsAuditado(t) ? 'Auditado' : '—')
-              const estadoColor = turnoGriferoEsAbierto(t)
-                ? 'bg-green-100 text-green-800'
-                : turnoGriferoEsCerrado(t)
-                  ? 'bg-red-100 text-red-800'
-                  : turnoGriferoEsAuditado(t)
-                    ? 'bg-blue-100 text-blue-800'
-                    : 'bg-gray-100 text-gray-800'
-
-              return (
-                <div
-                  key={t.id}
-                  className="card p-6 hover:shadow-lg transition-shadow cursor-pointer"
-                  onClick={() => onSelectTurno(t.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault()
-                      onSelectTurno(t.id)
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-primary-100 rounded-lg flex items-center justify-center">
-                      <Gauge className="w-6 h-6 text-primary-600" />
-                    </div>
-                    <span className={`px-3 py-1 text-xs font-medium rounded-full ${estadoColor}`}>
-                      {estadoLabel}
-                    </span>
-                  </div>
-
-                  <h3 className="text-lg font-bold text-gray-900 mb-1">{t.codigo}</h3>
-                  <p className="text-sm text-gray-600 mb-2">
-                    {t.empleado?.nombres} {t.empleado?.apellidos}
-                  </p>
-
-                  <div className="space-y-1 text-sm text-gray-600">
-                    <p className="font-medium text-gray-800">
-                      Fecha del turno: {formatearFechaTurno(t.fecha_turno)}
-                    </p>
-                    <p className="text-xs text-gray-500">
-                      Registro — Inicio: {new Date(t.fecha_hora_inicio).toLocaleString('es-PE')}
-                    </p>
-                    {t.fecha_hora_fin && (
-                      <p className="text-xs text-gray-500">
-                        Registro — Fin: {new Date(t.fecha_hora_fin).toLocaleString('es-PE')}
-                      </p>
-                    )}
-                  </div>
-
-                  <button type="button" className="btn btn-primary w-full mt-4">
-                    Ver Detalles
-                  </button>
-                  {turnoGriferoEsCerrado(t) && (
+          ) : (
+            <>
+              <div className="px-4 py-3 border-b border-gray-200 flex flex-wrap items-center justify-between gap-3 bg-gray-50/80">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium text-gray-900">{totalTurnos}</span> turno{totalTurnos !== 1 ? 's' : ''}{' '}
+                  · mostrando {rangoInicio}–{rangoFin} · página {pagina} de {totalPaginas}
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm text-gray-600">
+                    Filas por página
+                    <select
+                      className="input py-1.5 px-2 text-sm w-auto min-w-[4.5rem]"
+                      value={pageSize}
+                      onChange={(e) => setPageSize(Number(e.target.value))}
+                    >
+                      {PAGE_SIZE_OPTIONS.map((n) => (
+                        <option key={n} value={n}>
+                          {n}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="flex items-center gap-1">
                     <button
                       type="button"
-                      className="btn btn-danger w-full mt-2"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onOpenEliminarCerrado(t)
-                      }}
+                      className="btn btn-secondary py-1.5 px-2.5 disabled:opacity-40"
+                      disabled={pagina <= 1}
+                      onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                      title="Página anterior"
                     >
-                      <Trash2 className="w-4 h-4 mr-2 inline" />
-                      Eliminar turno cerrado
+                      <ChevronLeft className="w-4 h-4" />
                     </button>
-                  )}
+                    {pageNumbers.map((n, idx) =>
+                      n === '…' ? (
+                        <span key={`ellipsis-${idx}`} className="px-2 text-gray-400 select-none">
+                          …
+                        </span>
+                      ) : (
+                        <button
+                          key={n}
+                          type="button"
+                          className={`min-w-[2.25rem] py-1.5 px-2 rounded-lg text-sm font-medium transition-colors ${
+                            n === pagina
+                              ? 'bg-primary-600 text-white'
+                              : 'bg-white border border-gray-200 text-gray-700 hover:bg-gray-100'
+                          }`}
+                          onClick={() => setPagina(n)}
+                        >
+                          {n}
+                        </button>
+                      )
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-secondary py-1.5 px-2.5 disabled:opacity-40"
+                      disabled={pagina >= totalPaginas}
+                      onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+                      title="Página siguiente"
+                    >
+                      <ChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
-              )
-            })}
-          </div>
-        )}
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[900px] text-sm">
+                  <thead className="bg-gray-50 border-b border-gray-200">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide w-[14%]">
+                        Tipo de turno
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide w-[12%]">
+                        <span className="inline-flex items-center gap-1">
+                          Fecha del turno
+                          <span className="text-primary-600 normal-case font-semibold" title="Ordenado descendente">
+                            ↓
+                          </span>
+                        </span>
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide w-[9%]">
+                        Código
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide w-[14%]">
+                        Grifero
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide w-[8%]">
+                        Estado
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide w-[12%]">
+                        Efectivo
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wide w-[10%]">
+                        Diferencia
+                      </th>
+                      <th className="px-3 py-2.5 text-right text-xs font-medium text-gray-500 uppercase tracking-wide w-[10%]">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {turnosPagina.map((t) => {
+                      const diff = montoDiferencia(t)
+                      const cerrado = turnoGriferoEsCerrado(t) || turnoGriferoEsAuditado(t)
+
+                      return (
+                        <tr
+                          key={t.id}
+                          className="hover:bg-primary-50/40 transition-colors cursor-pointer"
+                          onClick={() => onSelectTurno(t.id)}
+                        >
+                          <td className="px-3 py-2.5 text-gray-900 align-top">
+                            <span className="font-semibold text-primary-800 tracking-wide">
+                              {nombreTipoTurno(t)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-800 align-top whitespace-nowrap tabular-nums">
+                            {formatearFechaTurno(t.fecha_turno)}
+                          </td>
+                          <td className="px-3 py-2.5 font-medium text-gray-900 align-top whitespace-nowrap">
+                            {t.codigo}
+                          </td>
+                          <td className="px-3 py-2.5 text-gray-800 align-top">{nombreGrifero(t)}</td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getEstadoColor(t)}`}
+                            >
+                              {getEstadoLabel(t)}
+                            </span>
+                          </td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap tabular-nums">
+                            <div className="font-medium text-gray-900">
+                              S/ {parseFloat(t.efectivo_entregado || 0).toFixed(2)}
+                            </div>
+                            <div className="text-gray-500 text-xs">
+                              Esp.: S/ {parseFloat(t.efectivo_esperado || 0).toFixed(2)}
+                            </div>
+                          </td>
+                          <td className="px-3 py-2.5 align-top whitespace-nowrap">
+                            {cerrado ? (
+                              <div className="flex items-center gap-1">
+                                {diff === 0 ? (
+                                  <span className="font-medium text-green-600 tabular-nums">S/ {diff.toFixed(2)}</span>
+                                ) : diff < 0 ? (
+                                  <>
+                                    <TrendingDown className="w-4 h-4 text-red-600 shrink-0" />
+                                    <span className="font-medium text-red-600 tabular-nums">
+                                      S/ {Math.abs(diff).toFixed(2)}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <TrendingUp className="w-4 h-4 text-orange-600 shrink-0" />
+                                    <span className="font-medium text-orange-600 tabular-nums">
+                                      S/ {diff.toFixed(2)}
+                                    </span>
+                                  </>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2.5 text-right align-top whitespace-nowrap">
+                            <div className="flex items-center justify-end gap-1">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  onSelectTurno(t.id)
+                                }}
+                                className="p-1.5 text-primary-600 hover:text-primary-900 hover:bg-primary-50 rounded-lg transition-colors"
+                                title="Ver detalle del turno"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleDownloadPdf(e, t.id)}
+                                disabled={descargandoPdfId === t.id}
+                                className="p-1.5 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+                                title="Descargar reporte PDF"
+                              >
+                                {descargandoPdfId === t.id ? (
+                                  <span className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin inline-block" />
+                                ) : (
+                                  <FileText className="w-4 h-4" />
+                                )}
+                              </button>
+                              {turnoGriferoEsCerrado(t) && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    onOpenEliminarCerrado(t)
+                                  }}
+                                  className="p-1.5 text-red-600 hover:text-red-800 hover:bg-red-50 rounded-lg transition-colors"
+                                  title="Eliminar turno cerrado"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+            </>
+          )}
+        </div>
       </div>
 
       <ModalEliminarTurnoCerrado

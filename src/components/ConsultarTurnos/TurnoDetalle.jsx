@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Fuel,
   LogOut,
@@ -79,7 +80,10 @@ export function TurnoDetalle({
     })
   }
 
+  const [descargandoPdf, setDescargandoPdf] = useState(false)
+
   const handleDownloadPdf = async () => {
+    setDescargandoPdf(true)
     try {
       await downloadTurnoGriferoReportePdf(turno.id)
     } catch (e) {
@@ -95,6 +99,8 @@ export function TurnoDetalle({
         }
       } else if (typeof d?.detail === 'string') msg = d.detail
       onMensaje(msg, 'error')
+    } finally {
+      setDescargandoPdf(false)
     }
   }
 
@@ -131,11 +137,18 @@ export function TurnoDetalle({
             <div className="flex items-center gap-2 shrink-0 flex-wrap">
               <button
                 type="button"
-                className="btn btn-secondary inline-flex items-center gap-2"
+                className="btn btn-secondary inline-flex items-center gap-2 p-2 sm:px-4 sm:py-2"
                 onClick={handleDownloadPdf}
+                disabled={descargandoPdf}
+                title="Descargar reporte PDF"
+                aria-label="Descargar reporte PDF"
               >
-                <FileText className="w-5 h-5" />
-                Descargar PDF
+                {descargandoPdf ? (
+                  <span className="w-5 h-5 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                ) : (
+                  <FileText className="w-5 h-5" />
+                )}
+                <span className="hidden sm:inline">Descargar PDF</span>
               </button>
               {turnoGriferoEsCerrado(turno) && (
                 <button
