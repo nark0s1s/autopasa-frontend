@@ -47,6 +47,10 @@ export function ResumenTotales({ totales }) {
           <p className="text-xs text-gray-600 mb-1">Depósitos</p>
           <p className="text-lg font-bold text-purple-600">S/ {totales.totalDepositos.toFixed(2)}</p>
         </div>
+        <div className="card p-3">
+          <p className="text-xs text-gray-600 mb-1">Transferencias</p>
+          <p className="text-lg font-bold text-cyan-700">S/ {totales.totalTransferencias.toFixed(2)}</p>
+        </div>
       </div>
 
       <div className="card p-5 mb-6 border-2 border-primary-200 bg-primary-50/40">
@@ -55,7 +59,7 @@ export function ResumenTotales({ totales }) {
         </h3>
         <p className="text-xs text-gray-600 mb-3">
           Combustible + productos + venta GNV + financiación GNV, menos lo que no queda en caja (POS, guías
-          crédito/remisión, descuentos, vales, gastos, depósitos en caja).
+          crédito/remisión, descuentos, vales, gastos, depósitos en caja, transferencias bancarias).
         </p>
         <div className="space-y-1.5 text-sm max-w-lg">
           <div className="flex justify-between gap-4">
@@ -93,6 +97,10 @@ export function ResumenTotales({ totales }) {
           <div className="flex justify-between gap-4 text-red-700">
             <span>(−) Depósitos en caja</span>
             <span className="font-semibold tabular-nums">S/ {totales.totalDepositos.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between gap-4 text-red-700">
+            <span>(−) Transferencias bancarias</span>
+            <span className="font-semibold tabular-nums">S/ {totales.totalTransferencias.toFixed(2)}</span>
           </div>
           <div className="border-t border-primary-200 pt-2 mt-2 flex justify-between gap-4 text-base font-bold text-primary-900">
             <span>= Efectivo esperado</span>

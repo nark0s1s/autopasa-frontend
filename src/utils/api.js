@@ -593,6 +593,23 @@ export const eliminarDeposito = async (depositoId) => {
   await api.delete(`${API_TURNOS_LIQ}/grifero/depositos/${depositoId}`)
 }
 
+export const agregarTransferenciaBancaria = async (turnoId, data) => {
+  const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/transferencias-bancarias`, data)
+  return response.data
+}
+
+export const actualizarTransferenciaBancaria = async (transferenciaId, data) => {
+  const response = await api.put(
+    `${API_TURNOS_LIQ}/grifero/transferencias-bancarias/${transferenciaId}`,
+    data
+  )
+  return response.data
+}
+
+export const eliminarTransferenciaBancaria = async (transferenciaId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/transferencias-bancarias/${transferenciaId}`)
+}
+
 // ============================================================================
 // CIERRE
 // ============================================================================
