@@ -13,6 +13,7 @@ import {
   Percent,
   Flame,
   Unlock,
+  Landmark,
 } from 'lucide-react'
 import { downloadTurnoGriferoReportePdf } from '../../utils/api'
 import { turnoGriferoEsAbierto, turnoGriferoEsCerrado } from '../../utils/turnoGriferoEstado'
@@ -30,6 +31,7 @@ import { TabVentasGuia } from './Tabs/TabVentasGuia'
 import { TabVales } from './Tabs/TabVales'
 import { TabDescuentos } from './Tabs/TabDescuentos'
 import { TabDepositos } from './Tabs/TabDepositos'
+import { TabTransferenciasBancarias } from './Tabs/TabTransferenciasBancarias'
 import { puedeVerPanelReaperturaCorreccion } from '../../utils/reaperturaTurnoCorreccion'
 
 const TAB_CONFIG = [
@@ -42,6 +44,7 @@ const TAB_CONFIG = [
   { id: 'vales', label: 'Vales', icon: Receipt },
   { id: 'descuentos', label: 'Descuentos', icon: Percent },
   { id: 'depositos', label: 'Depósitos', icon: DollarSign },
+  { id: 'transferencias', label: 'Transferencias', icon: Landmark },
 ]
 
 export function TurnoDetalle({
@@ -251,6 +254,9 @@ export function TurnoDetalle({
             )}
             {tabActiva === 'depositos' && (
               <TabDepositos turno={turno} onReload={onReload} onMensaje={onMensaje} />
+            )}
+            {tabActiva === 'transferencias' && (
+              <TabTransferenciasBancarias turno={turno} onReload={onReload} onMensaje={onMensaje} />
             )}
           </div>
         </div>

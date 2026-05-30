@@ -27,6 +27,7 @@ export function useTurnoGriferoTotales(turno) {
     const totalVales = parseFloat(turno.total_vales || 0)
     const totalGastos = parseFloat(turno.total_gastos_autorizados || 0)
     const totalDepositos = parseFloat(turno.total_depositos_caja || 0)
+    const totalTransferencias = parseFloat(turno.total_transferencias_bancarias || 0)
     const ventasGnv = turno.ventas_gnv ?? []
     const finsGnv = turno.financiaciones_gnv ?? []
     const totalVentaGnv = ventasGnv.reduce((s, r) => s + parseFloat(r.venta_total_soles || 0), 0)
@@ -46,7 +47,8 @@ export function useTurnoGriferoTotales(turno) {
       totalDescuentos -
       totalVales -
       totalGastos -
-      totalDepositos
+      totalDepositos -
+      totalTransferencias
 
     return {
       totalCombustible,
@@ -60,6 +62,7 @@ export function useTurnoGriferoTotales(turno) {
       totalVales,
       totalGastos,
       totalDepositos,
+      totalTransferencias,
       totalVentaGnv: totalVentaGnvCab,
       totalFinanciacionGnv: totalFinanciacionGnvCab,
       efectivoEsperado,
