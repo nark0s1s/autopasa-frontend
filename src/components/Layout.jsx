@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { getMenuUsuario } from '../utils/api'
+import useMediaQuery from '../hooks/useMediaQuery'
 import {
   Fuel,
   Gauge,
@@ -133,13 +134,21 @@ function MenuBranch({ nodes, depth, sidebarOpen, location, navigate }) {
 }
 
 function Layout({ children }) {
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const isMobile = useMediaQuery('(max-width: 767px)')
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window === 'undefined') return true
+    return !window.matchMedia('(max-width: 767px)').matches
+  })
   const [menuTree, setMenuTree] = useState([])
   const [menuLoading, setMenuLoading] = useState(true)
   const [menuError, setMenuError] = useState(null)
   const { user, logout } = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (isMobile) setSidebarOpen(false)
+  }, [isMobile])
 
   const loadMenu = useCallback(async () => {
     if (!user?.id) {
