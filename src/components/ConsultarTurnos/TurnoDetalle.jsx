@@ -5,15 +5,7 @@ import {
   CheckCircle,
   FileText,
   Trash2,
-  Gauge,
-  ShoppingCart,
-  CreditCard,
-  Receipt,
-  DollarSign,
-  Percent,
-  Flame,
   Unlock,
-  Landmark,
 } from 'lucide-react'
 import { downloadTurnoGriferoReportePdf } from '../../utils/api'
 import { turnoGriferoEsAbierto, turnoGriferoEsCerrado } from '../../utils/turnoGriferoEstado'
@@ -23,29 +15,9 @@ import { ResumenTotales } from './ResumenTotales'
 import { ModalEliminarTurnoCerrado } from './Modals/ModalEliminarTurnoCerrado'
 import { ModalCierre } from './Modals/ModalCierre'
 import { PanelReaperturaCorreccion } from './PanelReaperturaCorreccion'
-import { TabLecturas } from './Tabs/TabLecturas'
-import { TabVentas } from './Tabs/TabVentas'
-import { TabPOS } from './Tabs/TabPOS'
-import { TabGNV } from './Tabs/TabGNV'
-import { TabVentasGuia } from './Tabs/TabVentasGuia'
-import { TabVales } from './Tabs/TabVales'
-import { TabDescuentos } from './Tabs/TabDescuentos'
-import { TabDepositos } from './Tabs/TabDepositos'
-import { TabTransferenciasBancarias } from './Tabs/TabTransferenciasBancarias'
+import { TurnoDetalleTabPanels } from './TurnoDetalleTabPanels'
+import { TAB_CONFIG } from './consultarTurnosShared'
 import { puedeVerPanelReaperturaCorreccion } from '../../utils/reaperturaTurnoCorreccion'
-
-const TAB_CONFIG = [
-  { id: 'lecturas', label: 'Lecturas Contómetro', icon: Gauge },
-  { id: 'ventas', label: 'Ventas Productos', icon: ShoppingCart },
-  { id: 'pos', label: 'Ventas POS', icon: CreditCard },
-  { id: 'gnv', label: 'GNV', icon: Flame },
-  { id: 'guia_credito', label: 'Guía crédito', icon: FileText },
-  { id: 'guia_remision', label: 'Guía remisión', icon: FileText },
-  { id: 'vales', label: 'Vales', icon: Receipt },
-  { id: 'descuentos', label: 'Descuentos', icon: Percent },
-  { id: 'depositos', label: 'Depósitos', icon: DollarSign },
-  { id: 'transferencias', label: 'Transferencias', icon: Landmark },
-]
 
 export function TurnoDetalle({
   permisosApi,
@@ -217,48 +189,15 @@ export function TurnoDetalle({
             </nav>
           </div>
 
-          <div className="p-6">
-            {tabActiva === 'lecturas' && (
-              <TabLecturas
-                turno={turno}
-                contometros={contometros}
-                onReload={onReload}
-                onMensaje={onMensaje}
-              />
-            )}
-            {tabActiva === 'ventas' && (
-              <TabVentas
-                turno={turno}
-                productos={productos}
-                onReload={onReload}
-                onMensaje={onMensaje}
-              />
-            )}
-            {tabActiva === 'pos' && (
-              <TabPOS turno={turno} onReload={onReload} onMensaje={onMensaje} />
-            )}
-            {tabActiva === 'gnv' && (
-              <TabGNV turno={turno} onReload={onReload} onMensaje={onMensaje} />
-            )}
-            {tabActiva === 'guia_credito' && (
-              <TabVentasGuia turno={turno} tipo="credito" onReload={onReload} onMensaje={onMensaje} />
-            )}
-            {tabActiva === 'guia_remision' && (
-              <TabVentasGuia turno={turno} tipo="remision" onReload={onReload} onMensaje={onMensaje} />
-            )}
-            {tabActiva === 'vales' && (
-              <TabVales turno={turno} tiposVale={tiposVale} onReload={onReload} onMensaje={onMensaje} />
-            )}
-            {tabActiva === 'descuentos' && (
-              <TabDescuentos turno={turno} onReload={onReload} onMensaje={onMensaje} />
-            )}
-            {tabActiva === 'depositos' && (
-              <TabDepositos turno={turno} onReload={onReload} onMensaje={onMensaje} />
-            )}
-            {tabActiva === 'transferencias' && (
-              <TabTransferenciasBancarias turno={turno} onReload={onReload} onMensaje={onMensaje} />
-            )}
-          </div>
+          <TurnoDetalleTabPanels
+            tabActiva={tabActiva}
+            turno={turno}
+            contometros={contometros}
+            productos={productos}
+            tiposVale={tiposVale}
+            onReload={onReload}
+            onMensaje={onMensaje}
+          />
         </div>
 
         {turnoGriferoEsAbierto(turno) && totales && (

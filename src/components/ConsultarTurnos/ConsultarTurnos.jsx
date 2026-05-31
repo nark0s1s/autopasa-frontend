@@ -2,18 +2,22 @@ import { useState, useEffect, useMemo } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertCircle } from 'lucide-react'
+import useMediaQuery from '../../hooks/useMediaQuery'
 import { useEphemeralMessage } from '../../hooks/useEphemeralMessage'
 import { useTurnoLiquidacion } from './hooks/useTurnoLiquidacion'
 import { useTurnosGriferoCatalogos } from '../../hooks/useTurnosGriferoCatalogos'
 import { useTurnoGriferoTotales } from '../../hooks/useTurnoGriferoTotales'
 import { eliminarTurnoGriferoCerrado, getCurrentUserPermissions } from '../../utils/api'
 import { TurnoLista } from './TurnoLista'
+import { TurnoListaMobile } from './TurnoListaMobile'
 import { TurnoDetalle } from './TurnoDetalle'
+import { TurnoDetalleMobile } from './TurnoDetalleMobile'
 
 export default function ConsultarTurnos() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
+  const isMobile = useMediaQuery('(max-width: 767px)')
 
   const { mensaje, mostrarMensaje } = useEphemeralMessage()
 
@@ -213,23 +217,22 @@ export default function ConsultarTurnos() {
   }
 
   if (vistaActual === 'lista') {
-    return (
-      <TurnoLista
-        user={user}
-        turnos={turnos}
-        mensaje={mensaje}
-        onLogout={handleLogout}
-        onSelectTurno={cargarDetalleTurno}
-        onMensaje={mostrarMensaje}
-        onOpenEliminarCerrado={openEliminarCerrado}
-        turnoEliminarCerrado={turnoEliminarCerrado}
-        textoConfirmarEliminarCerrado={textoConfirmarEliminarCerrado}
-        onTextoConfirmarEliminarCerrado={setTextoConfirmarEliminarCerrado}
-        eliminandoTurnoCerrado={eliminandoTurnoCerrado}
-        onCancelEliminarCerrado={cancelEliminarCerrado}
-        onConfirmEliminarCerrado={ejecutarEliminarTurnoCerrado}
-      />
-    )
+    const listaProps = {
+      user,
+      turnos,
+      mensaje,
+      onLogout: handleLogout,
+      onSelectTurno: cargarDetalleTurno,
+      onMensaje: mostrarMensaje,
+      onOpenEliminarCerrado: openEliminarCerrado,
+      turnoEliminarCerrado,
+      textoConfirmarEliminarCerrado,
+      onTextoConfirmarEliminarCerrado: setTextoConfirmarEliminarCerrado,
+      eliminandoTurnoCerrado,
+      onCancelEliminarCerrado: cancelEliminarCerrado,
+      onConfirmEliminarCerrado: ejecutarEliminarTurnoCerrado,
+    }
+    return isMobile ? <TurnoListaMobile {...listaProps} /> : <TurnoLista {...listaProps} />
   }
 
   if (!turno) {
@@ -246,32 +249,32 @@ export default function ConsultarTurnos() {
     )
   }
 
-  return (
-    <TurnoDetalle
-      user={user}
-      permisosApi={permisosApi}
-      turno={turno}
-      mensaje={mensaje}
-      totales={totales}
-      contometros={contometros}
-      productos={productos}
-      tiposVale={tiposVale}
-      tabActiva={tabActiva}
-      setTabActiva={setTabActiva}
-      showModalCierre={showModalCierre}
-      setShowModalCierre={setShowModalCierre}
-      onVolver={volverALista}
-      onLogout={handleLogout}
-      onMensaje={mostrarMensaje}
-      onReload={recargarDatosLiquidacion}
-      onOpenEliminarCerrado={openEliminarCerrado}
-      turnoEliminarCerrado={turnoEliminarCerrado}
-      textoConfirmarEliminarCerrado={textoConfirmarEliminarCerrado}
-      onTextoConfirmarEliminarCerrado={setTextoConfirmarEliminarCerrado}
-      eliminandoTurnoCerrado={eliminandoTurnoCerrado}
-      onCancelEliminarCerrado={cancelEliminarCerrado}
-      onConfirmEliminarCerrado={ejecutarEliminarTurnoCerrado}
-      onCierreSuccess={handleCierreSuccess}
-    />
-  )
+  const detalleProps = {
+    user,
+    permisosApi,
+    turno,
+    mensaje,
+    totales,
+    contometros,
+    productos,
+    tiposVale,
+    tabActiva,
+    setTabActiva,
+    showModalCierre,
+    setShowModalCierre,
+    onVolver: volverALista,
+    onLogout: handleLogout,
+    onMensaje: mostrarMensaje,
+    onReload: recargarDatosLiquidacion,
+    onOpenEliminarCerrado: openEliminarCerrado,
+    turnoEliminarCerrado,
+    textoConfirmarEliminarCerrado,
+    onTextoConfirmarEliminarCerrado: setTextoConfirmarEliminarCerrado,
+    eliminandoTurnoCerrado,
+    onCancelEliminarCerrado: cancelEliminarCerrado,
+    onConfirmEliminarCerrado: ejecutarEliminarTurnoCerrado,
+    onCierreSuccess: handleCierreSuccess,
+  }
+
+  return isMobile ? <TurnoDetalleMobile {...detalleProps} /> : <TurnoDetalle {...detalleProps} />
 }
