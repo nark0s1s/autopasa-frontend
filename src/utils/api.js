@@ -471,6 +471,10 @@ export const actualizarLecturaContometro = async (lecturaId, data) => {
   return response.data
 }
 
+export const eliminarLecturaContometro = async (lecturaId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/lecturas/${lecturaId}`)
+}
+
 /** Compat: segundo argumento puede ser número o { lectura_final } */
 export const actualizarLecturaFinal = async (lecturaId, lecturaFinalOrObj) => {
   const payload =
@@ -487,6 +491,15 @@ export const actualizarLecturaFinal = async (lecturaId, lecturaFinalOrObj) => {
 export const agregarVentaProducto = async (turnoId, data) => {
   const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/ventas-producto`, data)
   return response.data
+}
+
+export const actualizarVentaProducto = async (ventaId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/grifero/ventas-producto/${ventaId}`, data)
+  return response.data
+}
+
+export const eliminarVentaProducto = async (ventaId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/ventas-producto/${ventaId}`)
 }
 
 export const agregarVentaPOS = async (turnoId, data) => {
@@ -574,9 +587,27 @@ export const agregarVale = async (turnoId, data) => {
   return response.data
 }
 
+export const actualizarVale = async (valeId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/grifero/vales/${valeId}`, data)
+  return response.data
+}
+
+export const eliminarVale = async (valeId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/vales/${valeId}`)
+}
+
 export const agregarDescuentoTurno = async (turnoId, data) => {
   const response = await api.post(`${API_TURNOS_LIQ}/grifero/${turnoId}/descuentos`, data)
   return response.data
+}
+
+export const actualizarDescuentoTurno = async (descuentoId, data) => {
+  const response = await api.put(`${API_TURNOS_LIQ}/grifero/descuentos/${descuentoId}`, data)
+  return response.data
+}
+
+export const eliminarDescuentoTurno = async (descuentoId) => {
+  await api.delete(`${API_TURNOS_LIQ}/grifero/descuentos/${descuentoId}`)
 }
 
 export const agregarDeposito = async (turnoId, data) => {

@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react'
 import { X, Search } from 'lucide-react'
 import { getClientes } from '../../../utils/api'
 
-export function ModalDescuentoTurno({ onClose, onSubmit }) {
+function montoDescuentoDe(descuento) {
+  const mv = parseFloat(descuento?.monto_venta || 0)
+  const pct = parseFloat(descuento?.porcentaje_descuento || 0)
+  return (mv * pct) / 100
+}
+
+export function ModalDescuentoTurno({ onClose, onSubmit, descuentoInicial = null }) {
   const [clientesDisponibles, setClientesDisponibles] = useState([])
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -28,6 +34,33 @@ export function ModalDescuentoTurno({ onClose, onSubmit }) {
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!descuentoInicial) {
+      setClienteSel(null)
+      setBusqueda('')
+      setNumeroDocumentoReferencia('')
+      setMontoDescuento('')
+      return
+    }
+
+    setNumeroDocumentoReferencia(descuentoInicial.motivo ?? '')
+    setMontoDescuento(montoDescuentoDe(descuentoInicial).toFixed(2))
+
+    if (descuentoInicial.cliente_id != null) {
+      const cl = clientesDisponibles.find((c) => c.id === descuentoInicial.cliente_id)
+      if (cl) {
+        setClienteSel(cl)
+        setBusqueda(cl.razon_social || '')
+      } else {
+        setClienteSel(null)
+        setBusqueda('')
+      }
+    } else {
+      setClienteSel(null)
+      setBusqueda('')
+    }
+  }, [descuentoInicial, clientesDisponibles])
 
   const resultados = (() => {
     if (busqueda.trim() === '') return clientesDisponibles.slice(0, 60)
@@ -61,12 +94,14 @@ export function ModalDescuentoTurno({ onClose, onSubmit }) {
     })
   }
 
+  const titulo = descuentoInicial ? 'Editar descuento (turno grifero)' : 'Nuevo descuento (turno grifero)'
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h3 className="text-lg font-semibold">Nuevo descuento (turno grifero)</h3>
+            <h3 className="text-lg font-semibold">{titulo}</h3>
             <p className="text-xs text-gray-500 mt-1">
               Solo el monto de descuento es obligatorio. Cliente y documento de referencia son opcionales.
             </p>
@@ -152,7 +187,7 @@ export function ModalDescuentoTurno({ onClose, onSubmit }) {
               Cancelar
             </button>
             <button type="submit" className="btn btn-primary flex-1">
-              Guardar
+              {descuentoInicial ? 'Guardar cambios' : 'Guardar'}
             </button>
           </div>
         </form>

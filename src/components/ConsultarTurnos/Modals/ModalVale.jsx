@@ -1,7 +1,7 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 
-export function ModalVale({ tiposVale = [], onClose, onSubmit }) {
+export function ModalVale({ tiposVale = [], onClose, onSubmit, valeInicial = null }) {
   const firstTipoId = tiposVale[0]?.id != null ? String(tiposVale[0].id) : ''
   const [formData, setFormData] = useState({
     tipo_vale_id: firstTipoId,
@@ -12,16 +12,41 @@ export function ModalVale({ tiposVale = [], onClose, onSubmit }) {
     autorizado_por: ''
   })
 
+  useEffect(() => {
+    if (valeInicial) {
+      setFormData({
+        tipo_vale_id:
+          valeInicial.tipo_vale_id != null ? String(valeInicial.tipo_vale_id) : firstTipoId,
+        numero_vale: valeInicial.numero_vale ?? '',
+        monto: valeInicial.monto != null ? String(valeInicial.monto) : '',
+        observaciones: valeInicial.observaciones ?? '',
+        beneficiario: valeInicial.beneficiario ?? '',
+        autorizado_por: valeInicial.autorizado_por ?? '',
+      })
+    } else {
+      setFormData({
+        tipo_vale_id: firstTipoId,
+        numero_vale: '',
+        monto: '',
+        observaciones: '',
+        beneficiario: '',
+        autorizado_por: '',
+      })
+    }
+  }, [valeInicial, firstTipoId])
+
   const handleSubmit = (e) => {
     e.preventDefault()
     onSubmit(formData)
   }
 
+  const titulo = valeInicial ? 'Editar vale' : 'Nuevo vale'
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Nuevo Vale</h3>
+          <h3 className="text-lg font-semibold">{titulo}</h3>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
@@ -57,7 +82,7 @@ export function ModalVale({ tiposVale = [], onClose, onSubmit }) {
               value={formData.numero_vale}
               onChange={e => setFormData({...formData, numero_vale: e.target.value})}
               required
-              autoFocus
+              autoFocus={!valeInicial}
             />
           </div>
           
@@ -110,7 +135,7 @@ export function ModalVale({ tiposVale = [], onClose, onSubmit }) {
               Cancelar
             </button>
             <button type="submit" className="btn btn-primary flex-1">
-              Guardar
+              {valeInicial ? 'Guardar cambios' : 'Guardar'}
             </button>
           </div>
         </form>
