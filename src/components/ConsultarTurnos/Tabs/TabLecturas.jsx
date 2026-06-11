@@ -1,6 +1,10 @@
 import { useState } from 'react'
-import { Plus, Pencil } from 'lucide-react'
-import { agregarLecturaContometro, actualizarLecturaContometro } from '../../../utils/api'
+import { Plus, Pencil, Trash2 } from 'lucide-react'
+import {
+  agregarLecturaContometro,
+  actualizarLecturaContometro,
+  eliminarLecturaContometro,
+} from '../../../utils/api'
 import { turnoGriferoEsAbierto } from '../../../utils/turnoGriferoEstado'
 import { ModalLectura } from '../Modals/ModalLectura'
 import { ModalLecturaEditar } from '../Modals/ModalLecturaEditar'
@@ -10,6 +14,7 @@ export function TabLecturas({ turno, contometros, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
   const [lecturaEdit, setLecturaEdit] = useState(null)
   const [lecturaEditCompleta, setLecturaEditCompleta] = useState(null)
+  const [lecturaEliminar, setLecturaEliminar] = useState(null)
 
   const idsConLectura = new Set(
     (turno.lecturas_contometro || []).map((l) => l.contometro_id)
@@ -43,6 +48,18 @@ export function TabLecturas({ turno, contometros, onReload, onMensaje }) {
     } catch (error) {
       onMensaje('Error al actualizar lectura', 'error')
       return false
+    }
+  }
+
+  const handleConfirmarEliminarLectura = async () => {
+    if (!lecturaEliminar?.id) return
+    try {
+      await eliminarLecturaContometro(lecturaEliminar.id)
+      onMensaje('Lectura eliminada correctamente')
+      setLecturaEliminar(null)
+      onReload()
+    } catch (error) {
+      onMensaje('Error al eliminar lectura', 'error')
     }
   }
 
@@ -83,14 +100,24 @@ export function TabLecturas({ turno, contometros, onReload, onMensaje }) {
                 </div>
                 {turnoGriferoEsAbierto(turno) && (
                   <div className="flex flex-col gap-2 items-end">
-                    <button
-                      type="button"
-                      onClick={() => setLecturaEditCompleta(lectura)}
-                      className="btn btn-secondary btn-sm inline-flex items-center gap-1"
-                    >
-                      <Pencil className="w-4 h-4" />
-                      Editar lectura
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setLecturaEditCompleta(lectura)}
+                        className="btn btn-secondary btn-sm inline-flex items-center gap-1"
+                        title="Editar"
+                      >
+                        <Pencil className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLecturaEliminar(lectura)}
+                        className="btn btn-danger btn-sm inline-flex items-center gap-1"
+                        title="Eliminar"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
                     {pendienteFinal && (
                       <button
                         type="button"
@@ -140,6 +167,39 @@ export function TabLecturas({ turno, contometros, onReload, onMensaje }) {
             return ok
           }}
         />
+      )}
+
+      {lecturaEliminar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="card p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Eliminar lectura</h3>
+            <p className="text-sm text-gray-600 mb-4">
+              ¿Eliminar la lectura del contómetro{' '}
+              <strong>
+                {contometros.find((c) => c.id === lecturaEliminar.contometro_id)?.codigo ||
+                  `#${lecturaEliminar.contometro_id}`}
+              </strong>
+              ? Se actualizarán los totales del turno y podrá registrar una nueva lectura para ese
+              contómetro.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="btn btn-secondary flex-1"
+                onClick={() => setLecturaEliminar(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger flex-1"
+                onClick={handleConfirmarEliminarLectura}
+              >
+                Eliminar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

@@ -1,26 +1,47 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
 
-export function ModalVenta({ productos, onClose, onSubmit }) {
+export function ModalVenta({ productos, onClose, onSubmit, ventaInicial = null }) {
   const [formData, setFormData] = useState({
     producto_id: '',
     cantidad: '',
     precio_unitario: ''
   })
 
-  const total = formData.cantidad && formData.precio_unitario ? 
-    parseFloat(formData.cantidad) * parseFloat(formData.precio_unitario) : 0
+  useEffect(() => {
+    if (ventaInicial) {
+      setFormData({
+        producto_id: ventaInicial.producto_id != null ? String(ventaInicial.producto_id) : '',
+        cantidad: ventaInicial.cantidad != null ? String(ventaInicial.cantidad) : '',
+        precio_unitario:
+          ventaInicial.precio_unitario != null ? String(ventaInicial.precio_unitario) : '',
+      })
+    } else {
+      setFormData({
+        producto_id: '',
+        cantidad: '',
+        precio_unitario: '',
+      })
+    }
+  }, [ventaInicial])
+
+  const total =
+    formData.cantidad && formData.precio_unitario
+      ? parseFloat(formData.cantidad) * parseFloat(formData.precio_unitario)
+      : 0
 
   const handleSubmit = (e) => {
     e.preventDefault()
     onSubmit(formData)
   }
 
+  const titulo = ventaInicial ? 'Editar venta de producto' : 'Nueva venta de producto'
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="card p-6 max-w-md w-full">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-lg font-semibold">Nueva Venta de Producto</h3>
+          <h3 className="text-lg font-semibold">{titulo}</h3>
           <button type="button" onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X className="w-5 h-5" />
           </button>
@@ -37,7 +58,7 @@ export function ModalVenta({ productos, onClose, onSubmit }) {
                 setFormData({
                   ...formData,
                   producto_id: e.target.value,
-                  precio_unitario: prod?.precio_venta || ''
+                  precio_unitario: prod?.precio_venta || formData.precio_unitario
                 })
               }}
               required
@@ -85,7 +106,7 @@ export function ModalVenta({ productos, onClose, onSubmit }) {
               Cancelar
             </button>
             <button type="submit" className="btn btn-primary flex-1">
-              Guardar
+              {ventaInicial ? 'Guardar cambios' : 'Guardar'}
             </button>
           </div>
         </form>
