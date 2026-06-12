@@ -39,6 +39,7 @@ export default function ModalCreditos({
   const [resultados, setResultados] = useState([])
   const [mostrandoResultados, setMostrandoResultados] = useState(false)
   const [clienteSeleccionado, setClienteSeleccionado] = useState(null)
+  const [numeroDocumento, setNumeroDocumento] = useState('')
   const [monto, setMonto] = useState('')
 
   // Calcular fecha de vencimiento = fecha del cuadre + 30 días
@@ -93,8 +94,15 @@ export default function ModalCreditos({
     setBusqueda('')
   }
 
+  const limpiarFormulario = () => {
+    limpiarSeleccion()
+    setNumeroDocumento('')
+    setMonto('')
+  }
+
   const agregarCredito = () => {
-    if (!clienteSeleccionado || !monto) return
+    const doc = numeroDocumento.trim()
+    if (!clienteSeleccionado || !monto || !doc) return
     const fechaVencimiento = calcularFechaVencimiento()
     setListaCreditos([
       ...listaCreditos,
@@ -103,12 +111,12 @@ export default function ModalCreditos({
         clienteId: clienteSeleccionado.id,
         nombre: clienteSeleccionado.razon_social,
         documento: clienteSeleccionado.numero_documento,
+        numeroDocumento: doc,
         monto,
         fechaVencimiento
       }
     ])
-    limpiarSeleccion()
-    setMonto('')
+    limpiarFormulario()
   }
 
   const eliminarCredito = (id) => {
@@ -166,6 +174,19 @@ export default function ModalCreditos({
               )}
             </div>
 
+            <div className="w-44">
+              <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">
+                N° documento <span className="text-red-600">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="Guía / factura"
+                className="w-full h-10 border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
+                value={numeroDocumento}
+                onChange={(e) => setNumeroDocumento(e.target.value)}
+              />
+            </div>
+
             {/* Monto */}
             <div className="w-40">
               <label className="block text-xs font-bold text-gray-700 mb-1 uppercase">Monto</label>
@@ -182,7 +203,8 @@ export default function ModalCreditos({
             {/* Botón Agregar */}
             <button
               onClick={agregarCredito}
-              className="h-10 w-10 flex items-center justify-center bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors"
+              disabled={!clienteSeleccionado || !monto || !numeroDocumento.trim()}
+              className="h-10 w-10 flex items-center justify-center bg-green-500 text-white rounded-md hover:bg-green-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <PlusCircle className="w-6 h-6" />
             </button>
@@ -195,6 +217,7 @@ export default function ModalCreditos({
             <thead className="bg-gray-50 sticky top-0">
               <tr>
                 <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Cliente</th>
+                <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">N° documento</th>
                 <th className="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase">Monto</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -205,6 +228,9 @@ export default function ModalCreditos({
                   <td className="px-4 py-2">
                     <div className="text-sm font-medium text-gray-900">{credito.nombre}</div>
                     <div className="text-xs text-gray-400">{credito.documento}</div>
+                  </td>
+                  <td className="px-4 py-2 text-sm text-gray-700">
+                    {credito.numeroDocumento || '—'}
                   </td>
                   <td className="px-4 py-2 text-right text-sm font-bold text-gray-900">
                     S/ {parseFloat(credito.monto).toFixed(2)}
@@ -218,7 +244,7 @@ export default function ModalCreditos({
               ))}
               {listaCreditos.length === 0 && (
                 <tr>
-                  <td colSpan="3" className="px-4 py-8 text-center text-sm text-gray-500">
+                  <td colSpan="4" className="px-4 py-8 text-center text-sm text-gray-500">
                     {emptyHint}
                   </td>
                 </tr>

@@ -193,14 +193,14 @@ export default function CuadreDiario() {
           guia_credito: detallesGuiasCredito.map((c) => ({
             cliente_id: parseInt(c.clienteId, 10),
             monto: parseFloat(c.monto),
-            numero_documento: c.numeroDocumento || c.documento || null,
+            numero_documento: (c.numeroDocumento || '').trim(),
             fecha_vencimiento: c.fechaVencimiento || new Date().toISOString().split('T')[0],
             observaciones: c.observaciones || null,
           })),
           guia_remision: detallesGuiasRemision.map((c) => ({
             cliente_id: parseInt(c.clienteId, 10),
             monto: parseFloat(c.monto),
-            numero_documento: c.numeroDocumento || c.documento || null,
+            numero_documento: (c.numeroDocumento || '').trim(),
             fecha_vencimiento: c.fechaVencimiento || new Date().toISOString().split('T')[0],
             observaciones: c.observaciones || null,
           })),

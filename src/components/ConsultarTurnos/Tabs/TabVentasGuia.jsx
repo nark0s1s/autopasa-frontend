@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import {
   getClientes,
@@ -27,6 +27,20 @@ export function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
 
   const titulo = esCredito ? 'Guía de crédito' : 'Guía de remisión'
   const tituloModal = esCredito ? 'Nueva venta con guía de crédito' : 'Nueva venta con guía de remisión'
+
+  const numerosDocumentoOcupados = useMemo(() => {
+    const cred = turno.ventas_guia_credito ?? turno.ventas_credito ?? []
+    const rem = turno.ventas_guia_remision ?? []
+    return [...cred, ...rem]
+      .filter((l) => l.id !== lineaEdicion?.id)
+      .map((l) => (l.numero_documento || '').trim().toLowerCase())
+      .filter(Boolean)
+  }, [turno, lineaEdicion])
+
+  const mensajeErrorApi = (error, fallback) => {
+    const det = error?.response?.data?.detail
+    return typeof det === 'string' ? det : fallback
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -76,7 +90,13 @@ export function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
       onReload()
     } catch (error) {
       console.error(error)
-      onMensaje(lineaEdicion ? 'Error al actualizar la línea' : 'Error al registrar la línea', 'error')
+      onMensaje(
+        mensajeErrorApi(
+          error,
+          lineaEdicion ? 'Error al actualizar la línea' : 'Error al registrar la línea'
+        ),
+        'error'
+      )
     }
   }
 
@@ -194,6 +214,7 @@ export function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
           key={lineaEdicion?.id ?? 'nueva'}
           title={lineaEdicion ? `Editar — ${titulo}` : tituloModal}
           lineaInicial={lineaEdicion}
+          numerosDocumentoOcupados={numerosDocumentoOcupados}
           onClose={() => {
             setShowModal(false)
             setLineaEdicion(null)

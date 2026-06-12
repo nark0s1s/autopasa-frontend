@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react'
 import { X, Search } from 'lucide-react'
 import { getClientes } from '../../../utils/api'
 
-export function ModalLineaGuiaTurno({ title, lineaInicial, onClose, onSubmit }) {
+export function ModalLineaGuiaTurno({
+  title,
+  lineaInicial,
+  numerosDocumentoOcupados = [],
+  onClose,
+  onSubmit,
+}) {
   const [clientesDisponibles, setClientesDisponibles] = useState([])
   const [cargando, setCargando] = useState(true)
   const [busqueda, setBusqueda] = useState('')
@@ -11,6 +17,7 @@ export function ModalLineaGuiaTurno({ title, lineaInicial, onClose, onSubmit }) 
   const [numeroDocumento, setNumeroDocumento] = useState('')
   const [monto, setMonto] = useState('')
   const [observaciones, setObservaciones] = useState('')
+  const [errorDoc, setErrorDoc] = useState('')
 
   useEffect(() => {
     let cancelled = false
@@ -37,6 +44,7 @@ export function ModalLineaGuiaTurno({ title, lineaInicial, onClose, onSubmit }) 
       setNumeroDocumento('')
       setMonto('')
       setObservaciones('')
+      setErrorDoc('')
       return
     }
     const cid = lineaInicial.cliente_id
@@ -74,11 +82,18 @@ export function ModalLineaGuiaTurno({ title, lineaInicial, onClose, onSubmit }) 
   const handleSubmit = (e) => {
     e.preventDefault()
     const m = parseFloat(monto)
-    if (Number.isNaN(m) || m <= 0) return
+    const doc = numeroDocumento.trim()
+    if (Number.isNaN(m) || m <= 0 || !doc) return
+    const docNorm = doc.toLowerCase()
+    if (numerosDocumentoOcupados.includes(docNorm)) {
+      setErrorDoc('Este número de documento ya está registrado en otra guía de este turno')
+      return
+    }
+    setErrorDoc('')
     onSubmit({
       cliente_id: clienteSel?.id ?? null,
       monto: m,
-      numero_documento: numeroDocumento.trim() || null,
+      numero_documento: doc,
       fecha_vencimiento: null,
       pagado: false,
       observaciones: observaciones.trim() || null,
@@ -153,13 +168,20 @@ export function ModalLineaGuiaTurno({ title, lineaInicial, onClose, onSubmit }) 
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">N° documento (opcional)</label>
+            <label className="block text-sm font-medium mb-2">
+              N° documento <span className="text-red-600">*</span>
+            </label>
             <input
               type="text"
-              className="input"
+              className={`input ${errorDoc ? 'border-red-500' : ''}`}
               value={numeroDocumento}
-              onChange={(e) => setNumeroDocumento(e.target.value)}
+              onChange={(e) => {
+                setNumeroDocumento(e.target.value)
+                if (errorDoc) setErrorDoc('')
+              }}
+              required
             />
+            {errorDoc ? <p className="text-xs text-red-600 mt-1">{errorDoc}</p> : null}
           </div>
 
           <div>

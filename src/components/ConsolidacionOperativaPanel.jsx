@@ -1456,8 +1456,13 @@ export function ConsolidacionOperativaPanel({
                   </div>
 
                   <div className="rounded-lg border border-red-100 bg-red-50/40 p-4 flex flex-wrap justify-between gap-2 items-center">
-                    <span className="font-semibold text-red-900 text-base">Ventas al crédito</span>
-                    <span className="text-xl font-bold text-red-700 tabular-nums">− S/ {fmtMonto(totales.sumVentasCreditoTotal)}</span>
+                    <span className="font-semibold text-red-900 text-base">Guías crédito</span>
+                    <span className="text-xl font-bold text-red-700 tabular-nums">− S/ {fmtMonto(totales.sumGuiasCredito)}</span>
+                  </div>
+
+                  <div className="rounded-lg border border-red-100 bg-red-50/40 p-4 flex flex-wrap justify-between gap-2 items-center">
+                    <span className="font-semibold text-red-900 text-base">Guías remisión</span>
+                    <span className="text-xl font-bold text-red-700 tabular-nums">− S/ {fmtMonto(totales.sumGuiasRemision)}</span>
                   </div>
 
                   <div className="rounded-xl border-2 border-emerald-800 bg-emerald-700 p-5 sm:p-6 space-y-2 shadow-md">
@@ -1469,7 +1474,7 @@ export function ConsolidacionOperativaPanel({
                     </div>
                     <p className="text-xs text-emerald-100/95 leading-relaxed border-t border-emerald-600/80 pt-3">
                       Combustible + GNV (sin financiación) + productos + servicentro + cobranzas (neto) − descuentos −
-                      ventas al crédito.
+                      guías crédito − guías remisión.
                     </p>
                   </div>
                 </div>

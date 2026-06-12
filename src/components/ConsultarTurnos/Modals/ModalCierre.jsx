@@ -53,8 +53,12 @@ export function ModalCierre({ turno, totales, onClose, onSuccess }) {
             <span className="font-semibold">S/ {totales.totalPOS.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm text-red-600">
-            <span>(-) Ventas a crédito:</span>
-            <span className="font-semibold">S/ {totales.totalCredito.toFixed(2)}</span>
+            <span>(−) Guías crédito:</span>
+            <span className="font-semibold">S/ {totales.totalGuiaCredito.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between text-sm text-red-600">
+            <span>(−) Guías remisión:</span>
+            <span className="font-semibold">S/ {totales.totalGuiaRemision.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-sm text-red-600">
             <span>(-) Descuentos aplicados:</span>
