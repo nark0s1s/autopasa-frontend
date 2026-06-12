@@ -59,7 +59,7 @@ export function ResumenTotales({ totales }) {
         </h3>
         <p className="text-xs text-gray-600 mb-3">
           Combustible + productos + venta GNV + financiación GNV, menos lo que no queda en caja (POS, guías
-          crédito/remisión, descuentos, vales, gastos, depósitos en caja, transferencias bancarias).
+          de crédito, guías de remisión, descuentos, vales, gastos, depósitos en caja, transferencias bancarias).
         </p>
         <div className="space-y-1.5 text-sm max-w-lg">
           <div className="flex justify-between gap-4">
@@ -79,8 +79,12 @@ export function ResumenTotales({ totales }) {
             <span className="font-semibold tabular-nums">S/ {totales.totalPOS.toFixed(2)}</span>
           </div>
           <div className="flex justify-between gap-4 text-red-700">
-            <span>(−) Guías crédito + remisión</span>
-            <span className="font-semibold tabular-nums">S/ {totales.totalCredito.toFixed(2)}</span>
+            <span>(−) Guías crédito</span>
+            <span className="font-semibold tabular-nums">S/ {totales.totalGuiaCredito.toFixed(2)}</span>
+          </div>
+          <div className="flex justify-between gap-4 text-red-700">
+            <span>(−) Guías remisión</span>
+            <span className="font-semibold tabular-nums">S/ {totales.totalGuiaRemision.toFixed(2)}</span>
           </div>
           <div className="flex justify-between gap-4 text-red-700">
             <span>(−) Descuentos aplicados</span>

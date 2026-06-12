@@ -62,12 +62,22 @@ export function ResumenTotalesMobile({ totales }) {
               <span className="tabular-nums">S/ {totales.totalFinanciacionGnv.toFixed(2)}</span>
             </div>
             <div className="flex justify-between gap-3 text-red-700">
-              <span>(−) POS + guías + desc. + vales + gastos + dep. + transf.</span>
+              <span>(−) POS</span>
+              <span className="tabular-nums">S/ {totales.totalPOS.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-red-700">
+              <span>(−) Guía crédito</span>
+              <span className="tabular-nums">S/ {totales.totalGuiaCredito.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-red-700">
+              <span>(−) Guía remisión</span>
+              <span className="tabular-nums">S/ {totales.totalGuiaRemision.toFixed(2)}</span>
+            </div>
+            <div className="flex justify-between gap-3 text-red-700">
+              <span>(−) Desc. + vales + gastos + dep. + transf.</span>
               <span className="tabular-nums shrink-0">
                 S/{' '}
                 {(
-                  totales.totalPOS +
-                  totales.totalCredito +
                   totales.totalDescuentos +
                   totales.totalVales +
                   totales.totalGastos +
