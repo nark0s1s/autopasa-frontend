@@ -69,11 +69,12 @@ export default function OperacionesCreditosConsultaPage() {
             <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-700 text-white shadow-md shadow-emerald-700/25">
               <CreditCard className="w-6 h-6" />
             </span>
-            Operaciones — Créditos
-          </h1>
-          <p className="text-sm text-gray-600 mt-2">
-            Ingrese la placa del vehículo para ver la empresa, las reglas de despacho y los combustibles
-            autorizados.
+              Operaciones — Consulta créditos
+            </h1>
+            <p className="text-sm text-gray-600 mt-2">
+            Referencia para el grifero: ingrese la placa y vea la empresa, reglas de despacho y
+            combustibles autorizados. La configuración del cliente está en el menú Créditos (Perfil,
+            Placas, etc.).
           </p>
         </header>
 
