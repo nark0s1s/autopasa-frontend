@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, Plus, RefreshCw, Save } from 'lucide-react'
+import { CreditCard, Pencil, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react'
 import {
   asignarCreditoProducto,
+  actualizarCreditoPlaca,
   crearCreditoPersona,
   crearCreditoPlaca,
   crearCreditoPrecio,
+  eliminarCreditoPlaca,
   getClientesAdmin,
   getCreditoPerfil,
   getProductosActivos,
@@ -37,7 +39,8 @@ function toYMD(d = new Date()) {
 const SECTION_META = {
   perfil: {
     title: 'Perfil y límites',
-    blurb: 'Modalidad, límites, sobregiro y flags operativos del cliente ya registrado en Clientes.',
+    blurb:
+      'Modalidad, límites, sobregiro y reglas operativas (persona autorizada, orden de compra, km, firma del chofer) del cliente ya registrado en Clientes.',
   },
   productos: {
     title: 'Productos autorizados',
@@ -75,6 +78,9 @@ const PERFIL_DEFAULT = {
   permite_guia_sin_placa: false,
   permite_galonera: false,
   exige_persona_autorizada: true,
+  solicitar_orden_compra: false,
+  registrar_km_vehiculo: false,
+  solicitar_firma_chofer: false,
   detalle_factura: 'por_producto',
   observacion: '',
 }
@@ -97,6 +103,9 @@ function perfilToForm(p) {
     permite_guia_sin_placa: !!p.permite_guia_sin_placa,
     permite_galonera: !!p.permite_galonera,
     exige_persona_autorizada: p.exige_persona_autorizada !== false,
+    solicitar_orden_compra: !!p.solicitar_orden_compra,
+    registrar_km_vehiculo: !!p.registrar_km_vehiculo,
+    solicitar_firma_chofer: !!p.solicitar_firma_chofer,
     detalle_factura: p.detalle_factura || 'por_producto',
     observacion: p.observacion || '',
   }
@@ -129,6 +138,9 @@ function formToPerfilPayload(f) {
     permite_guia_sin_placa: !!f.permite_guia_sin_placa,
     permite_galonera: !!f.permite_galonera,
     exige_persona_autorizada: !!f.exige_persona_autorizada,
+    solicitar_orden_compra: !!f.solicitar_orden_compra,
+    registrar_km_vehiculo: !!f.registrar_km_vehiculo,
+    solicitar_firma_chofer: !!f.solicitar_orden_compra && !!f.solicitar_firma_chofer,
     detalle_factura: f.detalle_factura,
     observacion: f.observacion?.trim() || null,
   }
@@ -190,6 +202,7 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
     permite_galonera: false,
     activo: true,
   })
+  const [placaEditId, setPlacaEditId] = useState(null)
   const [personaForm, setPersonaForm] = useState({
     nombres: '',
     tipo_documento: 'DNI',
@@ -358,18 +371,57 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
     }
   }
 
-  const agregarPlaca = async (e) => {
+  const resetPlacaForm = () => {
+    setPlacaEditId(null)
+    setPlacaForm({ placa: '', descripcion: '', permite_galonera: false, activo: true })
+  }
+
+  const editarPlaca = (r) => {
+    setPlacaEditId(r.id)
+    setPlacaForm({
+      placa: r.placa || '',
+      descripcion: r.descripcion || '',
+      permite_galonera: !!r.permite_galonera,
+      activo: r.activo !== false,
+    })
+  }
+
+  const guardarPlaca = async (e) => {
     e.preventDefault()
     if (!clienteId || !placaForm.placa.trim()) return
+    const payload = {
+      placa: placaForm.placa.trim(),
+      descripcion: placaForm.descripcion.trim() || null,
+      permite_galonera: !!placaForm.permite_galonera,
+      activo: !!placaForm.activo,
+    }
     try {
       setSaving(true)
-      await crearCreditoPlaca(clienteId, {
-        placa: placaForm.placa.trim(),
-        descripcion: placaForm.descripcion.trim() || null,
-        permite_galonera: !!placaForm.permite_galonera,
-        activo: !!placaForm.activo,
-      })
-      setPlacaForm({ placa: '', descripcion: '', permite_galonera: false, activo: true })
+      if (placaEditId) {
+        await actualizarCreditoPlaca(clienteId, placaEditId, payload)
+      } else {
+        await crearCreditoPlaca(clienteId, payload)
+      }
+      resetPlacaForm()
+      await cargarCliente(clienteId)
+    } catch (err) {
+      alert(creditoDetail(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const borrarPlaca = async (r) => {
+    if (!clienteId || !r?.id) return
+    const ok = window.confirm(
+      `¿Eliminar la placa ${r.placa}? Si tiene historial se desactivará en lugar de borrarse.`,
+    )
+    if (!ok) return
+    try {
+      setSaving(true)
+      const res = await eliminarCreditoPlaca(clienteId, r.id)
+      if (res?.mensaje) alert(res.mensaje)
+      if (placaEditId === r.id) resetPlacaForm()
       await cargarCliente(clienteId)
     } catch (err) {
       alert(creditoDetail(err))
@@ -588,19 +640,83 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                         </select>
                       </Field>
                     </div>
-                    <div className="flex flex-wrap gap-4 text-sm">
-                      <label className="inline-flex items-center gap-2">
-                        <input type="checkbox" className={checkCls} checked={form.permite_guia_sin_placa} onChange={(e) => setF('permite_guia_sin_placa', e.target.checked)} />
-                        Permite guía sin placa
+                    <div className="space-y-3 text-sm">
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Reglas operativas</p>
+                      <div className="flex flex-wrap gap-4">
+                        <label className="inline-flex items-center gap-2">
+                          <input type="checkbox" className={checkCls} checked={form.permite_guia_sin_placa} onChange={(e) => setF('permite_guia_sin_placa', e.target.checked)} />
+                          Permite guía sin placa
+                        </label>
+                        <label className="inline-flex items-center gap-2">
+                          <input type="checkbox" className={checkCls} checked={form.permite_galonera} onChange={(e) => setF('permite_galonera', e.target.checked)} />
+                          Permite galonera
+                        </label>
+                      </div>
+                      <label className="flex items-start gap-2 max-w-2xl">
+                        <input
+                          type="checkbox"
+                          className={`${checkCls} mt-0.5`}
+                          checked={form.exige_persona_autorizada}
+                          onChange={(e) => setF('exige_persona_autorizada', e.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium text-gray-800">Exige persona autorizada</span>
+                          <span className="block text-xs text-gray-500 mt-0.5">
+                            Debe estar presente una persona del catálogo (Créditos → Personas autorizadas). Incluye firma de referencia al despachar.
+                          </span>
+                        </span>
                       </label>
-                      <label className="inline-flex items-center gap-2">
-                        <input type="checkbox" className={checkCls} checked={form.permite_galonera} onChange={(e) => setF('permite_galonera', e.target.checked)} />
-                        Permite galonera
+                      <label className="flex items-start gap-2 max-w-2xl">
+                        <input
+                          type="checkbox"
+                          className={`${checkCls} mt-0.5`}
+                          checked={form.registrar_km_vehiculo}
+                          onChange={(e) => setF('registrar_km_vehiculo', e.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium text-gray-800">Registrar el km del vehículo</span>
+                          <span className="block text-xs text-gray-500 mt-0.5">
+                            En cada guía económica se exigirá capturar el kilometraje.
+                          </span>
+                        </span>
                       </label>
-                      <label className="inline-flex items-center gap-2">
-                        <input type="checkbox" className={checkCls} checked={form.exige_persona_autorizada} onChange={(e) => setF('exige_persona_autorizada', e.target.checked)} />
-                        Exige persona autorizada
+                      <label className="flex items-start gap-2 max-w-2xl">
+                        <input
+                          type="checkbox"
+                          className={`${checkCls} mt-0.5`}
+                          checked={form.solicitar_orden_compra}
+                          onChange={(e) => {
+                            const on = e.target.checked
+                            setForm((prev) => ({
+                              ...prev,
+                              solicitar_orden_compra: on,
+                              solicitar_firma_chofer: on ? prev.solicitar_firma_chofer : false,
+                            }))
+                          }}
+                        />
+                        <span>
+                          <span className="font-medium text-gray-800">Solicitar orden de compra</span>
+                          <span className="block text-xs text-gray-500 mt-0.5">
+                            Exige adjuntar la OC y la firma autorizada del encargado de firmar la orden (persona del catálogo).
+                          </span>
+                        </span>
                       </label>
+                      {form.solicitar_orden_compra && (
+                        <label className="flex items-start gap-2 max-w-2xl ml-6 pl-3 border-l-2 border-emerald-200">
+                          <input
+                            type="checkbox"
+                            className={`${checkCls} mt-0.5`}
+                            checked={form.solicitar_firma_chofer}
+                            onChange={(e) => setF('solicitar_firma_chofer', e.target.checked)}
+                          />
+                          <span>
+                            <span className="font-medium text-gray-800">Solicitar firma del chofer</span>
+                            <span className="block text-xs text-gray-500 mt-0.5">
+                              Solo aplica si se solicita orden de compra. El receptor debe ser chofer y firmar en la guía.
+                            </span>
+                          </span>
+                        </label>
+                      )}
                     </div>
                     <Field label="Observación">
                       <textarea className={inputCls} rows={2} value={form.observacion} onChange={(e) => setF('observacion', e.target.value)} />
@@ -740,20 +856,35 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
 
                 {section === 'placas' && !sinPerfil && (
                   <div className="space-y-4">
-                    <form onSubmit={agregarPlaca} className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <form onSubmit={guardarPlaca} className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="sm:col-span-2 flex items-center justify-between gap-2">
+                        <p className="text-sm font-medium text-gray-800">
+                          {placaEditId ? `Corrigiendo placa #${placaEditId}` : 'Nueva placa'}
+                        </p>
+                        {placaEditId && (
+                          <button type="button" className="text-xs text-gray-600 inline-flex items-center gap-1 hover:text-gray-900" onClick={resetPlacaForm}>
+                            <X className="w-3.5 h-3.5" /> Cancelar edición
+                          </button>
+                        )}
+                      </div>
                       <Field label="Placa">
                         <input className={inputCls} value={placaForm.placa} onChange={(e) => setPlacaForm((f) => ({ ...f, placa: e.target.value.toUpperCase() }))} required />
                       </Field>
                       <Field label="Descripción">
                         <input className={inputCls} value={placaForm.descripcion} onChange={(e) => setPlacaForm((f) => ({ ...f, descripcion: e.target.value }))} />
                       </Field>
-                      <label className="inline-flex items-center gap-2 text-sm sm:col-span-2">
+                      <label className="inline-flex items-center gap-2 text-sm">
                         <input type="checkbox" className={checkCls} checked={placaForm.permite_galonera} onChange={(e) => setPlacaForm((f) => ({ ...f, permite_galonera: e.target.checked }))} />
                         Permite galonera
                       </label>
-                      <div className="sm:col-span-2 flex justify-end">
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input type="checkbox" className={checkCls} checked={placaForm.activo} onChange={(e) => setPlacaForm((f) => ({ ...f, activo: e.target.checked }))} />
+                        Activa
+                      </label>
+                      <div className="sm:col-span-2 flex justify-end gap-2">
                         <button type="submit" className="btn btn-primary inline-flex items-center gap-2" disabled={saving}>
-                          <Plus className="w-4 h-4" /> Agregar placa
+                          {placaEditId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                          {placaEditId ? 'Guardar cambios' : 'Agregar placa'}
                         </button>
                       </div>
                     </form>
@@ -765,19 +896,42 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                             <th className="px-3 py-2 text-left">Descripción</th>
                             <th className="px-3 py-2 text-center">Galonera</th>
                             <th className="px-3 py-2 text-center">Activo</th>
+                            <th className="px-3 py-2 text-right">Acciones</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {placas.map((r) => (
-                            <tr key={r.id}>
+                            <tr key={r.id} className={placaEditId === r.id ? 'bg-emerald-50/60' : ''}>
                               <td className="px-3 py-2 font-medium">{r.placa}</td>
                               <td className="px-3 py-2">{r.descripcion || '—'}</td>
                               <td className="px-3 py-2 text-center">{r.permite_galonera ? 'Sí' : 'No'}</td>
                               <td className="px-3 py-2 text-center">{r.activo ? 'Sí' : 'No'}</td>
+                              <td className="px-3 py-2 text-right">
+                                <div className="inline-flex items-center gap-1">
+                                  <button
+                                    type="button"
+                                    className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100"
+                                    title="Corregir"
+                                    onClick={() => editarPlaca(r)}
+                                    disabled={saving}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"
+                                    title="Eliminar"
+                                    onClick={() => borrarPlaca(r)}
+                                    disabled={saving}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
                             </tr>
                           ))}
                           {placas.length === 0 && (
-                            <tr><td colSpan={4} className="px-3 py-6 text-center text-gray-500">Sin placas</td></tr>
+                            <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">Sin placas</td></tr>
                           )}
                         </tbody>
                       </table>
