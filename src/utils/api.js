@@ -1271,6 +1271,16 @@ export const crearCreditoPlaca = async (clienteId, data) => {
   return response.data
 }
 
+export const actualizarCreditoPlaca = async (clienteId, placaId, data) => {
+  const response = await api.put(`${API_CREDITO}/perfiles/${clienteId}/placas/${placaId}`, data)
+  return response.data
+}
+
+export const eliminarCreditoPlaca = async (clienteId, placaId) => {
+  const response = await api.delete(`${API_CREDITO}/perfiles/${clienteId}/placas/${placaId}`)
+  return response.data
+}
+
 export const listCreditoPersonas = async (clienteId) => {
   const response = await api.get(`${API_CREDITO}/perfiles/${clienteId}/personas`)
   return response.data
