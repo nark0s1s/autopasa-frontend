@@ -613,6 +613,21 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                           <option value="bloqueado">Bloqueado</option>
                         </select>
                       </Field>
+                      {(form.estado === 'bloqueado' || form.estado === 'suspendido') && (
+                        <Field
+                          label={`Motivo de ${form.estado === 'bloqueado' ? 'bloqueo' : 'suspensión'} (visible al grifero)`}
+                          className="sm:col-span-2"
+                        >
+                          <textarea
+                            className={inputCls}
+                            rows={2}
+                            required
+                            value={form.estado_motivo}
+                            onChange={(e) => setF('estado_motivo', e.target.value)}
+                            placeholder="Ej. Deuda vencida, cliente con cheque rechazado…"
+                          />
+                        </Field>
+                      )}
                       <Field label="Límite monto (S/)">
                         <input className={inputCls} value={form.limite_monto} onChange={(e) => setF('limite_monto', e.target.value)} inputMode="decimal" />
                       </Field>

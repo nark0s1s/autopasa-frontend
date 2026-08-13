@@ -1238,6 +1238,13 @@ export const consultarCreditoPorPlaca = async (placa) => {
   return response.data
 }
 
+export const consultarCreditoPorRuc = async (ruc) => {
+  const response = await api.get(`${API_CREDITO}/consulta/ruc`, {
+    params: { ruc: String(ruc || '').trim() },
+  })
+  return response.data
+}
+
 export const getCreditoPerfil = async (clienteId) => {
   const response = await api.get(`${API_CREDITO}/perfiles/${clienteId}`)
   return response.data
