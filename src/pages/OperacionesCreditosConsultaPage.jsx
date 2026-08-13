@@ -4,6 +4,13 @@ import { consultarCreditoPorPlaca } from '../utils/api'
 
 function buildRequisitos(data) {
   const items = []
+  if (data.solicitar_orden_pedido) {
+    items.push({
+      id: 'op',
+      titulo: 'Orden de pedido',
+      detalle: 'Pedir y registrar la orden de pedido del cliente.',
+    })
+  }
   if (data.solicitar_orden_compra) {
     items.push({
       id: 'oc',
@@ -30,6 +37,13 @@ function buildRequisitos(data) {
       id: 'km',
       titulo: 'Registrar km del vehículo',
       detalle: 'Anotar el kilometraje en la guía.',
+    })
+  }
+  if (data.permite_guia_sin_placa) {
+    items.push({
+      id: 'sin_placa',
+      titulo: 'Permite guía sin placa',
+      detalle: 'Este cliente puede despachar sin placa (equipos/maquinaria). Pedir el motivo.',
     })
   }
   return items
@@ -150,9 +164,16 @@ export default function OperacionesCreditosConsultaPage() {
                   ))}
                 </ul>
               )}
-              {data.permite_galonera_cliente && data.placa_permite_galonera && (
+              {data.permite_galonera_cliente && data.placa_permite_galonera ? (
                 <p className="mt-3 text-center text-lg font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
                   Galonera permitida en esta placa
+                </p>
+              ) : (
+                <p className="mt-3 text-center text-lg font-semibold text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
+                  No permite galoneras
+                  {data.permite_galonera_cliente && !data.placa_permite_galonera
+                    ? ' (esta placa)'
+                    : ''}
                 </p>
               )}
             </section>

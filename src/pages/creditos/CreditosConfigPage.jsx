@@ -79,6 +79,7 @@ const PERFIL_DEFAULT = {
   permite_galonera: false,
   exige_persona_autorizada: true,
   solicitar_orden_compra: false,
+  solicitar_orden_pedido: false,
   registrar_km_vehiculo: false,
   solicitar_firma_chofer: false,
   detalle_factura: 'por_producto',
@@ -104,6 +105,7 @@ function perfilToForm(p) {
     permite_galonera: !!p.permite_galonera,
     exige_persona_autorizada: p.exige_persona_autorizada !== false,
     solicitar_orden_compra: !!p.solicitar_orden_compra,
+    solicitar_orden_pedido: !!p.solicitar_orden_pedido,
     registrar_km_vehiculo: !!p.registrar_km_vehiculo,
     solicitar_firma_chofer: !!p.solicitar_firma_chofer,
     detalle_factura: p.detalle_factura || 'por_producto',
@@ -139,6 +141,7 @@ function formToPerfilPayload(f) {
     permite_galonera: !!f.permite_galonera,
     exige_persona_autorizada: !!f.exige_persona_autorizada,
     solicitar_orden_compra: !!f.solicitar_orden_compra,
+    solicitar_orden_pedido: !!f.solicitar_orden_pedido,
     registrar_km_vehiculo: !!f.registrar_km_vehiculo,
     solicitar_firma_chofer: !!f.solicitar_orden_compra && !!f.solicitar_firma_chofer,
     detalle_factura: f.detalle_factura,
@@ -648,8 +651,13 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                           Permite guía sin placa
                         </label>
                         <label className="inline-flex items-center gap-2">
-                          <input type="checkbox" className={checkCls} checked={form.permite_galonera} onChange={(e) => setF('permite_galonera', e.target.checked)} />
-                          Permite galonera
+                          <input
+                            type="checkbox"
+                            className={checkCls}
+                            checked={!form.permite_galonera}
+                            onChange={(e) => setF('permite_galonera', !e.target.checked)}
+                          />
+                          No permite galoneras
                         </label>
                       </div>
                       <label className="flex items-start gap-2 max-w-2xl">
@@ -677,6 +685,20 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                           <span className="font-medium text-gray-800">Registrar el km del vehículo</span>
                           <span className="block text-xs text-gray-500 mt-0.5">
                             En cada guía económica se exigirá capturar el kilometraje.
+                          </span>
+                        </span>
+                      </label>
+                      <label className="flex items-start gap-2 max-w-2xl">
+                        <input
+                          type="checkbox"
+                          className={`${checkCls} mt-0.5`}
+                          checked={form.solicitar_orden_pedido}
+                          onChange={(e) => setF('solicitar_orden_pedido', e.target.checked)}
+                        />
+                        <span>
+                          <span className="font-medium text-gray-800">Solicitar orden de pedido</span>
+                          <span className="block text-xs text-gray-500 mt-0.5">
+                            En el despacho se pedirá la orden de pedido del cliente.
                           </span>
                         </span>
                       </label>
@@ -874,8 +896,13 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                         <input className={inputCls} value={placaForm.descripcion} onChange={(e) => setPlacaForm((f) => ({ ...f, descripcion: e.target.value }))} />
                       </Field>
                       <label className="inline-flex items-center gap-2 text-sm">
-                        <input type="checkbox" className={checkCls} checked={placaForm.permite_galonera} onChange={(e) => setPlacaForm((f) => ({ ...f, permite_galonera: e.target.checked }))} />
-                        Permite galonera
+                        <input
+                          type="checkbox"
+                          className={checkCls}
+                          checked={!placaForm.permite_galonera}
+                          onChange={(e) => setPlacaForm((f) => ({ ...f, permite_galonera: !e.target.checked }))}
+                        />
+                        No permite galonera
                       </label>
                       <label className="inline-flex items-center gap-2 text-sm">
                         <input type="checkbox" className={checkCls} checked={placaForm.activo} onChange={(e) => setPlacaForm((f) => ({ ...f, activo: e.target.checked }))} />
@@ -894,7 +921,7 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                           <tr>
                             <th className="px-3 py-2 text-left">Placa</th>
                             <th className="px-3 py-2 text-left">Descripción</th>
-                            <th className="px-3 py-2 text-center">Galonera</th>
+                            <th className="px-3 py-2 text-center">No permite gal.</th>
                             <th className="px-3 py-2 text-center">Activo</th>
                             <th className="px-3 py-2 text-right">Acciones</th>
                           </tr>
@@ -904,7 +931,7 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                             <tr key={r.id} className={placaEditId === r.id ? 'bg-emerald-50/60' : ''}>
                               <td className="px-3 py-2 font-medium">{r.placa}</td>
                               <td className="px-3 py-2">{r.descripcion || '—'}</td>
-                              <td className="px-3 py-2 text-center">{r.permite_galonera ? 'Sí' : 'No'}</td>
+                              <td className="px-3 py-2 text-center">{r.permite_galonera ? 'No' : 'Sí'}</td>
                               <td className="px-3 py-2 text-center">{r.activo ? 'Sí' : 'No'}</td>
                               <td className="px-3 py-2 text-right">
                                 <div className="inline-flex items-center gap-1">
