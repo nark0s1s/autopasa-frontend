@@ -29,6 +29,7 @@ import MediosPagoPage from './pages/mantenimiento/MediosPagoPage'
 import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
 import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
 import CreditosConfigPage from './pages/creditos/CreditosConfigPage'
+import OperacionesCreditosConsultaPage from './pages/OperacionesCreditosConsultaPage'
 import KardexCombustiblePage from './pages/KardexCombustiblePage'
 import ConciliacionStockCombustiblePage from './pages/ConciliacionStockCombustiblePage'
 import GastosOperativosPage from './pages/GastosOperativosPage'
@@ -433,7 +434,16 @@ function App() {
               </PrivateRoute>
             }
           />
-          <Route path="/operaciones/creditos" element={<Navigate to="/creditos/perfiles" replace />} />
+          <Route
+            path="/operaciones/creditos"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <OperacionesCreditosConsultaPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
           <Route path="/creditos" element={<Navigate to="/creditos/perfiles" replace />} />
           <Route
             path="/consultas/kardex-combustible"
