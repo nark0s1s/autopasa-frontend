@@ -1231,6 +1231,13 @@ export const actualizarCliente = async (id, data) => {
 
 const API_CREDITO = '/api/credito'
 
+export const consultarCreditoPorPlaca = async (placa) => {
+  const response = await api.get(`${API_CREDITO}/consulta/placa`, {
+    params: { placa: String(placa || '').trim() },
+  })
+  return response.data
+}
+
 export const getCreditoPerfil = async (clienteId) => {
   const response = await api.get(`${API_CREDITO}/perfiles/${clienteId}`)
   return response.data
