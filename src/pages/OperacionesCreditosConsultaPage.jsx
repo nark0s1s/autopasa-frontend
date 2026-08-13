@@ -1,14 +1,34 @@
 import { useMemo, useState } from 'react'
 import { Fuel, Search, XCircle } from 'lucide-react'
-import { consultarCreditoPorPlaca } from '../utils/api'
+import { consultarCreditoPorPlaca, consultarCreditoPorRuc } from '../utils/api'
 
-function buildRequisitos(data) {
+function buildRequisitos(data, modo) {
   const items = []
+
+  if (modo === 'ruc') {
+    if (data.permite_guia_sin_placa) {
+      items.push({
+        id: 'sin_placa_ok',
+        titulo: 'Permite atención sin placa',
+        detalle: 'Puede despachar sin placa (equipos/maquinaria). Pedir y anotar el motivo.',
+        tono: 'green',
+      })
+    } else {
+      items.push({
+        id: 'sin_placa_no',
+        titulo: 'No permite atención sin placa',
+        detalle: 'Este cliente exige placa autorizada. Use «Consultar crédito por placa».',
+        tono: 'red',
+      })
+    }
+  }
+
   if (data.solicitar_orden_pedido) {
     items.push({
       id: 'op',
       titulo: 'Orden de pedido',
       detalle: 'Pedir y registrar la orden de pedido del cliente.',
+      tono: 'amber',
     })
   }
   if (data.solicitar_orden_compra) {
@@ -16,6 +36,7 @@ function buildRequisitos(data) {
       id: 'oc',
       titulo: 'Orden de compra',
       detalle: 'Pedir y adjuntar la OC. Verificar firma del encargado autorizado.',
+      tono: 'amber',
     })
   }
   if (data.exige_persona_autorizada) {
@@ -23,6 +44,7 @@ function buildRequisitos(data) {
       id: 'persona',
       titulo: 'Persona autorizada',
       detalle: 'Debe estar presente alguien del listado de abajo.',
+      tono: 'amber',
     })
   }
   if (data.solicitar_firma_chofer) {
@@ -30,6 +52,7 @@ function buildRequisitos(data) {
       id: 'chofer',
       titulo: 'Firma del chofer',
       detalle: 'Capturar la firma del chofer en la guía.',
+      tono: 'amber',
     })
   }
   if (data.registrar_km_vehiculo) {
@@ -37,46 +60,85 @@ function buildRequisitos(data) {
       id: 'km',
       titulo: 'Registrar km del vehículo',
       detalle: 'Anotar el kilometraje en la guía.',
+      tono: 'amber',
     })
   }
-  if (data.permite_guia_sin_placa) {
+
+  const galoneraOk =
+    modo === 'placa'
+      ? !!(data.permite_galonera_cliente && data.placa_permite_galonera)
+      : !!data.permite_galonera_cliente
+  if (!galoneraOk) {
     items.push({
-      id: 'sin_placa',
-      titulo: 'Permite guía sin placa',
-      detalle: 'Este cliente puede despachar sin placa (equipos/maquinaria). Pedir el motivo.',
+      id: 'no_galonera',
+      titulo: 'No permite galoneras',
+      detalle:
+        modo === 'placa' && data.permite_galonera_cliente && !data.placa_permite_galonera
+          ? 'El cliente permite galonera, pero esta placa no. No cargar en galonera.'
+          : 'No cargar combustible en galonera.',
+      tono: 'red',
     })
   }
+
   return items
 }
 
-export default function OperacionesCreditosConsultaPage() {
-  const [placa, setPlaca] = useState('')
+const TONO_CLS = {
+  amber: {
+    box: 'bg-amber-400 border-amber-500',
+    title: 'text-amber-950',
+    detail: 'text-amber-950/80',
+  },
+  red: {
+    box: 'bg-red-600 border-red-700',
+    title: 'text-white',
+    detail: 'text-white/90',
+  },
+  green: {
+    box: 'bg-emerald-600 border-emerald-700',
+    title: 'text-white',
+    detail: 'text-white/90',
+  },
+}
+
+/**
+ * @param {{ modo?: 'placa' | 'ruc' }} props
+ */
+export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
+  const esPlaca = modo === 'placa'
+  const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [data, setData] = useState(null)
 
-  const requisitos = useMemo(() => (data ? buildRequisitos(data) : []), [data])
+  const requisitos = useMemo(() => (data ? buildRequisitos(data, modo) : []), [data, modo])
   const combustibles = useMemo(
     () => (data?.productos || []).filter((p) => p.autorizado_cliente),
     [data],
   )
   const bloqueado = data && data.perfil_estado !== 'activo'
+  const motivoBloqueo = (data?.estado_motivo || '').trim()
+  const galoneraOk =
+    data &&
+    (esPlaca
+      ? !!(data.permite_galonera_cliente && data.placa_permite_galonera)
+      : !!data.permite_galonera_cliente)
 
   const buscar = async (e) => {
     e?.preventDefault()
-    const q = placa.trim()
+    const q = query.trim()
     if (!q) return
     setLoading(true)
     setError(null)
     setData(null)
     try {
-      setData(await consultarCreditoPorPlaca(q))
+      setData(esPlaca ? await consultarCreditoPorPlaca(q) : await consultarCreditoPorRuc(q))
     } catch (err) {
       const d = err?.response?.data?.detail
       setError(
         (d && typeof d === 'object' && d.mensaje) ||
           (typeof d === 'string' ? d : null) ||
-          'Placa no encontrada',
+          (esPlaca ? 'Placa no encontrada' : 'RUC no encontrado'),
       )
     } finally {
       setLoading(false)
@@ -91,19 +153,24 @@ export default function OperacionesCreditosConsultaPage() {
       <div className="max-w-2xl mx-auto px-4 pt-6 sm:pt-10">
         <form onSubmit={buscar} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
           <label className="block">
-            <span className="block text-base font-semibold text-gray-700 mb-2">Placa</span>
+            <span className="block text-base font-semibold text-gray-700 mb-2">
+              {esPlaca ? 'Placa' : 'RUC / documento'}
+            </span>
             <div className="flex gap-3">
               <input
-                value={placa}
-                onChange={(e) => setPlaca(e.target.value.toUpperCase())}
-                placeholder="ABC123"
-                className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-4 text-2xl sm:text-3xl font-bold tracking-[0.2em] uppercase text-center focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/15"
+                value={query}
+                onChange={(e) =>
+                  setQuery(esPlaca ? e.target.value.toUpperCase() : e.target.value.replace(/\D/g, ''))
+                }
+                placeholder={esPlaca ? 'ABC123' : '20123456789'}
+                inputMode={esPlaca ? 'text' : 'numeric'}
+                className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-4 text-2xl sm:text-3xl font-bold tracking-[0.12em] uppercase text-center focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/15"
                 autoFocus
                 autoComplete="off"
               />
               <button
                 type="submit"
-                disabled={loading || !placa.trim()}
+                disabled={loading || !query.trim()}
                 className="shrink-0 rounded-xl bg-emerald-700 hover:bg-emerald-800 disabled:opacity-50 text-white px-5 sm:px-6 font-semibold text-lg inline-flex items-center gap-2"
               >
                 <Search className="w-6 h-6" />
@@ -111,6 +178,11 @@ export default function OperacionesCreditosConsultaPage() {
               </button>
             </div>
           </label>
+          {!esPlaca && (
+            <p className="mt-3 text-sm text-gray-500 text-center">
+              Para clientes que se atienden sin placa (equipos / maquinaria).
+            </p>
+          )}
         </form>
 
         {error && (
@@ -123,9 +195,16 @@ export default function OperacionesCreditosConsultaPage() {
         {data && (
           <div className="mt-5 space-y-5">
             {bloqueado && (
-              <div className="rounded-2xl bg-red-600 text-white px-5 py-5 text-center">
-                <p className="text-2xl font-bold uppercase tracking-wide">No despachar</p>
-                <p className="text-lg mt-1 opacity-95">Perfil: {data.perfil_estado}</p>
+              <div className="rounded-2xl bg-red-600 border-2 border-red-800 text-white px-5 py-6 text-center shadow-sm">
+                <p className="text-2xl sm:text-3xl font-black uppercase tracking-wide">
+                  No despachar — {data.perfil_estado}
+                </p>
+                <p className="mt-3 text-xl font-semibold leading-snug">
+                  {motivoBloqueo || 'Sin motivo registrado. Consultar con oficina.'}
+                </p>
+                <p className="mt-2 text-base text-white/85">
+                  El crédito de este cliente está {data.perfil_estado}. No emitir guía a crédito ni anticipo.
+                </p>
               </div>
             )}
 
@@ -134,8 +213,14 @@ export default function OperacionesCreditosConsultaPage() {
               <h2 className="mt-2 text-2xl sm:text-4xl font-black text-gray-900 leading-tight">
                 {data.cliente_nombre}
               </h2>
-              <p className="mt-3 text-xl font-bold text-emerald-800 tracking-wider">{data.placa}</p>
-              {data.cliente_documento && (
+              {esPlaca ? (
+                <p className="mt-3 text-xl font-bold text-emerald-800 tracking-wider">{data.placa}</p>
+              ) : (
+                <p className="mt-3 text-xl font-bold text-emerald-800 tracking-wider">
+                  RUC {data.cliente_documento || query}
+                </p>
+              )}
+              {esPlaca && data.cliente_documento && (
                 <p className="mt-1 text-base text-gray-500">RUC/Doc. {data.cliente_documento}</p>
               )}
             </section>
@@ -147,33 +232,29 @@ export default function OperacionesCreditosConsultaPage() {
               {requisitos.length === 0 ? (
                 <div className="rounded-2xl bg-emerald-700 text-white px-5 py-6 text-center">
                   <p className="text-2xl font-bold">Sin requisitos especiales</p>
-                  <p className="text-base mt-1 opacity-90">Despacho estándar con esta placa</p>
+                  <p className="text-base mt-1 opacity-90">Despacho estándar</p>
                 </div>
               ) : (
                 <ul className="space-y-3">
-                  {requisitos.map((r, idx) => (
-                    <li
-                      key={r.id}
-                      className="rounded-2xl bg-amber-400 border-2 border-amber-500 px-5 py-5 shadow-sm"
-                    >
-                      <p className="text-2xl sm:text-3xl font-black text-amber-950 leading-tight">
-                        {idx + 1}. {r.titulo}
-                      </p>
-                      <p className="mt-2 text-lg text-amber-950/80 font-medium">{r.detalle}</p>
-                    </li>
-                  ))}
+                  {requisitos.map((r, idx) => {
+                    const t = TONO_CLS[r.tono] || TONO_CLS.amber
+                    return (
+                      <li
+                        key={r.id}
+                        className={`rounded-2xl border-2 px-5 py-5 shadow-sm ${t.box}`}
+                      >
+                        <p className={`text-2xl sm:text-3xl font-black leading-tight ${t.title}`}>
+                          {idx + 1}. {r.titulo}
+                        </p>
+                        <p className={`mt-2 text-lg font-medium ${t.detail}`}>{r.detalle}</p>
+                      </li>
+                    )
+                  })}
                 </ul>
               )}
-              {data.permite_galonera_cliente && data.placa_permite_galonera ? (
+              {galoneraOk && (
                 <p className="mt-3 text-center text-lg font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                  Galonera permitida en esta placa
-                </p>
-              ) : (
-                <p className="mt-3 text-center text-lg font-semibold text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3">
-                  No permite galoneras
-                  {data.permite_galonera_cliente && !data.placa_permite_galonera
-                    ? ' (esta placa)'
-                    : ''}
+                  Galonera permitida{esPlaca ? ' en esta placa' : ' (cliente)'}
                 </p>
               )}
             </section>

@@ -436,24 +436,32 @@ function App() {
           />
           {/* Consulta operativa grifero (NO es configuración /creditos/perfiles) */}
           <Route
-            path="/operaciones/consulta-creditos"
+            path="/operaciones/consulta-credito-placa"
             element={
               <PrivateRoute>
                 <Layout>
-                  <OperacionesCreditosConsultaPage />
+                  <OperacionesCreditosConsultaPage modo="placa" />
                 </Layout>
               </PrivateRoute>
             }
           />
           <Route
-            path="/operaciones/creditos"
+            path="/operaciones/consulta-credito-ruc"
             element={
               <PrivateRoute>
                 <Layout>
-                  <OperacionesCreditosConsultaPage />
+                  <OperacionesCreditosConsultaPage modo="ruc" />
                 </Layout>
               </PrivateRoute>
             }
+          />
+          <Route
+            path="/operaciones/consulta-creditos"
+            element={<Navigate to="/operaciones/consulta-credito-placa" replace />}
+          />
+          <Route
+            path="/operaciones/creditos"
+            element={<Navigate to="/operaciones/consulta-credito-placa" replace />}
           />
           <Route path="/creditos" element={<Navigate to="/creditos/perfiles" replace />} />
           <Route

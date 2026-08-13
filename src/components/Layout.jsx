@@ -275,24 +275,48 @@ function Layout({ children }) {
                   {sidebarOpen && <span className="text-sm font-medium truncate">Cobranzas</span>}
                 </Link>
                 <Link
-                  to="/operaciones/consulta-creditos"
+                  to="/operaciones/consulta-credito-placa"
                   onClick={(e) => {
-                    const p = '/operaciones/consulta-creditos'
+                    const p = '/operaciones/consulta-credito-placa'
                     if (location.pathname === p && navigate) {
                       e.preventDefault()
                       navigate(p, { replace: true, state: { __menuReselect: Date.now() } })
                     }
                   }}
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                    location.pathname === '/operaciones/consulta-credito-placa' ||
                     location.pathname === '/operaciones/consulta-creditos' ||
                     location.pathname === '/operaciones/creditos'
                       ? 'bg-primary-50 text-primary-600'
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}
-                  title={!sidebarOpen ? 'Consulta créditos' : ''}
+                  title={!sidebarOpen ? 'Consultar crédito por placa' : ''}
                 >
                   <CreditCard className="w-5 h-5 flex-shrink-0" />
-                  {sidebarOpen && <span className="text-sm font-medium truncate">Consulta créditos</span>}
+                  {sidebarOpen && (
+                    <span className="text-sm font-medium truncate">Consultar crédito por placa</span>
+                  )}
+                </Link>
+                <Link
+                  to="/operaciones/consulta-credito-ruc"
+                  onClick={(e) => {
+                    const p = '/operaciones/consulta-credito-ruc'
+                    if (location.pathname === p && navigate) {
+                      e.preventDefault()
+                      navigate(p, { replace: true, state: { __menuReselect: Date.now() } })
+                    }
+                  }}
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-colors ${
+                    location.pathname === '/operaciones/consulta-credito-ruc'
+                      ? 'bg-primary-50 text-primary-600'
+                      : 'text-gray-700 hover:bg-gray-100'
+                  }`}
+                  title={!sidebarOpen ? 'Consultar crédito por RUC' : ''}
+                >
+                  <CreditCard className="w-5 h-5 flex-shrink-0" />
+                  {sidebarOpen && (
+                    <span className="text-sm font-medium truncate">Consultar crédito por RUC</span>
+                  )}
                 </Link>
               </div>
             </div>
