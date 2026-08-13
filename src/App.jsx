@@ -28,6 +28,7 @@ import CentrosCostoPage from './pages/mantenimiento/CentrosCostoPage'
 import MediosPagoPage from './pages/mantenimiento/MediosPagoPage'
 import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
 import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
+import CreditosConfigPage from './pages/creditos/CreditosConfigPage'
 import KardexCombustiblePage from './pages/KardexCombustiblePage'
 import ConciliacionStockCombustiblePage from './pages/ConciliacionStockCombustiblePage'
 import GastosOperativosPage from './pages/GastosOperativosPage'
@@ -382,6 +383,58 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route
+            path="/creditos/perfiles"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <CreditosConfigPage section="perfil" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/creditos/productos"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <CreditosConfigPage section="productos" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/creditos/precios"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <CreditosConfigPage section="precios" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/creditos/placas"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <CreditosConfigPage section="placas" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route
+            path="/creditos/personas"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <CreditosConfigPage section="personas" />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route path="/operaciones/creditos" element={<Navigate to="/creditos/perfiles" replace />} />
+          <Route path="/creditos" element={<Navigate to="/creditos/perfiles" replace />} />
           <Route
             path="/consultas/kardex-combustible"
             element={

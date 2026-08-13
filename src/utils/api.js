@@ -1226,6 +1226,62 @@ export const actualizarCliente = async (id, data) => {
 }
 
 // ============================================================================
+// CRÉDITOS DE CLIENTES (módulo /api/credito)
+// ============================================================================
+
+const API_CREDITO = '/api/credito'
+
+export const getCreditoPerfil = async (clienteId) => {
+  const response = await api.get(`${API_CREDITO}/perfiles/${clienteId}`)
+  return response.data
+}
+
+export const upsertCreditoPerfil = async (clienteId, data) => {
+  const response = await api.put(`${API_CREDITO}/perfiles/${clienteId}`, data)
+  return response.data
+}
+
+export const listCreditoProductos = async (clienteId) => {
+  const response = await api.get(`${API_CREDITO}/perfiles/${clienteId}/productos`)
+  return response.data
+}
+
+export const asignarCreditoProducto = async (clienteId, data) => {
+  const response = await api.post(`${API_CREDITO}/perfiles/${clienteId}/productos`, data)
+  return response.data
+}
+
+export const listCreditoPrecios = async (clienteId) => {
+  const response = await api.get(`${API_CREDITO}/perfiles/${clienteId}/precios`)
+  return response.data
+}
+
+export const crearCreditoPrecio = async (clienteId, data) => {
+  const response = await api.post(`${API_CREDITO}/perfiles/${clienteId}/precios`, data)
+  return response.data
+}
+
+export const listCreditoPlacas = async (clienteId) => {
+  const response = await api.get(`${API_CREDITO}/perfiles/${clienteId}/placas`)
+  return response.data
+}
+
+export const crearCreditoPlaca = async (clienteId, data) => {
+  const response = await api.post(`${API_CREDITO}/perfiles/${clienteId}/placas`, data)
+  return response.data
+}
+
+export const listCreditoPersonas = async (clienteId) => {
+  const response = await api.get(`${API_CREDITO}/perfiles/${clienteId}/personas`)
+  return response.data
+}
+
+export const crearCreditoPersona = async (clienteId, data) => {
+  const response = await api.post(`${API_CREDITO}/perfiles/${clienteId}/personas`, data)
+  return response.data
+}
+
+// ============================================================================
 // CUADRE CONTABLE FINAL (Admin)
 // ============================================================================
 

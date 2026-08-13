@@ -50,6 +50,8 @@ const ICON_BY_KEY = {
   wrench: Wrench,
   fuel: Fuel,
   creditcard: CreditCard,
+  'credit-card': CreditCard,
+  store: Store,
 }
 
 function menuIconComponent(icon) {
