@@ -434,6 +434,17 @@ function App() {
               </PrivateRoute>
             }
           />
+          {/* Consulta operativa grifero (NO es configuración /creditos/perfiles) */}
+          <Route
+            path="/operaciones/consulta-creditos"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <OperacionesCreditosConsultaPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
           <Route
             path="/operaciones/creditos"
             element={
