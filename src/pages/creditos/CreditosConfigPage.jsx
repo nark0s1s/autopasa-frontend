@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CreditCard, Pencil, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react'
+import { CreditCard, Pencil, Plus, RefreshCw, Save, Trash2, Upload, X } from 'lucide-react'
 import {
+  actualizarCreditoPersona,
   asignarCreditoProducto,
   actualizarCreditoPlaca,
   crearCreditoPersona,
@@ -15,8 +16,10 @@ import {
   listCreditoPlacas,
   listCreditoPrecios,
   listCreditoProductos,
+  subirFirmaCreditoPersona,
   upsertCreditoPerfil,
 } from '../../utils/api'
+import CreditoFirmaImage from '../../components/CreditoFirmaImage'
 
 function fmt2(n) {
   const x = Number(n)
@@ -55,8 +58,9 @@ const SECTION_META = {
     blurb: 'Placas autorizadas para despacho a crédito o anticipo.',
   },
   personas: {
-    title: 'Personas autorizadas',
-    blurb: 'Personas que pueden retirar combustible y firma de referencia.',
+    title: 'Personas y firmas autorizadas',
+    blurb:
+      'Personas que retiran combustible y firmas de referencia para validar órdenes de compra / pedido en pista.',
   },
 }
 
@@ -212,10 +216,12 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
     numero_documento: '',
     cargo: '',
     telefono: '',
-    firma_url: '',
     puede_comprar: true,
     activo: true,
   })
+  const [personaEditId, setPersonaEditId] = useState(null)
+  const [personaFirmaFile, setPersonaFirmaFile] = useState(null)
+  const [personaFirmaPreview, setPersonaFirmaPreview] = useState(null)
 
   useEffect(() => {
     getClientesAdmin(true)
@@ -433,31 +439,70 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
     }
   }
 
-  const agregarPersona = async (e) => {
+  const resetPersonaForm = () => {
+    setPersonaEditId(null)
+    setPersonaFirmaFile(null)
+    if (personaFirmaPreview) URL.revokeObjectURL(personaFirmaPreview)
+    setPersonaFirmaPreview(null)
+    setPersonaForm({
+      nombres: '',
+      tipo_documento: 'DNI',
+      numero_documento: '',
+      cargo: '',
+      telefono: '',
+      puede_comprar: true,
+      activo: true,
+    })
+  }
+
+  const editarPersona = (r) => {
+    setPersonaEditId(r.id)
+    setPersonaFirmaFile(null)
+    if (personaFirmaPreview) URL.revokeObjectURL(personaFirmaPreview)
+    setPersonaFirmaPreview(null)
+    setPersonaForm({
+      nombres: r.nombres || '',
+      tipo_documento: r.tipo_documento || 'DNI',
+      numero_documento: r.numero_documento || '',
+      cargo: r.cargo || '',
+      telefono: r.telefono || '',
+      puede_comprar: r.puede_comprar !== false,
+      activo: r.activo !== false,
+    })
+  }
+
+  const onPersonaFirmaChange = (e) => {
+    const file = e.target.files?.[0] || null
+    if (personaFirmaPreview) URL.revokeObjectURL(personaFirmaPreview)
+    setPersonaFirmaFile(file)
+    setPersonaFirmaPreview(file ? URL.createObjectURL(file) : null)
+  }
+
+  const guardarPersona = async (e) => {
     e.preventDefault()
     if (!clienteId || !personaForm.nombres.trim()) return
     try {
       setSaving(true)
-      await crearCreditoPersona(clienteId, {
+      const payload = {
         nombres: personaForm.nombres.trim(),
         tipo_documento: personaForm.tipo_documento || null,
         numero_documento: personaForm.numero_documento.trim() || null,
         cargo: personaForm.cargo.trim() || null,
         telefono: personaForm.telefono.trim() || null,
-        firma_url: personaForm.firma_url.trim() || null,
         puede_comprar: !!personaForm.puede_comprar,
         activo: !!personaForm.activo,
-      })
-      setPersonaForm({
-        nombres: '',
-        tipo_documento: 'DNI',
-        numero_documento: '',
-        cargo: '',
-        telefono: '',
-        firma_url: '',
-        puede_comprar: true,
-        activo: true,
-      })
+      }
+      let personaId = personaEditId
+      if (personaEditId) {
+        await actualizarCreditoPersona(clienteId, personaEditId, payload)
+      } else {
+        const created = await crearCreditoPersona(clienteId, payload)
+        personaId = created?.id
+      }
+      if (personaFirmaFile && personaId) {
+        await subirFirmaCreditoPersona(clienteId, personaId, personaFirmaFile)
+      }
+      resetPersonaForm()
       await cargarCliente(clienteId)
     } catch (err) {
       alert(creditoDetail(err))
@@ -983,7 +1028,19 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
 
                 {section === 'personas' && !sinPerfil && (
                   <div className="space-y-4">
-                    <form onSubmit={agregarPersona} className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <form onSubmit={guardarPersona} className="bg-white border border-gray-200 rounded-xl p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div className="sm:col-span-2 flex items-center justify-between gap-2">
+                        <p className="text-xs text-gray-500">
+                          {personaEditId
+                            ? 'Editando persona — suba o reemplace la imagen de firma de referencia.'
+                            : 'Alta de persona autorizada a firmar órdenes de compra / pedido.'}
+                        </p>
+                        {personaEditId && (
+                          <button type="button" className="text-xs text-gray-600 inline-flex items-center gap-1 hover:text-gray-900" onClick={resetPersonaForm}>
+                            <X className="w-3.5 h-3.5" /> Cancelar
+                          </button>
+                        )}
+                      </div>
                       <Field label="Nombres" className="sm:col-span-2">
                         <input className={inputCls} value={personaForm.nombres} onChange={(e) => setPersonaForm((f) => ({ ...f, nombres: e.target.value }))} required />
                       </Field>
@@ -1003,12 +1060,37 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                       <Field label="Teléfono">
                         <input className={inputCls} value={personaForm.telefono} onChange={(e) => setPersonaForm((f) => ({ ...f, telefono: e.target.value }))} />
                       </Field>
-                      <Field label="URL firma referencia" className="sm:col-span-2">
-                        <input className={inputCls} value={personaForm.firma_url} onChange={(e) => setPersonaForm((f) => ({ ...f, firma_url: e.target.value }))} placeholder="https://… o path" />
+                      <Field label="Imagen de firma (referencia)" className="sm:col-span-2">
+                        <label className="flex flex-col sm:flex-row sm:items-center gap-3 border border-dashed border-gray-300 rounded-lg px-3 py-3 cursor-pointer hover:border-emerald-500">
+                          <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-800">
+                            <Upload className="w-4 h-4" />
+                            {personaFirmaFile ? personaFirmaFile.name : 'Seleccionar imagen JPG/PNG'}
+                          </span>
+                          <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={onPersonaFirmaChange} />
+                        </label>
+                        <div className="mt-3 flex flex-wrap gap-4 items-start">
+                          {personaFirmaPreview && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Nueva imagen</p>
+                              <img src={personaFirmaPreview} alt="Vista previa firma" className="h-28 max-w-xs object-contain border rounded-lg bg-white" />
+                            </div>
+                          )}
+                          {!personaFirmaPreview && personaEditId && personas.find((p) => p.id === personaEditId)?.firma_url && (
+                            <div>
+                              <p className="text-xs text-gray-500 mb-1">Firma actual</p>
+                              <CreditoFirmaImage personaId={personaEditId} alt="Firma actual" className="h-28 w-48 border rounded-lg" />
+                            </div>
+                          )}
+                        </div>
                       </Field>
+                      <label className="inline-flex items-center gap-2 text-sm">
+                        <input type="checkbox" className={checkCls} checked={personaForm.activo} onChange={(e) => setPersonaForm((f) => ({ ...f, activo: e.target.checked }))} />
+                        Activa
+                      </label>
                       <div className="sm:col-span-2 flex justify-end">
                         <button type="submit" className="btn btn-primary inline-flex items-center gap-2" disabled={saving}>
-                          <Plus className="w-4 h-4" /> Agregar persona
+                          {personaEditId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                          {personaEditId ? 'Guardar persona' : 'Agregar persona'}
                         </button>
                       </div>
                     </form>
@@ -1018,19 +1100,38 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                           <tr>
                             <th className="px-3 py-2 text-left">Nombre</th>
                             <th className="px-3 py-2 text-left">Documento</th>
-                            <th className="px-3 py-2 text-left">Cargo</th>
                             <th className="px-3 py-2 text-center">Firma</th>
                             <th className="px-3 py-2 text-center">Activo</th>
+                            <th className="px-3 py-2 text-right">Acciones</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
                           {personas.map((r) => (
-                            <tr key={r.id}>
+                            <tr key={r.id} className={personaEditId === r.id ? 'bg-emerald-50/60' : ''}>
                               <td className="px-3 py-2 font-medium">{r.nombres}</td>
                               <td className="px-3 py-2">{[r.tipo_documento, r.numero_documento].filter(Boolean).join(' ') || '—'}</td>
-                              <td className="px-3 py-2">{r.cargo || '—'}</td>
-                              <td className="px-3 py-2 text-center">{r.firma_url ? 'Sí' : 'No'}</td>
+                              <td className="px-3 py-2 text-center">
+                                {r.firma_url ? (
+                                  <div className="inline-flex flex-col items-center gap-1">
+                                    <CreditoFirmaImage personaId={r.id} alt={`Firma ${r.nombres}`} className="h-14 w-28 border rounded bg-white" />
+                                    <span className="text-xs text-emerald-700 font-medium">Registrada</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-amber-700 text-xs font-semibold">Sin firma</span>
+                                )}
+                              </td>
                               <td className="px-3 py-2 text-center">{r.activo ? 'Sí' : 'No'}</td>
+                              <td className="px-3 py-2 text-right">
+                                <button
+                                  type="button"
+                                  className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100"
+                                  title="Editar / subir firma"
+                                  onClick={() => editarPersona(r)}
+                                  disabled={saving}
+                                >
+                                  <Pencil className="w-4 h-4" />
+                                </button>
+                              </td>
                             </tr>
                           ))}
                           {personas.length === 0 && (
