@@ -21,6 +21,7 @@ import {
   upsertCreditoPerfil,
 } from '../../utils/api'
 import CreditoFirmaImage from '../../components/CreditoFirmaImage'
+import { trimWhitespaceFromFile } from '../../utils/imageContentCrop'
 
 function fmt2(n) {
   const x = Number(n)
@@ -516,11 +517,22 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
     })
   }
 
-  const onPersonaFirmaChange = (e) => {
+  const onPersonaFirmaChange = async (e) => {
     const file = e.target.files?.[0] || null
     if (personaFirmaPreview) URL.revokeObjectURL(personaFirmaPreview)
-    setPersonaFirmaFile(file)
-    setPersonaFirmaPreview(file ? URL.createObjectURL(file) : null)
+    if (!file) {
+      setPersonaFirmaFile(null)
+      setPersonaFirmaPreview(null)
+      return
+    }
+    try {
+      const trimmed = await trimWhitespaceFromFile(file)
+      setPersonaFirmaFile(trimmed)
+      setPersonaFirmaPreview(URL.createObjectURL(trimmed))
+    } catch {
+      setPersonaFirmaFile(file)
+      setPersonaFirmaPreview(URL.createObjectURL(file))
+    }
   }
 
   const guardarPersona = async (e) => {
@@ -1150,7 +1162,7 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                       </Field>
                       <Field label="Cargar firma desde esta PC" className="sm:col-span-2">
                         <p className="text-xs text-gray-500 mb-2">
-                          Elija un archivo de imagen (JPG o PNG) de su máquina. No se usa URL.
+                          Elija un JPG/PNG de su máquina. Si es un escaneo A4, se recortan automáticamente los márgenes en blanco.
                         </p>
                         <label className="flex flex-col sm:flex-row sm:items-center gap-3 border border-dashed border-gray-300 rounded-lg px-3 py-3 cursor-pointer hover:border-emerald-500">
                           <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-800">

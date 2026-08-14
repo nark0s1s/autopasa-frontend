@@ -190,11 +190,12 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
                 {pe.cargo ? ` · ${pe.cargo}` : ''}
               </p>
               {pe.tiene_firma || pe.firma_url ? (
-                <div className="mt-2 rounded-xl border-2 border-slate-200 bg-slate-50 p-2">
+                <div className="mt-2">
                   <CreditoFirmaImage
                     personaId={pe.id}
                     alt={`Firma de ${pe.nombres}`}
-                    className="w-full max-h-36 object-contain rounded-lg border border-gray-200 bg-white"
+                    interactive
+                    className="w-full"
                   />
                 </div>
               ) : (
