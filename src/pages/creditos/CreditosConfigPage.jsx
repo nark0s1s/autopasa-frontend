@@ -1162,7 +1162,8 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                       </Field>
                       <Field label="Cargar firma desde esta PC" className="sm:col-span-2">
                         <p className="text-xs text-gray-500 mb-2">
-                          Elija un JPG/PNG de su máquina. Si es un escaneo A4, se recortan automáticamente los márgenes en blanco.
+                          Elija un JPG/PNG de su máquina. Si es un escaneo A4, se recortan los márgenes en blanco
+                          guardando PNG (sin pérdida de calidad) cuando el tamaño lo permite.
                         </p>
                         <label className="flex flex-col sm:flex-row sm:items-center gap-3 border border-dashed border-gray-300 rounded-lg px-3 py-3 cursor-pointer hover:border-emerald-500">
                           <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-800">
