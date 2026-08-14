@@ -30,6 +30,7 @@ import OperacionesServicentroPage from './pages/OperacionesServicentroPage'
 import OperacionesCobranzasPage from './pages/OperacionesCobranzasPage'
 import CreditosConfigPage from './pages/creditos/CreditosConfigPage'
 import OperacionesCreditosConsultaPage from './pages/OperacionesCreditosConsultaPage'
+import PermisosPersonalPage from './pages/rrhh/PermisosPersonalPage'
 import KardexCombustiblePage from './pages/KardexCombustiblePage'
 import ConciliacionStockCombustiblePage from './pages/ConciliacionStockCombustiblePage'
 import GastosOperativosPage from './pages/GastosOperativosPage'
@@ -213,6 +214,17 @@ function App() {
               </PrivateRoute>
             }
           />
+          <Route
+            path="/rrhh/permisos-personal"
+            element={
+              <PrivateRoute>
+                <Layout>
+                  <PermisosPersonalPage />
+                </Layout>
+              </PrivateRoute>
+            }
+          />
+          <Route path="/rrhh" element={<Navigate to="/rrhh/permisos-personal" replace />} />
           <Route path="/tesoreria/cuentas-corrientes" element={<Navigate to="/tesoreria/bancos" replace />} />
           <Route
             path="/tesoreria/cajas"

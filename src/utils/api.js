@@ -1340,6 +1340,31 @@ export const fetchCreditoPersonaFirmaBlobUrl = async (personaId) => {
 }
 
 // ============================================================================
+// RRHH — Permisos del personal
+// ============================================================================
+const API_RRHH = '/api/rrhh'
+
+export const listarPermisosPersonal = async (params = {}) => {
+  const response = await api.get(`${API_RRHH}/permisos-personal`, { params })
+  return response.data
+}
+
+export const crearPermisoPersonal = async (data) => {
+  const response = await api.post(`${API_RRHH}/permisos-personal`, data)
+  return response.data
+}
+
+export const actualizarPermisoPersonal = async (id, data) => {
+  const response = await api.put(`${API_RRHH}/permisos-personal/${id}`, data)
+  return response.data
+}
+
+export const desactivarPermisoPersonal = async (id) => {
+  const response = await api.delete(`${API_RRHH}/permisos-personal/${id}`)
+  return response.data
+}
+
+// ============================================================================
 // CUADRE CONTABLE FINAL (Admin)
 // ============================================================================
 
