@@ -8,6 +8,7 @@ import {
   crearCreditoPersona,
   crearCreditoPlaca,
   crearCreditoPrecio,
+  eliminarCreditoPersona,
   eliminarCreditoPlaca,
   getClientesAdmin,
   getCreditoPerfil,
@@ -456,6 +457,25 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
       const res = await eliminarCreditoPlaca(clienteId, r.id)
       if (res?.mensaje) alert(res.mensaje)
       if (placaEditId === r.id) resetPlacaForm()
+      await cargarCliente(clienteId)
+    } catch (err) {
+      alert(creditoDetail(err))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const borrarPersona = async (r) => {
+    if (!clienteId || !r?.id) return
+    const ok = window.confirm(
+      `¿Eliminar a ${r.nombres}? Si tiene historial de despachos se desactivará en lugar de borrarse.`,
+    )
+    if (!ok) return
+    try {
+      setSaving(true)
+      const res = await eliminarCreditoPersona(clienteId, r.id)
+      if (res?.mensaje) alert(res.mensaje)
+      if (personaEditId === r.id) resetPersonaForm()
       await cargarCliente(clienteId)
     } catch (err) {
       alert(creditoDetail(err))
@@ -1193,15 +1213,26 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                               </td>
                               <td className="px-3 py-2 text-center">{r.activo ? 'Sí' : 'No'}</td>
                               <td className="px-3 py-2 text-right">
-                                <button
-                                  type="button"
-                                  className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100"
-                                  title="Editar / subir firma"
-                                  onClick={() => editarPersona(r)}
-                                  disabled={saving}
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
+                                <div className="inline-flex items-center gap-0.5">
+                                  <button
+                                    type="button"
+                                    className="p-1.5 rounded-lg text-gray-600 hover:bg-gray-100"
+                                    title="Editar / subir firma"
+                                    onClick={() => editarPersona(r)}
+                                    disabled={saving}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="p-1.5 rounded-lg text-red-600 hover:bg-red-50"
+                                    title="Eliminar"
+                                    onClick={() => borrarPersona(r)}
+                                    disabled={saving}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}

@@ -1310,6 +1310,11 @@ export const actualizarCreditoPersona = async (clienteId, personaId, data) => {
   return response.data
 }
 
+export const eliminarCreditoPersona = async (clienteId, personaId) => {
+  const response = await api.delete(`${API_CREDITO}/perfiles/${clienteId}/personas/${personaId}`)
+  return response.data
+}
+
 export const subirFirmaCreditoPersona = async (clienteId, personaId, file) => {
   const form = new FormData()
   form.append('archivo', file)
