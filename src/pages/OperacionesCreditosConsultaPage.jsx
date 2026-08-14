@@ -154,8 +154,10 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
     }
   }
 
+  const hayPersonas = (data?.personas || []).length > 0
   const mostrarPersonas =
-    data &&
+    !!data &&
+    hayPersonas &&
     (data.exige_persona_autorizada ||
       data.solicitar_orden_compra ||
       data.solicitar_orden_pedido)
@@ -175,38 +177,32 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
           </p>
         )}
       </div>
-      {(data.personas || []).length === 0 ? (
-        <p className="px-4 py-6 text-center text-base font-semibold text-red-700">
-          No hay personas/firmas registradas — avisar a oficina
-        </p>
-      ) : (
-        <ul className="divide-y divide-gray-100 max-h-[calc(100vh-8rem)] overflow-y-auto">
-          {data.personas.map((pe) => (
-            <li key={pe.id} className="px-4 py-3">
-              <p className="text-lg font-bold text-gray-900 leading-snug">{pe.nombres}</p>
-              <p className="text-sm text-gray-600 mt-0.5">
-                {[pe.tipo_documento, pe.numero_documento].filter(Boolean).join(' ') ||
-                  'Sin documento'}
-                {pe.cargo ? ` · ${pe.cargo}` : ''}
+      <ul className="divide-y divide-gray-100 max-h-[calc(100vh-8rem)] overflow-y-auto">
+        {data.personas.map((pe) => (
+          <li key={pe.id} className="px-4 py-3">
+            <p className="text-lg font-bold text-gray-900 leading-snug">{pe.nombres}</p>
+            <p className="text-sm text-gray-600 mt-0.5">
+              {[pe.tipo_documento, pe.numero_documento].filter(Boolean).join(' ') ||
+                'Sin documento'}
+              {pe.cargo ? ` · ${pe.cargo}` : ''}
+            </p>
+            {pe.tiene_firma || pe.firma_url ? (
+              <div className="mt-2">
+                <CreditoFirmaImage
+                  personaId={pe.id}
+                  alt={`Firma de ${pe.nombres}`}
+                  interactive
+                  className="w-full"
+                />
+              </div>
+            ) : (
+              <p className="mt-2 text-sm font-semibold text-red-700">
+                Sin firma en sistema — no validar contra imagen
               </p>
-              {pe.tiene_firma || pe.firma_url ? (
-                <div className="mt-2">
-                  <CreditoFirmaImage
-                    personaId={pe.id}
-                    alt={`Firma de ${pe.nombres}`}
-                    interactive
-                    className="w-full"
-                  />
-                </div>
-              ) : (
-                <p className="mt-2 text-sm font-semibold text-red-700">
-                  Sin firma en sistema — no validar contra imagen
-                </p>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
+            )}
+          </li>
+        ))}
+      </ul>
     </section>
   ) : null
 
