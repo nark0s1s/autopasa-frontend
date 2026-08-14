@@ -165,10 +165,63 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
       ? 'Firmas de referencia (órdenes)'
       : 'Personas autorizadas'
 
+  const panelFirmas = mostrarPersonas ? (
+    <section className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden lg:sticky lg:top-4">
+      <div className="px-4 py-3 bg-slate-800 text-white">
+        <h3 className="text-lg font-bold leading-tight">{tituloPersonas}</h3>
+        {(data.solicitar_orden_compra || data.solicitar_orden_pedido) && (
+          <p className="text-sm text-white/85 mt-1">
+            Compare la firma del documento con la imagen registrada
+          </p>
+        )}
+      </div>
+      {(data.personas || []).length === 0 ? (
+        <p className="px-4 py-6 text-center text-base font-semibold text-red-700">
+          No hay personas/firmas registradas — avisar a oficina
+        </p>
+      ) : (
+        <ul className="divide-y divide-gray-100 max-h-[calc(100vh-8rem)] overflow-y-auto">
+          {data.personas.map((pe) => (
+            <li key={pe.id} className="px-4 py-3">
+              <p className="text-lg font-bold text-gray-900 leading-snug">{pe.nombres}</p>
+              <p className="text-sm text-gray-600 mt-0.5">
+                {[pe.tipo_documento, pe.numero_documento].filter(Boolean).join(' ') ||
+                  'Sin documento'}
+                {pe.cargo ? ` · ${pe.cargo}` : ''}
+              </p>
+              {pe.tiene_firma || pe.firma_url ? (
+                <div className="mt-2 rounded-xl border-2 border-slate-200 bg-slate-50 p-2">
+                  <CreditoFirmaImage
+                    personaId={pe.id}
+                    alt={`Firma de ${pe.nombres}`}
+                    className="w-full max-h-36 object-contain rounded-lg border border-gray-200 bg-white"
+                  />
+                </div>
+              ) : (
+                <p className="mt-2 text-sm font-semibold text-red-700">
+                  Sin firma en sistema — no validar contra imagen
+                </p>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
+  ) : null
+
   return (
-    <div className="min-h-screen bg-[#f3f4f6] pb-12">
-      <div className="max-w-2xl mx-auto px-4 pt-6 sm:pt-10">
-        <form onSubmit={buscar} className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5 sm:p-6">
+    <div className="min-h-screen bg-[#f3f4f6] pb-8">
+      <div
+        className={`mx-auto px-4 pt-4 sm:pt-6 ${
+          mostrarPersonas ? 'max-w-6xl' : 'max-w-2xl'
+        }`}
+      >
+        <form
+          onSubmit={buscar}
+          className={`bg-white rounded-2xl shadow-sm border border-gray-200 p-4 sm:p-5 ${
+            mostrarPersonas ? 'max-w-2xl' : ''
+          }`}
+        >
           <label className="block">
             <span className="block text-base font-semibold text-gray-700 mb-2">
               {esPlaca ? 'Placa' : 'RUC / documento'}
@@ -181,7 +234,7 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
                 }
                 placeholder={esPlaca ? 'ABC123' : '20123456789'}
                 inputMode={esPlaca ? 'text' : 'numeric'}
-                className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-4 text-2xl sm:text-3xl font-bold tracking-[0.12em] uppercase text-center focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/15"
+                className="flex-1 border-2 border-gray-300 rounded-xl px-4 py-3 sm:py-4 text-2xl sm:text-3xl font-bold tracking-[0.12em] uppercase text-center focus:outline-none focus:border-emerald-600 focus:ring-4 focus:ring-emerald-600/15"
                 autoFocus
                 autoComplete="off"
               />
@@ -203,20 +256,20 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
         </form>
 
         {error && (
-          <div className="mt-5 rounded-2xl bg-red-600 text-white px-5 py-4 text-lg font-semibold flex items-center gap-3">
+          <div className="mt-4 rounded-2xl bg-red-600 text-white px-5 py-4 text-lg font-semibold flex items-center gap-3 max-w-2xl">
             <XCircle className="w-7 h-7 shrink-0" />
             {error}
           </div>
         )}
 
         {data && (
-          <div className="mt-5 space-y-5">
+          <div className="mt-4">
             {bloqueado && (
-              <div className="rounded-2xl bg-red-600 border-2 border-red-800 text-white px-5 py-6 text-center shadow-sm">
+              <div className="mb-4 rounded-2xl bg-red-600 border-2 border-red-800 text-white px-5 py-5 text-center shadow-sm">
                 <p className="text-2xl sm:text-3xl font-black uppercase tracking-wide">
                   No despachar — {data.perfil_estado}
                 </p>
-                <p className="mt-3 text-xl font-semibold leading-snug">
+                <p className="mt-2 text-xl font-semibold leading-snug">
                   {motivoBloqueo || 'Sin motivo registrado. Consultar con oficina.'}
                 </p>
                 <p className="mt-2 text-base text-white/85">
@@ -225,126 +278,91 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
               </div>
             )}
 
-            <section className="bg-white rounded-2xl shadow-sm border border-gray-200 px-5 py-6 text-center">
-              <p className="text-sm font-semibold uppercase tracking-widest text-gray-500">Empresa</p>
-              <h2 className="mt-2 text-2xl sm:text-4xl font-black text-gray-900 leading-tight">
-                {data.cliente_nombre}
-              </h2>
-              {esPlaca ? (
-                <p className="mt-3 text-xl font-bold text-emerald-800 tracking-wider">{data.placa}</p>
-              ) : (
-                <p className="mt-3 text-xl font-bold text-emerald-800 tracking-wider">
-                  RUC {data.cliente_documento || query}
-                </p>
-              )}
-              {esPlaca && data.cliente_documento && (
-                <p className="mt-1 text-base text-gray-500">RUC/Doc. {data.cliente_documento}</p>
-              )}
-            </section>
-
-            <section>
-              <h3 className="text-sm font-bold uppercase tracking-widest text-gray-500 mb-3 px-1">
-                Requerido en este despacho
-              </h3>
-              {requisitos.length === 0 ? (
-                <div className="rounded-2xl bg-emerald-700 text-white px-5 py-6 text-center">
-                  <p className="text-2xl font-bold">Sin requisitos especiales</p>
-                  <p className="text-base mt-1 opacity-90">Despacho estándar</p>
-                </div>
-              ) : (
-                <ul className="space-y-3">
-                  {requisitos.map((r, idx) => {
-                    const t = TONO_CLS[r.tono] || TONO_CLS.amber
-                    return (
-                      <li
-                        key={r.id}
-                        className={`rounded-2xl border-2 px-5 py-5 shadow-sm ${t.box}`}
-                      >
-                        <p className={`text-2xl sm:text-3xl font-black leading-tight ${t.title}`}>
-                          {idx + 1}. {r.titulo}
-                        </p>
-                        <p className={`mt-2 text-lg font-medium ${t.detail}`}>{r.detalle}</p>
-                      </li>
-                    )
-                  })}
-                </ul>
-              )}
-              {galoneraOk && (
-                <p className="mt-3 text-center text-lg font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-                  Galonera permitida{esPlaca ? ' en esta placa' : ' (cliente)'}
-                </p>
-              )}
-            </section>
-
-            <section className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="px-5 py-4 bg-emerald-800 text-white flex items-center gap-3">
-                <Fuel className="w-6 h-6" />
-                <h3 className="text-xl font-bold">Combustible permitido</h3>
-              </div>
-              {combustibles.length === 0 ? (
-                <p className="px-5 py-8 text-center text-lg text-gray-500">Ninguno configurado</p>
-              ) : (
-                <ul className="divide-y divide-gray-100">
-                  {combustibles.map((p) => (
-                    <li key={p.producto_id} className="px-5 py-5">
-                      <p className="text-2xl font-bold text-gray-900">
-                        {p.nombre || `Producto #${p.producto_id}`}
-                      </p>
-                      {p.codigo && (
-                        <p className="text-base text-gray-500 mt-0.5">{p.codigo}</p>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-
-            {mostrarPersonas && (
-              <section className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="px-5 py-4 bg-slate-800 text-white">
-                  <h3 className="text-xl font-bold">{tituloPersonas}</h3>
-                  {(data.solicitar_orden_compra || data.solicitar_orden_pedido) && (
-                    <p className="text-sm text-white/80 mt-1">
-                      Compare la firma del documento con la imagen registrada
+            <div
+              className={
+                mostrarPersonas
+                  ? 'grid grid-cols-1 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] gap-4 items-start'
+                  : 'space-y-4'
+              }
+            >
+              <div className="space-y-4 min-w-0">
+                <section className="bg-white rounded-2xl shadow-sm border border-gray-200 px-4 py-4 text-center">
+                  <p className="text-xs font-semibold uppercase tracking-widest text-gray-500">Empresa</p>
+                  <h2 className="mt-1 text-xl sm:text-3xl font-black text-gray-900 leading-tight">
+                    {data.cliente_nombre}
+                  </h2>
+                  {esPlaca ? (
+                    <p className="mt-2 text-lg font-bold text-emerald-800 tracking-wider">{data.placa}</p>
+                  ) : (
+                    <p className="mt-2 text-lg font-bold text-emerald-800 tracking-wider">
+                      RUC {data.cliente_documento || query}
                     </p>
                   )}
-                </div>
-                {(data.personas || []).length === 0 ? (
-                  <p className="px-5 py-8 text-center text-lg font-semibold text-red-700">
-                    No hay personas/firmas registradas — avisar a oficina
-                  </p>
-                ) : (
-                  <ul className="divide-y divide-gray-100">
-                    {data.personas.map((pe) => (
-                      <li key={pe.id} className="px-5 py-5">
-                        <p className="text-2xl font-bold text-gray-900">{pe.nombres}</p>
-                        <p className="text-base text-gray-600 mt-1">
-                          {[pe.tipo_documento, pe.numero_documento].filter(Boolean).join(' ') ||
-                            'Sin documento'}
-                          {pe.cargo ? ` · ${pe.cargo}` : ''}
-                        </p>
-                        {pe.tiene_firma || pe.firma_url ? (
-                          <div className="mt-4 rounded-xl border-2 border-slate-200 bg-slate-50 p-3">
-                            <p className="text-sm font-semibold text-slate-600 mb-2 uppercase tracking-wide">
-                              Firma de referencia
+                  {esPlaca && data.cliente_documento && (
+                    <p className="mt-0.5 text-sm text-gray-500">RUC/Doc. {data.cliente_documento}</p>
+                  )}
+                </section>
+
+                <section>
+                  <h3 className="text-xs font-bold uppercase tracking-widest text-gray-500 mb-2 px-1">
+                    Requerido en este despacho
+                  </h3>
+                  {requisitos.length === 0 ? (
+                    <div className="rounded-2xl bg-emerald-700 text-white px-4 py-5 text-center">
+                      <p className="text-xl font-bold">Sin requisitos especiales</p>
+                      <p className="text-sm mt-1 opacity-90">Despacho estándar</p>
+                    </div>
+                  ) : (
+                    <ul className="space-y-2">
+                      {requisitos.map((r, idx) => {
+                        const t = TONO_CLS[r.tono] || TONO_CLS.amber
+                        return (
+                          <li
+                            key={r.id}
+                            className={`rounded-2xl border-2 px-4 py-3 shadow-sm ${t.box}`}
+                          >
+                            <p className={`text-xl sm:text-2xl font-black leading-tight ${t.title}`}>
+                              {idx + 1}. {r.titulo}
                             </p>
-                            <CreditoFirmaImage
-                              personaId={pe.id}
-                              alt={`Firma de ${pe.nombres}`}
-                              className="w-full max-h-56 rounded-lg border border-gray-200"
-                            />
-                          </div>
-                        ) : (
-                          <p className="mt-3 text-lg font-semibold text-red-700">
-                            Sin firma en sistema — no validar contra imagen
+                            <p className={`mt-1 text-base font-medium ${t.detail}`}>{r.detalle}</p>
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  )}
+                  {galoneraOk && (
+                    <p className="mt-2 text-center text-base font-semibold text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                      Galonera permitida{esPlaca ? ' en esta placa' : ' (cliente)'}
+                    </p>
+                  )}
+                </section>
+
+                <section className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="px-4 py-3 bg-emerald-800 text-white flex items-center gap-2">
+                    <Fuel className="w-5 h-5" />
+                    <h3 className="text-lg font-bold">Combustible permitido</h3>
+                  </div>
+                  {combustibles.length === 0 ? (
+                    <p className="px-4 py-5 text-center text-base text-gray-500">Ninguno configurado</p>
+                  ) : (
+                    <ul className="divide-y divide-gray-100">
+                      {combustibles.map((p) => (
+                        <li key={p.producto_id} className="px-4 py-3">
+                          <p className="text-xl font-bold text-gray-900">
+                            {p.nombre || `Producto #${p.producto_id}`}
                           </p>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </section>
-            )}
+                          {p.codigo && (
+                            <p className="text-sm text-gray-500 mt-0.5">{p.codigo}</p>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </section>
+              </div>
+
+              {panelFirmas}
+            </div>
           </div>
         )}
       </div>
