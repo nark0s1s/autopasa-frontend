@@ -55,7 +55,8 @@ const SECTION_META = {
   },
   placas: {
     title: 'Placas',
-    blurb: 'Placas autorizadas para despacho a crédito o anticipo.',
+    blurb:
+      'Placas autorizadas. Opcionalmente asocie 1 o más productos; si no elige ninguno, usa todos los productos del cliente.',
   },
   personas: {
     title: 'Personas y firmas autorizadas',
@@ -208,6 +209,7 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
     descripcion: '',
     permite_galonera: false,
     activo: true,
+    producto_ids: [],
   })
   const [placaEditId, setPlacaEditId] = useState(null)
   const [personaForm, setPersonaForm] = useState({
@@ -380,9 +382,20 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
     }
   }
 
+  const productosClienteUnicos = useMemo(() => {
+    const seen = new Set()
+    const out = []
+    for (const r of productos) {
+      if (!r.activo || seen.has(r.producto_id)) continue
+      seen.add(r.producto_id)
+      out.push(r.producto_id)
+    }
+    return out
+  }, [productos])
+
   const resetPlacaForm = () => {
     setPlacaEditId(null)
-    setPlacaForm({ placa: '', descripcion: '', permite_galonera: false, activo: true })
+    setPlacaForm({ placa: '', descripcion: '', permite_galonera: false, activo: true, producto_ids: [] })
   }
 
   const editarPlaca = (r) => {
@@ -392,6 +405,17 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
       descripcion: r.descripcion || '',
       permite_galonera: !!r.permite_galonera,
       activo: r.activo !== false,
+      producto_ids: Array.isArray(r.producto_ids) ? r.producto_ids.map(Number) : [],
+    })
+  }
+
+  const togglePlacaProducto = (productoId) => {
+    const id = Number(productoId)
+    setPlacaForm((f) => {
+      const set = new Set((f.producto_ids || []).map(Number))
+      if (set.has(id)) set.delete(id)
+      else set.add(id)
+      return { ...f, producto_ids: Array.from(set) }
     })
   }
 
@@ -403,6 +427,7 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
       descripcion: placaForm.descripcion.trim() || null,
       permite_galonera: !!placaForm.permite_galonera,
       activo: !!placaForm.activo,
+      producto_ids: (placaForm.producto_ids || []).map(Number),
     }
     try {
       setSaving(true)
@@ -968,6 +993,40 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                         <input type="checkbox" className={checkCls} checked={placaForm.activo} onChange={(e) => setPlacaForm((f) => ({ ...f, activo: e.target.checked }))} />
                         Activa
                       </label>
+                      <div className="sm:col-span-2 space-y-2">
+                        <p className="text-xs font-semibold text-gray-600">Productos asociados a esta placa</p>
+                        <p className="text-xs text-gray-500">
+                          Si no marca ninguno, en consulta/despacho se usan todos los productos autorizados del cliente.
+                          Si marca uno o más, solo esos (intersección con los del cliente).
+                        </p>
+                        {productosClienteUnicos.length === 0 ? (
+                          <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            Primero asigne productos al cliente en Créditos → Productos autorizados.
+                          </p>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {productosClienteUnicos.map((pid) => {
+                              const on = (placaForm.producto_ids || []).map(Number).includes(Number(pid))
+                              return (
+                                <label
+                                  key={pid}
+                                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer ${
+                                    on ? 'border-emerald-600 bg-emerald-50 text-emerald-900' : 'border-gray-200 bg-white text-gray-700'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className={checkCls}
+                                    checked={on}
+                                    onChange={() => togglePlacaProducto(pid)}
+                                  />
+                                  {nombreProducto(pid)}
+                                </label>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
                       <div className="sm:col-span-2 flex justify-end gap-2">
                         <button type="submit" className="btn btn-primary inline-flex items-center gap-2" disabled={saving}>
                           {placaEditId ? <Save className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
@@ -981,16 +1040,24 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                           <tr>
                             <th className="px-3 py-2 text-left">Placa</th>
                             <th className="px-3 py-2 text-left">Descripción</th>
+                            <th className="px-3 py-2 text-left">Productos</th>
                             <th className="px-3 py-2 text-center">No permite gal.</th>
                             <th className="px-3 py-2 text-center">Activo</th>
                             <th className="px-3 py-2 text-right">Acciones</th>
                           </tr>
                         </thead>
                         <tbody className="divide-y divide-gray-100">
-                          {placas.map((r) => (
+                          {placas.map((r) => {
+                            const pids = Array.isArray(r.producto_ids) ? r.producto_ids : []
+                            return (
                             <tr key={r.id} className={placaEditId === r.id ? 'bg-emerald-50/60' : ''}>
                               <td className="px-3 py-2 font-medium">{r.placa}</td>
                               <td className="px-3 py-2">{r.descripcion || '—'}</td>
+                              <td className="px-3 py-2 text-xs text-gray-700">
+                                {pids.length === 0
+                                  ? <span className="text-gray-500">Todos los del cliente</span>
+                                  : pids.map((pid) => nombreProducto(pid)).join(', ')}
+                              </td>
                               <td className="px-3 py-2 text-center">{r.permite_galonera ? 'No' : 'Sí'}</td>
                               <td className="px-3 py-2 text-center">{r.activo ? 'Sí' : 'No'}</td>
                               <td className="px-3 py-2 text-right">
@@ -1016,9 +1083,10 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                                 </div>
                               </td>
                             </tr>
-                          ))}
+                            )
+                          })}
                           {placas.length === 0 && (
-                            <tr><td colSpan={5} className="px-3 py-6 text-center text-gray-500">Sin placas</td></tr>
+                            <tr><td colSpan={6} className="px-3 py-6 text-center text-gray-500">Sin placas</td></tr>
                           )}
                         </tbody>
                       </table>
@@ -1060,11 +1128,14 @@ export default function CreditosConfigPage({ section = 'perfil' }) {
                       <Field label="Teléfono">
                         <input className={inputCls} value={personaForm.telefono} onChange={(e) => setPersonaForm((f) => ({ ...f, telefono: e.target.value }))} />
                       </Field>
-                      <Field label="Imagen de firma (referencia)" className="sm:col-span-2">
+                      <Field label="Cargar firma desde esta PC" className="sm:col-span-2">
+                        <p className="text-xs text-gray-500 mb-2">
+                          Elija un archivo de imagen (JPG o PNG) de su máquina. No se usa URL.
+                        </p>
                         <label className="flex flex-col sm:flex-row sm:items-center gap-3 border border-dashed border-gray-300 rounded-lg px-3 py-3 cursor-pointer hover:border-emerald-500">
                           <span className="inline-flex items-center gap-2 text-sm font-medium text-emerald-800">
                             <Upload className="w-4 h-4" />
-                            {personaFirmaFile ? personaFirmaFile.name : 'Seleccionar imagen JPG/PNG'}
+                            {personaFirmaFile ? personaFirmaFile.name : 'Elegir imagen del equipo…'}
                           </span>
                           <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={onPersonaFirmaChange} />
                         </label>
