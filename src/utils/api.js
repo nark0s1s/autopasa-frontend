@@ -1305,6 +1305,40 @@ export const crearCreditoPersona = async (clienteId, data) => {
   return response.data
 }
 
+export const actualizarCreditoPersona = async (clienteId, personaId, data) => {
+  const response = await api.put(`${API_CREDITO}/perfiles/${clienteId}/personas/${personaId}`, data)
+  return response.data
+}
+
+export const subirFirmaCreditoPersona = async (clienteId, personaId, file) => {
+  const form = new FormData()
+  form.append('archivo', file)
+  const response = await api.post(
+    `${API_CREDITO}/perfiles/${clienteId}/personas/${personaId}/firma`,
+    form,
+    {
+      transformRequest: [(data, headers) => {
+        if (data instanceof FormData) {
+          delete headers['Content-Type']
+        }
+        return data
+      }],
+    },
+  )
+  return response.data
+}
+
+/** URL relativa API de la imagen de firma (requiere Authorization vía fetch/blob). */
+export const creditoPersonaFirmaPath = (personaId) =>
+  `${API_CREDITO}/personas/${personaId}/firma`
+
+export const fetchCreditoPersonaFirmaBlobUrl = async (personaId) => {
+  const response = await api.get(creditoPersonaFirmaPath(personaId), {
+    responseType: 'blob',
+  })
+  return URL.createObjectURL(response.data)
+}
+
 // ============================================================================
 // CUADRE CONTABLE FINAL (Admin)
 // ============================================================================

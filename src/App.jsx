@@ -440,7 +440,7 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <OperacionesCreditosConsultaPage modo="placa" />
+                  <OperacionesCreditosConsultaPage key="placa" modo="placa" />
                 </Layout>
               </PrivateRoute>
             }
@@ -450,7 +450,7 @@ function App() {
             element={
               <PrivateRoute>
                 <Layout>
-                  <OperacionesCreditosConsultaPage modo="ruc" />
+                  <OperacionesCreditosConsultaPage key="ruc" modo="ruc" />
                 </Layout>
               </PrivateRoute>
             }

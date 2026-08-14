@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Fuel, Search, XCircle } from 'lucide-react'
 import { consultarCreditoPorPlaca, consultarCreditoPorRuc } from '../utils/api'
+import CreditoFirmaImage from '../components/CreditoFirmaImage'
 
 function buildRequisitos(data, modo) {
   const items = []
@@ -111,6 +112,14 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
   const [error, setError] = useState(null)
   const [data, setData] = useState(null)
 
+  // Al cambiar placa ↔ RUC, limpiar resultado anterior (misma página, distinto modo)
+  useEffect(() => {
+    setQuery('')
+    setLoading(false)
+    setError(null)
+    setData(null)
+  }, [modo])
+
   const requisitos = useMemo(() => (data ? buildRequisitos(data, modo) : []), [data, modo])
   const combustibles = useMemo(
     () => (data?.productos || []).filter((p) => p.autorizado_cliente),
@@ -146,7 +155,15 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
   }
 
   const mostrarPersonas =
-    data && (data.exige_persona_autorizada || data.solicitar_orden_compra)
+    data &&
+    (data.exige_persona_autorizada ||
+      data.solicitar_orden_compra ||
+      data.solicitar_orden_pedido)
+
+  const tituloPersonas =
+    data?.solicitar_orden_compra || data?.solicitar_orden_pedido
+      ? 'Firmas de referencia (órdenes)'
+      : 'Personas autorizadas'
 
   return (
     <div className="min-h-screen bg-[#f3f4f6] pb-12">
@@ -285,11 +302,16 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
             {mostrarPersonas && (
               <section className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-5 py-4 bg-slate-800 text-white">
-                  <h3 className="text-xl font-bold">Personas autorizadas</h3>
+                  <h3 className="text-xl font-bold">{tituloPersonas}</h3>
+                  {(data.solicitar_orden_compra || data.solicitar_orden_pedido) && (
+                    <p className="text-sm text-white/80 mt-1">
+                      Compare la firma del documento con la imagen registrada
+                    </p>
+                  )}
                 </div>
                 {(data.personas || []).length === 0 ? (
                   <p className="px-5 py-8 text-center text-lg font-semibold text-red-700">
-                    No hay personas registradas — avisar a oficina
+                    No hay personas/firmas registradas — avisar a oficina
                   </p>
                 ) : (
                   <ul className="divide-y divide-gray-100">
@@ -299,8 +321,24 @@ export default function OperacionesCreditosConsultaPage({ modo = 'placa' }) {
                         <p className="text-base text-gray-600 mt-1">
                           {[pe.tipo_documento, pe.numero_documento].filter(Boolean).join(' ') ||
                             'Sin documento'}
-                          {pe.tiene_firma ? '' : ' · Sin firma en sistema'}
+                          {pe.cargo ? ` · ${pe.cargo}` : ''}
                         </p>
+                        {pe.tiene_firma || pe.firma_url ? (
+                          <div className="mt-4 rounded-xl border-2 border-slate-200 bg-slate-50 p-3">
+                            <p className="text-sm font-semibold text-slate-600 mb-2 uppercase tracking-wide">
+                              Firma de referencia
+                            </p>
+                            <CreditoFirmaImage
+                              personaId={pe.id}
+                              alt={`Firma de ${pe.nombres}`}
+                              className="w-full max-h-56 rounded-lg border border-gray-200"
+                            />
+                          </div>
+                        ) : (
+                          <p className="mt-3 text-lg font-semibold text-red-700">
+                            Sin firma en sistema — no validar contra imagen
+                          </p>
+                        )}
                       </li>
                     ))}
                   </ul>
