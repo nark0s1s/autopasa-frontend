@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { AlertCircle } from 'lucide-react'
@@ -13,6 +13,13 @@ import { TurnoListaMobile } from './TurnoListaMobile'
 import { TurnoDetalle } from './TurnoDetalle'
 import { TurnoDetalleMobile } from './TurnoDetalleMobile'
 
+function parseTurnoParam(searchParams) {
+  const tid = searchParams.get('turno')
+  if (!tid) return null
+  const nid = Number(tid)
+  return Number.isNaN(nid) ? null : nid
+}
+
 export default function ConsultarTurnos() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -21,9 +28,10 @@ export default function ConsultarTurnos() {
 
   const { mensaje, mostrarMensaje } = useEphemeralMessage()
 
-  const [turnoSeleccionado, setTurnoSeleccionado] = useState(null)
+  const initialTurnoId = parseTurnoParam(searchParams)
+  const [turnoSeleccionado, setTurnoSeleccionado] = useState(initialTurnoId)
   const [tabActiva, setTabActiva] = useState('lecturas')
-  const [vistaActual, setVistaActual] = useState('lista')
+  const [vistaActual, setVistaActual] = useState(initialTurnoId ? 'detalle' : 'lista')
 
   const turnoLiquidacionId = vistaActual === 'detalle' ? turnoSeleccionado : null
 
@@ -43,16 +51,19 @@ export default function ConsultarTurnos() {
     tiposVale,
     loading: loadingLista,
     setLoading: setLoadingLista,
+    catalogosCargados,
+    cargarCatalogos,
     cargarListaYCatalogos,
     recargarSoloTurnos,
   } = useTurnosGriferoCatalogos()
 
-  const [loadingInicial, setLoadingInicial] = useState(true)
+  const [loadingInicial, setLoadingInicial] = useState(!initialTurnoId)
   const [showModalCierre, setShowModalCierre] = useState(false)
   const [turnoEliminarCerrado, setTurnoEliminarCerrado] = useState(null)
   const [textoConfirmarEliminarCerrado, setTextoConfirmarEliminarCerrado] = useState('')
   const [eliminandoTurnoCerrado, setEliminandoTurnoCerrado] = useState(false)
   const [permisosApi, setPermisosApi] = useState(null)
+  const bootstrapDoneRef = useRef(false)
 
   useEffect(() => {
     if (!user) {
@@ -73,20 +84,29 @@ export default function ConsultarTurnos() {
     }
   }, [user])
 
+  // Sincroniza ?turno= → vista detalle sin disparar recargas de catálogo.
   useEffect(() => {
+    const nid = parseTurnoParam(searchParams)
+    if (nid != null) {
+      setTurnoSeleccionado(nid)
+      setVistaActual('detalle')
+    }
+  }, [searchParams])
+
+  // Bootstrap una sola vez: deep-link carga catálogos (no lista); lista carga todo.
+  useEffect(() => {
+    if (bootstrapDoneRef.current) return
+    bootstrapDoneRef.current = true
     let cancelled = false
     ;(async () => {
       try {
-        setLoadingInicial(true)
-        await cargarListaYCatalogos()
-        if (cancelled) return
-        const tid = searchParams.get('turno')
-        if (tid) {
-          const nid = Number(tid)
-          if (!Number.isNaN(nid)) {
-            setTurnoSeleccionado(nid)
-            setVistaActual('detalle')
-          }
+        const deepLinkId = parseTurnoParam(searchParams)
+        if (deepLinkId != null) {
+          // Detalle prioritario: solo catálogos de tabs; la lista se carga al volver.
+          await cargarCatalogos()
+        } else {
+          setLoadingInicial(true)
+          await cargarListaYCatalogos()
         }
       } catch (error) {
         if (!cancelled) {
@@ -100,20 +120,27 @@ export default function ConsultarTurnos() {
     return () => {
       cancelled = true
     }
-  }, [cargarListaYCatalogos, mostrarMensaje, searchParams])
+    // Intencional: solo al montar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  const pageLoading = useMemo(
-    () =>
-      loadingInicial ||
-      (Boolean(turnoLiquidacionId) && loadingTurno) ||
-      (vistaActual === 'lista' && loadingLista),
-    [loadingInicial, turnoLiquidacionId, loadingTurno, vistaActual, loadingLista]
-  )
+  const pageLoading = useMemo(() => {
+    if (vistaActual === 'detalle' && turnoLiquidacionId) {
+      // No bloquear el detalle por la lista completa ni por catálogos.
+      return loadingTurno
+    }
+    return loadingInicial || (vistaActual === 'lista' && loadingLista)
+  }, [vistaActual, turnoLiquidacionId, loadingTurno, loadingInicial, loadingLista])
 
   const cargarDetalleTurno = (id) => {
     setTurnoSeleccionado(id)
     setVistaActual('detalle')
     setSearchParams({ turno: String(id) }, { replace: true })
+    if (!catalogosCargados) {
+      cargarCatalogos().catch((error) => {
+        console.error('Error al cargar catálogos:', error)
+      })
+    }
   }
 
   const volverALista = async () => {
@@ -122,7 +149,11 @@ export default function ConsultarTurnos() {
     setSearchParams({}, { replace: true })
     try {
       setLoadingLista(true)
-      await cargarListaYCatalogos()
+      if (catalogosCargados) {
+        await recargarSoloTurnos()
+      } else {
+        await cargarListaYCatalogos()
+      }
     } catch (error) {
       console.error('Error al cargar datos:', error)
       mostrarMensaje('Error al cargar datos', 'error')
@@ -134,10 +165,10 @@ export default function ConsultarTurnos() {
   const recargarDatosLiquidacion = async () => {
     const idDetalle = turnoSeleccionado
     try {
-      await recargarSoloTurnos()
-      if (idDetalle) {
-        await cargarTurno(idDetalle, { silent: true })
-      }
+      await Promise.all([
+        recargarSoloTurnos(),
+        idDetalle ? cargarTurno(idDetalle, { silent: true }) : Promise.resolve(),
+      ])
     } catch (error) {
       console.error('Error al recargar:', error)
       mostrarMensaje('Error al recargar datos', 'error')

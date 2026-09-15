@@ -1,7 +1,6 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useMemo } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import {
-  getClientes,
   agregarVentaGuiaCreditoTurno,
   agregarVentaGuiaRemisionTurno,
   marcarGuiaCreditoPagadoTurno,
@@ -19,7 +18,6 @@ export function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
   const [lineaEdicion, setLineaEdicion] = useState(null)
   const [lineaEliminar, setLineaEliminar] = useState(null)
-  const [clientesPorId, setClientesPorId] = useState({})
 
   const lineas = esCredito
     ? (turno.ventas_guia_credito ?? turno.ventas_credito ?? [])
@@ -42,27 +40,10 @@ export function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
     return typeof det === 'string' ? det : fallback
   }
 
-  useEffect(() => {
-    let cancelled = false
-    getClientes(true)
-      .then((list) => {
-        if (cancelled || !list) return
-        const m = {}
-        list.forEach((cl) => {
-          m[cl.id] = cl
-        })
-        setClientesPorId(m)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const nombreCliente = (id) => {
-    if (id == null) return '—'
-    const cl = clientesPorId[id]
-    return cl ? cl.razon_social : `Cliente #${id}`
+  const nombreCliente = (linea) => {
+    if (linea?.cliente_razon_social) return linea.cliente_razon_social
+    if (linea?.cliente_id == null) return '—'
+    return `Cliente #${linea.cliente_id}`
   }
 
   const buildUpdateBody = (payload) => ({
@@ -158,7 +139,7 @@ export function TabVentasGuia({ turno, tipo, onReload, onMensaje }) {
             <div key={linea.id} className="card p-4">
               <div className="flex justify-between items-start gap-3">
                 <div>
-                  <p className="font-medium">{nombreCliente(linea.cliente_id)}</p>
+                  <p className="font-medium">{nombreCliente(linea)}</p>
                   <p className="text-sm text-gray-700 mt-1">S/ {parseFloat(linea.monto || 0).toFixed(2)}</p>
                   {linea.numero_documento ? (
                     <p className="text-xs text-gray-500">Doc. {linea.numero_documento}</p>

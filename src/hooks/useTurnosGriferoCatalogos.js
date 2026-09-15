@@ -17,17 +17,33 @@ export function useTurnosGriferoCatalogos() {
   const [productos, setProductos] = useState([])
   const [tiposVale, setTiposVale] = useState([])
   const [loading, setLoading] = useState(false)
+  const [catalogosCargados, setCatalogosCargados] = useState(false)
 
-  const cargarListaYCatalogos = useCallback(async () => {
-    const turnosData = await getTurnosGrifero()
-    setTurnos(turnosData)
+  const aplicarCatalogos = useCallback((productosData, tiposValeData) => {
+    setProductos(filterProductosNoCombustible(productosData))
+    setTiposVale(tiposValeData)
+    setCatalogosCargados(true)
+  }, [])
+
+  /** Solo productos + tipos de vale (para detalle deep-link sin esperar la lista). */
+  const cargarCatalogos = useCallback(async () => {
     const [productosData, tiposValeData] = await Promise.all([
       getProductos(),
       getTiposVale(),
     ])
-    setProductos(filterProductosNoCombustible(productosData))
-    setTiposVale(tiposValeData)
-  }, [])
+    aplicarCatalogos(productosData, tiposValeData)
+  }, [aplicarCatalogos])
+
+  /** Lista + catálogos en paralelo. */
+  const cargarListaYCatalogos = useCallback(async () => {
+    const [turnosData, productosData, tiposValeData] = await Promise.all([
+      getTurnosGrifero(),
+      getProductos(),
+      getTiposVale(),
+    ])
+    setTurnos(turnosData)
+    aplicarCatalogos(productosData, tiposValeData)
+  }, [aplicarCatalogos])
 
   const recargarSoloTurnos = useCallback(async () => {
     const turnosData = await getTurnosGrifero()
@@ -41,6 +57,8 @@ export function useTurnosGriferoCatalogos() {
     tiposVale,
     loading,
     setLoading,
+    catalogosCargados,
+    cargarCatalogos,
     cargarListaYCatalogos,
     recargarSoloTurnos,
   }

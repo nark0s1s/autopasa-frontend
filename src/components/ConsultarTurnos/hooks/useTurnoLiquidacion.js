@@ -4,6 +4,7 @@ import { getTurnoById, getContometrosParaTurnoGrifero } from '../../../utils/api
 /**
  * Carga turno de grifero + contómetros cuando `turnoId` está definido.
  * Si `turnoId` es null/undefined, limpia estado (vista lista).
+ * Turno y contómetros se piden en paralelo.
  */
 export function useTurnoLiquidacion(turnoId, options = {}) {
   const { onContometrosError, onTurnoError } = options
@@ -36,9 +37,16 @@ export function useTurnoLiquidacion(turnoId, options = {}) {
           setLoading(true)
           setError(null)
         }
-        const turnoData = await getTurnoById(id)
+        const [turnoData, contometrosResult] = await Promise.all([
+          getTurnoById(id),
+          getContometrosParaTurnoGrifero(id).catch((err) => {
+            console.error('Error al cargar contómetros del turno:', err)
+            onContometrosErrorRef.current?.('No se pudieron cargar los contómetros del turno')
+            return []
+          }),
+        ])
         setTurno(turnoData)
-        await cargarContometros(id)
+        setContometros(Array.isArray(contometrosResult) ? contometrosResult : [])
       } catch (err) {
         console.error('Error al cargar turno:', err)
         const msg = err?.message || 'Error al cargar turno'
@@ -51,7 +59,7 @@ export function useTurnoLiquidacion(turnoId, options = {}) {
         if (!silent) setLoading(false)
       }
     },
-    [cargarContometros]
+    []
   )
 
   const recargar = useCallback(() => {
@@ -74,19 +82,19 @@ export function useTurnoLiquidacion(turnoId, options = {}) {
       try {
         setLoading(true)
         setError(null)
-        const turnoData = await getTurnoById(turnoId)
+        const [turnoData, contometrosResult] = await Promise.all([
+          getTurnoById(turnoId),
+          getContometrosParaTurnoGrifero(turnoId).catch((err) => {
+            if (!cancelled) {
+              console.error('Error al cargar contómetros del turno:', err)
+              onContometrosErrorRef.current?.('No se pudieron cargar los contómetros del turno')
+            }
+            return []
+          }),
+        ])
         if (cancelled) return
         setTurno(turnoData)
-        try {
-          const data = await getContometrosParaTurnoGrifero(turnoId)
-          if (cancelled) return
-          setContometros(Array.isArray(data) ? data : [])
-        } catch (err) {
-          if (cancelled) return
-          console.error('Error al cargar contómetros del turno:', err)
-          setContometros([])
-          onContometrosErrorRef.current?.('No se pudieron cargar los contómetros del turno')
-        }
+        setContometros(Array.isArray(contometrosResult) ? contometrosResult : [])
       } catch (err) {
         if (cancelled) return
         console.error('Error al cargar turno:', err)
