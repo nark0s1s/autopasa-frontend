@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import {
   agregarTransferenciaBancaria,
   actualizarTransferenciaBancaria,
   eliminarTransferenciaBancaria,
-  getClientes,
-  getBancos,
 } from '../../../utils/api'
 import { turnoGriferoEsAbierto } from '../../../utils/turnoGriferoEstado'
 import { ModalTransferenciaBancaria } from '../Modals/ModalTransferenciaBancaria'
@@ -14,41 +12,17 @@ export function TabTransferenciasBancarias({ turno, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
   const [lineaEdicion, setLineaEdicion] = useState(null)
   const [lineaEliminar, setLineaEliminar] = useState(null)
-  const [clientesPorId, setClientesPorId] = useState({})
-  const [bancosPorId, setBancosPorId] = useState({})
 
   const lineas = turno.transferencias_bancarias ?? []
 
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([getClientes(true), getBancos(true)])
-      .then(([cls, bks]) => {
-        if (cancelled) return
-        const cm = {}
-        ;(cls || []).forEach((c) => {
-          cm[c.id] = c
-        })
-        setClientesPorId(cm)
-        const bm = {}
-        ;(bks || []).forEach((b) => {
-          bm[b.id] = b
-        })
-        setBancosPorId(bm)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const nombreCliente = (id) => {
-    if (id == null) return '—'
-    return clientesPorId[id]?.razon_social || `Cliente #${id}`
+  const nombreCliente = (row) => {
+    if (row?.cliente_razon_social) return row.cliente_razon_social
+    if (row?.cliente_id == null) return '—'
+    return `Cliente #${row.cliente_id}`
   }
 
   const nombreBanco = (row) => {
     if (row.banco_display) return row.banco_display
-    if (row.banco_id != null && bancosPorId[row.banco_id]) return bancosPorId[row.banco_id].nombre
     if (row.banco_otro_nombre?.trim()) return row.banco_otro_nombre.trim()
     return '—'
   }
@@ -125,7 +99,7 @@ export function TabTransferenciasBancarias({ turno, onReload, onMensaje }) {
               <div className="flex justify-between items-start gap-3">
                 <div>
                   <p className="font-medium text-gray-900">S/ {parseFloat(row.monto || 0).toFixed(2)}</p>
-                  <p className="text-sm text-gray-700 mt-0.5">Cliente: {nombreCliente(row.cliente_id)}</p>
+                  <p className="text-sm text-gray-700 mt-0.5">Cliente: {nombreCliente(row)}</p>
                   <p className="text-sm text-gray-700">Banco: {nombreBanco(row)}</p>
                   {row.observaciones ? (
                     <p className="text-xs text-gray-500 mt-1">{row.observaciones}</p>

@@ -1,7 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
 import {
-  getClientes,
   agregarDescuentoTurno,
   actualizarDescuentoTurno,
   eliminarDescuentoTurno,
@@ -13,30 +12,12 @@ export function TabDescuentos({ turno, onReload, onMensaje }) {
   const [showModal, setShowModal] = useState(false)
   const [descuentoEdicion, setDescuentoEdicion] = useState(null)
   const [descuentoEliminar, setDescuentoEliminar] = useState(null)
-  const [clientesPorId, setClientesPorId] = useState({})
   const descuentos = turno.descuentos_aplicados ?? []
 
-  useEffect(() => {
-    let cancelled = false
-    getClientes(true)
-      .then((list) => {
-        if (cancelled || !list) return
-        const m = {}
-        list.forEach((cl) => {
-          m[cl.id] = cl
-        })
-        setClientesPorId(m)
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
-  const nombreCliente = (id) => {
-    if (id == null) return '—'
-    const cl = clientesPorId[id]
-    return cl ? cl.razon_social : `Cliente #${id}`
+  const nombreCliente = (row) => {
+    if (row?.cliente_razon_social) return row.cliente_razon_social
+    if (row?.cliente_id == null) return '—'
+    return `Cliente #${row.cliente_id}`
   }
 
   const montoDescuentoDe = (d) => {
@@ -107,7 +88,7 @@ export function TabDescuentos({ turno, onReload, onMensaje }) {
             <div key={d.id} className="card p-4">
               <div className="flex justify-between items-start gap-3">
                 <div>
-                  <p className="font-medium">{nombreCliente(d.cliente_id)}</p>
+                  <p className="font-medium">{nombreCliente(d)}</p>
                   {d.motivo ? (
                     <p className="text-sm text-gray-600 mt-0.5">
                       <span className="text-gray-500">Doc. ref.:</span> {d.motivo}
