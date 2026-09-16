@@ -26,6 +26,7 @@ export default function LiquidacionGriferoDesktop({
   mostrarModal,
   setMostrarModal,
   turnosConfig,
+  cargandoConfigs,
   turnoConfigIdModal,
   setTurnoConfigIdModal,
   fechaTurnoModal,
@@ -64,7 +65,7 @@ export default function LiquidacionGriferoDesktop({
               <button
                 type="button"
                 onClick={abrirModalNuevoTurno}
-                disabled={turnoActual !== null || turnosConfig.length === 0}
+                disabled={turnoActual !== null}
                 className="btn btn-primary flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
@@ -132,7 +133,7 @@ export default function LiquidacionGriferoDesktop({
               <button
                 type="button"
                 onClick={abrirModalNuevoTurno}
-                disabled={turnosConfig.length === 0}
+                disabled={turnoActual !== null}
                 className="btn btn-primary inline-flex items-center gap-2"
               >
                 <Plus className="w-5 h-5" />
@@ -266,6 +267,7 @@ export default function LiquidacionGriferoDesktop({
         mostrarModal={mostrarModal}
         user={user}
         turnosConfig={turnosConfig}
+        cargandoConfigs={cargandoConfigs}
         turnoConfigIdModal={turnoConfigIdModal}
         setTurnoConfigIdModal={setTurnoConfigIdModal}
         fechaTurnoModal={fechaTurnoModal}

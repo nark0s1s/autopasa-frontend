@@ -58,7 +58,7 @@ export default function TabLiquidacionPorTipoTurno() {
       const hoy = hoyISO()
       const [liqs, cfgs] = await Promise.all([
         listarTurnosLiquidacion({ fecha_inicio: hoy, fecha_fin: hoy }),
-        listarTurnosConfigInfra({ activo: true }),
+        listarTurnosConfigInfra({ activo: true, include_islas: false }),
       ])
       setTurnosHoy(Array.isArray(liqs) ? liqs : [])
       setConfigsTurno(Array.isArray(cfgs) ? cfgs : [])

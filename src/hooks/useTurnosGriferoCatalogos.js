@@ -34,10 +34,10 @@ export function useTurnosGriferoCatalogos() {
     aplicarCatalogos(productosData, tiposValeData)
   }, [aplicarCatalogos])
 
-  /** Lista + catálogos en paralelo. */
+  /** Lista reciente + catálogos en paralelo (limit evita historial ilimitado). */
   const cargarListaYCatalogos = useCallback(async () => {
     const [turnosData, productosData, tiposValeData] = await Promise.all([
-      getTurnosGrifero(),
+      getTurnosGrifero({ limit: 100 }),
       getProductos(),
       getTiposVale(),
     ])
@@ -46,7 +46,7 @@ export function useTurnosGriferoCatalogos() {
   }, [aplicarCatalogos])
 
   const recargarSoloTurnos = useCallback(async () => {
-    const turnosData = await getTurnosGrifero()
+    const turnosData = await getTurnosGrifero({ limit: 100 })
     setTurnos(turnosData)
   }, [])
 

@@ -71,6 +71,7 @@ export function LiquidacionGriferoModalNuevoTurno({
   mostrarModal,
   user,
   turnosConfig,
+  cargandoConfigs = false,
   turnoConfigIdModal,
   setTurnoConfigIdModal,
   fechaTurnoModal,
@@ -116,15 +117,18 @@ export function LiquidacionGriferoModalNuevoTurno({
               className="input w-full"
               value={turnoConfigIdModal}
               onChange={(e) => setTurnoConfigIdModal(e.target.value)}
+              disabled={cargandoConfigs}
             >
-              <option value="">— Seleccione —</option>
+              <option value="">
+                {cargandoConfigs ? 'Cargando tipos de turno…' : '— Seleccione —'}
+              </option>
               {turnosConfig.map((c) => (
                 <option key={c.id} value={String(c.id)}>
                   {c.codigo} — {c.nombre}
                 </option>
               ))}
             </select>
-            {turnosConfig.length === 0 && (
+            {!cargandoConfigs && turnosConfig.length === 0 && (
               <p className="text-xs text-amber-700 mt-2">
                 No hay tipos de turno activos. Configure en Mantenimiento → Turnos (configuración).
               </p>
@@ -165,7 +169,7 @@ export function LiquidacionGriferoModalNuevoTurno({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={iniciandoTurno || !turnoConfigIdModal}
+            disabled={iniciandoTurno || cargandoConfigs || !turnoConfigIdModal}
             className="btn btn-primary flex-1 inline-flex items-center justify-center"
           >
             {iniciandoTurno ? (

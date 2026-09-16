@@ -112,6 +112,7 @@ export default function LiquidacionGriferoMobile({
   mostrarModal,
   setMostrarModal,
   turnosConfig,
+  cargandoConfigs,
   turnoConfigIdModal,
   setTurnoConfigIdModal,
   fechaTurnoModal,
@@ -124,7 +125,7 @@ export default function LiquidacionGriferoMobile({
   handleConfirmarEliminarTurno,
   irAlTurno,
 }) {
-  const puedeNuevoTurno = turnoActual === null && turnosConfig.length > 0
+  const puedeNuevoTurno = turnoActual === null
 
   return (
     <div className="min-h-screen bg-gray-50 pb-6">
@@ -213,7 +214,7 @@ export default function LiquidacionGriferoMobile({
               <button
                 type="button"
                 onClick={abrirModalNuevoTurno}
-                disabled={turnosConfig.length === 0}
+                disabled={!puedeNuevoTurno}
                 className="btn btn-primary w-full inline-flex items-center justify-center gap-2 py-2.5"
               >
                 <Plus className="w-4 h-4" />
@@ -246,6 +247,7 @@ export default function LiquidacionGriferoMobile({
         mostrarModal={mostrarModal}
         user={user}
         turnosConfig={turnosConfig}
+        cargandoConfigs={cargandoConfigs}
         turnoConfigIdModal={turnoConfigIdModal}
         setTurnoConfigIdModal={setTurnoConfigIdModal}
         fechaTurnoModal={fechaTurnoModal}
